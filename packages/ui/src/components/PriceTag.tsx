@@ -1,3 +1,4 @@
+import { usd } from '@silkgrain/contracts/money';
 import type { ReactElement } from 'react';
 
 import { cn } from '../cn';
@@ -25,11 +26,7 @@ const SIZES = {
   lg: 'text-priceLg',
 } as const;
 
-// Until Phase 2 lands Money.format(), this is the single place cents become a string.
-// eslint-disable-next-line no-restricted-syntax -- see above
-const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-const format = (cents: number): string => formatter.format(cents / 100);
+const format = (cents: number): string => usd(cents).format();
 
 /**
  * Prices are always DM Mono and always green, per the mockup. Screen readers get the plain

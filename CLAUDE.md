@@ -4,7 +4,7 @@ Read this before touching anything. It records decisions that are already made, 
 don't get re-litigated, and the local quirks that will bite you otherwise.
 
 **Where the work currently stands is in [STATE.md](STATE.md)** — phase, branch, what is
-blocked on the owner, and what Phase 2 does first. Read that too if you are picking the
+blocked on the owner, and what the next phase does first. Read that too if you are picking the
 project up cold.
 
 Rather than re-reading the 227 KB prototype: [docs/design/SCREENS.md](docs/design/SCREENS.md)
@@ -203,6 +203,13 @@ The proposed shape of `packages/contracts` is in `CONTRACTS-DRAFT.md`.
 | D-11 | The responsive handoff arrived after D-8 was taken, and it is a complete specification. Its two breakpoints (1024 / 760), gutters and touch rules are now tokens and Tailwind variants, so Phase 5 markup can carry `tablet:` and `mobile:` classes as it is written rather than being retrofitted. Whether that ships with Phase 5 or after it is the owner's call. |
 | D-9  | No logo asset yet. The wordmark is the mockup's own lockup: `grains` icon in a green tile plus `silk` (green) and `grain` (gold) in Cormorant 600. Favicon, OG image and email header wait for a real SVG.                                                                                                                                                           |
 | D-10 | Icons come from an explicit registry (`packages/ui/src/components/icon-registry.ts`). A namespace import of Phosphor measured 1.1 MB gzip; the registry brings it to 110 KB.                                                                                                                                                                                         |
+| D-12 | `sale` and `organic` are never stored as badges. `sale` is exactly "the variant has a `compare_at_price_cents`", `organic` is exactly "the product carries the organic certification". Only `bestseller`, `new` and `premium` live in `product_badges`, set by an editor. Answers Q-16.                                                                              |
+| D-13 | Reviews exist as a moderated table seeded with real copy, but customers cannot submit one until the backlog item lands. The product aggregate is `rating_total` + `review_count`, never a stored average. Answers Q-6.                                                                                                                                               |
+| D-14 | Every physical quantity is a scaled integer, like money: `weight_value_milli` (value x 1000), `weight_grams` for range filters, nutrition in milligrams. `weight_label` is the designer's string and is what the customer sees. Answers Q-13.                                                                                                                        |
+| D-15 | The refresh token is 48 random bytes, not a JWT, stored as an HMAC-SHA256 digest keyed by `JWT_REFRESH_SECRET`. It rotates on every use, and replaying a rotated token revokes the whole session family. A self-validating JWT would still need the database lookup that makes revocation possible, so it buys nothing.                                              |
+| D-16 | Argon2id comes from `@node-rs/argon2`, not the `argon2` package: prebuilt NAPI binaries install on this Windows machine without build tools. Parameters are OWASP's - 19 MiB, t=2, p=1.                                                                                                                                                                              |
+| D-17 | Migrations are forward-only. "Roll back" means `pnpm db:reset` in development and restoring the pre-deploy dump in production. Hand-written `down` migrations are the one piece of SQL nobody tests until the night it is needed. See Q-44.                                                                                                                          |
+| D-18 | There are no `carts` / `cart_items` tables. The cart lives in the client's store and `POST /api/cart/validate` is stateless - nothing in phases 3-6 would write those tables, and a table nothing writes to is a stub.                                                                                                                                               |
 
 ---
 
@@ -219,7 +226,22 @@ pnpm build              # build everything
 pnpm verify             # format:check + lint + typecheck + test + build
 ```
 
+Database, run from `apps/api`:
+
+```bash
+pnpm db:generate        # drizzle-kit generate - the only way a migration is ever written
+pnpm db:migrate         # apply everything the journal has not recorded yet
+pnpm db:reset           # drop every table and re-apply. Refuses any database but silkgrain*
+pnpm db:seed            # catalogue, content and demo commerce. Refuses a non-empty database
+pnpm db:studio          # drizzle-kit studio
+```
+
 `pnpm verify` is the gate for Phase 8 and must exit 0.
+
+The API tests are integration tests against `silkgrain_test` on the same MySQL 8 instance, not
+against a mock. Every rule worth testing — the CHECK that stock cannot go negative, the unique
+index that makes webhooks idempotent, `STRICT_TRANS_TABLES` refusing a truncated value — exists
+only in MySQL, so `pnpm test` needs `pnpm setup:services` to have run.
 
 ---
 

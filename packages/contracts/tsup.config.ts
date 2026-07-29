@@ -1,7 +1,9 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  // `money` is a second entry point so the browser can import the value object without
+  // pulling in Zod and every schema module along with it.
+  entry: ['src/index.ts', 'src/money.ts'],
   format: ['esm'],
   dts: true,
   sourcemap: true,

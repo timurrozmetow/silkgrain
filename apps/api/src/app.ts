@@ -1,12 +1,28 @@
+import { randomUUID } from 'node:crypto';
+
 import Fastify, { type FastifyInstance } from 'fastify';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 
 import type { Env } from './env';
+import { authRoutes } from './modules/auth/auth.routes';
+import { healthRoutes } from './modules/health/health.routes';
+import { authPlugin } from './plugins/auth';
+import { databasePlugin } from './plugins/database';
+import { errorHandlerPlugin } from './plugins/error-handler';
+import { redisPlugin } from './plugins/redis';
+import { requestContextPlugin } from './plugins/request-context';
+import { securityPlugin } from './plugins/security';
+import { swaggerPlugin } from './plugins/swagger';
 
 /**
- * Builds the Fastify instance without listening, so tests can drive it via `inject()`.
- * Plugins, error handling and routes are layered on in Phase 2.
+ * Builds the application without listening, so tests can drive it through `inject()` and the
+ * process entry point stays a thin wrapper around `listen`.
+ *
+ * Registration order is load-bearing: the error handler goes on first so a failure inside any
+ * later plugin is still reported in the platform's shape; request context precedes auth
+ * because the guards write into the store; Swagger goes last so it sees every route.
  */
-export function buildApp(env: Env): FastifyInstance {
+export async function buildApp(env: Env): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -18,13 +34,53 @@ export function buildApp(env: Env): FastifyInstance {
             },
           }
         : {}),
+      redact: {
+        // These reach the logger through the request serialiser and must never be persisted.
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+          'body.password',
+          'body.newPassword',
+          'body.currentPassword',
+        ],
+        censor: '[redacted]',
+      },
     },
+    // A UUID rather than Fastify's per-process counter: with several PM2 workers the counters
+    // collide, and a request id that is not unique is worse than none.
+    genReqId: () => randomUUID(),
+    requestIdHeader: 'x-request-id',
     // Trust the reverse proxy in production so rate limiting sees the real client IP.
     trustProxy: env.NODE_ENV === 'production',
     bodyLimit: 1_048_576,
+    ajv: { customOptions: { removeAdditional: false } },
   });
 
-  app.get('/health', () => ({ status: 'ok' as const }));
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+
+  await app.register(errorHandlerPlugin);
+  await app.register(requestContextPlugin);
+  await app.register(databasePlugin, {
+    url: env.DATABASE_URL,
+    poolSize: env.DATABASE_POOL_SIZE,
+  });
+  await app.register(redisPlugin, { url: env.REDIS_URL });
+  await app.register(securityPlugin, {
+    env,
+    // Tests use the in-process store: a shared Redis would carry counters between runs and
+    // turn "the eleventh login attempt is rejected" into a test that passes once.
+    redis: env.NODE_ENV === 'test' ? undefined : app.redis,
+  });
+  await app.register(authPlugin, { env });
+
+  // Swagger goes on before the routes, not after: it collects the document through an
+  // `onRoute` hook, and a route registered earlier is a route it never sees.
+  await app.register(swaggerPlugin, { env });
+
+  await app.register(healthRoutes);
+  await app.register(authRoutes, { prefix: '/api/auth' });
 
   return app;
 }

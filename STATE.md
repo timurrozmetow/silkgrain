@@ -6,8 +6,8 @@ Updated 2026-07-29. Read this first after any context loss, then `CLAUDE.md` for
 
 ## Position
 
-**Branch:** `phase/0-foundation`. `main` has no commits yet — the branch is merged there once
-the owner accepts the work.
+**Branch:** `phase/2-backend-core`. `main` has no commits yet — branches merge there once the
+owner accepts the work.
 
 | Commit    | What                                                             |
 | --------- | ---------------------------------------------------------------- |
@@ -15,59 +15,88 @@ the owner accepts the work.
 | `ef0acbe` | The responsive design handoff, committed unmodified              |
 | `bfae409` | Phase 1 — design system                                          |
 | `187c166` | Responsive breakpoints wired into tokens and the Tailwind preset |
+| `f1db2b8` | The design handoff distilled into docs                           |
+| _HEAD_    | Phase 2 — backend core                                           |
 
-**Phases 0 and 1 are complete and verified.** `pnpm verify` exits 0: 84 tests, zero lint
-warnings, zero type errors. Storefront bundle 110 KB gzip against a 250 KB budget.
+**Phases 0, 1 and 2 are complete and verified.** `pnpm verify` exits 0: 142 tests
+(43 contracts + 41 api + 58 ui), zero lint warnings, zero type errors. Storefront bundle
+110 KB gzip against a 250 KB budget.
 
-**Next: Phase 2 — backend core.** Fastify app, Drizzle schema, migrations, seeds, auth,
-Swagger. See `PLAN.md`.
+**Next: Phase 3 — catalogue and cart API.** See `PLAN.md`.
 
 ---
 
 ## Blocked on the owner
 
-1. **Phase 1 acceptance.** The design system is done and reported; the process in
-   `CLAUDE-CODE-PROMPT.md` says a phase is not left until the owner confirms.
-2. **QUESTIONS.md Q-33 — when the responsive pass happens.** The specification now exists.
-   Writing `tablet:` and `mobile:` classes while Phase 5 markup is authored costs 8–12 h;
-   retrofitting them across sixteen finished screens costs 30–40 h. Recommended: do it inline.
-3. **Everything in QUESTIONS.md still marked `[ФАЗА 2]`** — Q-6 reviews, Q-12 how many
-   products to seed, Q-13 weight units, Q-15 origin, Q-16 badges versus certifications. These
-   decide enum shapes, so answers are wanted before the schema is written rather than after.
+1. **Phase 2 acceptance.** Reported; the process in `CLAUDE-CODE-PROMPT.md` says a phase is not
+   left until the owner confirms.
+2. **QUESTIONS.md Q-33 — when the responsive pass happens.** Writing `tablet:` and `mobile:`
+   classes while Phase 5 markup is authored costs 8–12 h; retrofitting them across sixteen
+   finished screens costs 30–40 h. Recommended: inline.
+3. **Q-43 — nutrition label data.** The Nutrition Facts panel is seeded with category-level
+   reference values. Real per-SKU figures have to come from the supplier's certificate of
+   analysis before the store takes a real order; that is an FDA requirement, not polish.
+4. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
+   answered in place in `QUESTIONS.md` and recorded as D-12…D-18 in `CLAUDE.md`. They shaped
+   the schema, so reversing one now costs a migration.
 
 ---
 
 ## What exists
 
 ```
-apps/api        Fastify 4, /health, env validated at boot. Nothing else yet.
+apps/api        Fastify 4. Plugins, error handler, Drizzle schema (32 tables), migrations,
+                seeds, auth, /health, /ready, Swagger on /docs. No business endpoints yet.
 apps/web        Vite 5 + React 18. src/App.tsx is a design-system preview page, not the
                 storefront; Phase 5 replaces it.
 apps/admin      Vite 5 + React 18 shell.
 packages/ui     The design system. 22 components, tokens, Tailwind preset, Storybook.
-packages/contracts  primitives.ts and errors.ts only. Money, catalog, cart, checkout,
-                    order and wholesale schemas are Phase 2+ — the shape is drafted in
-                    CONTRACTS-DRAFT.md and not yet approved.
+packages/contracts  primitives, errors, enums, Money, pagination, auth schemas. Catalog,
+                    cart, checkout, order and wholesale schemas arrive with the phases that
+                    serve them; the shape is drafted in CONTRACTS-DRAFT.md.
 packages/config eslint, prettier, tsconfig bases.
 docs/design     SCREENS.md and catalog.json, both distilled from the mockup.
 ```
+
+### The API, briefly
+
+```
+src/app.ts                    buildApp(env) - returns an un-listened instance for inject()
+src/env.ts                    Zod-validated at boot; only variables the code reads
+src/plugins/                  error-handler, request-context, database, redis, security, auth, swagger
+src/db/schema/                catalog, orders, customers, wholesale, content, system + columns.ts
+src/db/{migrate,reset,seed}   forward-only migrations, a guarded drop, a deterministic seed
+src/modules/auth/             routes, service, tokens
+src/modules/health/           /health and /ready
+src/test/harness.ts           integration harness against silkgrain_test
+```
+
+Registration order in `buildApp` is load-bearing and commented there: error handler first,
+request context before auth, **Swagger before the routes** (it collects the document through
+an `onRoute` hook, so a route registered earlier is a route it never sees).
 
 ### Things worth knowing before touching them
 
 - **One ESLint config, at the repo root.** ESLint 9 resolves a single flat config from the
   working directory, so per-package configs left lint-staged reporting every staged file as
   ignored. Packages have no `lint` script; `pnpm lint` runs once from the root.
+- **`no-misused-promises` has `checksVoidReturn.properties: false` for `apps/api`.** Fastify's
+  route-option hook types default to the callback overload returning `void`, so a correct
+  async guard passed to `onRequest` is otherwise reported as a misused promise.
 - **Icons come from `packages/ui/src/components/icon-registry.ts`.** A namespace import of
-  Phosphor measured 1.1 MB gzip. Adding an icon is one line there, and `IconName` is typed
-  against the registry so a typo is a compile error.
+  Phosphor measured 1.1 MB gzip.
 - **`CONTRAST_PAIRS` in `packages/ui/src/tokens.ts` is a contract**, asserted by
   `tokens.test.ts`. A component cannot introduce a new foreground/background pair without
-  declaring it. See decision D-7 for which tokens moved and why gold did not.
-- **`PriceTag` formats currency with a local `Intl.NumberFormat`** and an ESLint suppression.
-  Phase 2 introduces `Money.format()` in `packages/contracts`; that suppression comes out then.
-- **`packages/ui/src/tokens.ts` has only two breakpoints**, 1024 and 760, because that is what
-  the handoff specifies. They are Tailwind's `tablet:` and `mobile:` variants, and they replace
-  Tailwind's own scale rather than extending it.
+  declaring it. See D-7.
+- **`Money` is exported on its own subpath**, `@silkgrain/contracts/money`, so the browser can
+  format a price without pulling Zod and every schema into the bundle. `PriceTag` uses it, and
+  it is the only place in the repository allowed to construct an `Intl.NumberFormat`.
+- **The seed refuses a non-empty database and `db:reset` refuses a database not named
+  `silkgrain*`.** Both are deliberate; a mistyped `DATABASE_URL` cannot empty something else.
+- **Two failures found by the Phase 2 tests, both fixed, both worth remembering:** throwing out
+  of a Drizzle transaction rolls back the revocation the rejection was there to perform, and
+  `@fastify/rate-limit` _throws_ whatever `errorResponseBuilder` returns, so returning a plain
+  object produces a 500 instead of a 429.
 
 ---
 
@@ -92,6 +121,10 @@ powershell -File scripts/dev-setup.ps1 -Action stop
 XAMPP's MariaDB stays on 3306 and is not used by this project. Never point the app at it: it
 runs without `STRICT_TRANS_TABLES`, so bad data is truncated instead of rejected.
 
+`.env` is gitignored and already exists on this machine with real JWT secrets. Seeded admin
+accounts are `owner@silkgrain.local`, `manager@…`, `support@…`, password `SilkGrainDev!2026` —
+development only, printed by `pnpm db:seed`.
+
 ---
 
 ## Design source
@@ -103,43 +136,50 @@ Rather than re-read the 227 KB prototype:
 
 - `docs/design/SCREENS.md` — every screen's structure, the global chrome, and which parts have
   no design at all.
-- `docs/design/catalog.json` — sixteen products, six categories and the demo cart, extracted
-  verbatim. Regenerate with `node scripts/extract-design-data.mjs` after any new handoff; the
-  diff shows exactly what the designer changed.
+- `docs/design/catalog.json` — sixteen products, six categories, the demo cart, six recipes,
+  five FAQ entries, five wholesale enquiries and seven demo orders, extracted verbatim.
+  Regenerate with `node scripts/extract-design-data.mjs` after any new handoff; the diff shows
+  exactly what the designer changed.
 
 ---
 
-## Phase 2 plan, concretely
+## Phase 3 plan, concretely
 
 From `PLAN.md`, adjusted for what is now known.
 
-1. Fastify plugins: helmet, cors whitelist, compress, sensible, rate-limit, request-context
-   with `requestId`; pino; graceful shutdown.
-2. Error handler emitting `{ error: { code, message, details? } }` from the existing
-   `ErrorCode` enum and `ERROR_STATUS` map in `packages/contracts/src/errors.ts`.
-3. `Money` in `packages/contracts` — the draft in `CONTRACTS-DRAFT.md` §2, including
-   `allocate` for splitting a bundle discount across order lines without losing a cent.
-4. Drizzle schema: the twenty tables from the brief plus `reviews`, `shipping_rates`,
-   `audit_log`, `contact_messages`, `settings`, `faqs`, `tags`. Explicit
-   `utf8mb4_unicode_ci`, `BIGINT` for money, a check that stock cannot go negative.
-5. Migrations via `drizzle-kit generate`, applied and rolled back against MySQL 8.0.42
-   on 3307.
-6. Seeds from `docs/design/catalog.json`, extended to 30+ products. Shipping rates seeded from
-   decision D-2: Standard $7.99 free from $75, Express $12.99, Overnight $24.99. Promo code
-   `WELCOME10`.
-7. Auth: Argon2id, JWT access 15 min plus rotating refresh 30 d stored hashed, separate
-   customer and admin contexts, hard rate limit on `/auth/*`.
-8. `/health` and `/ready`, Swagger UI on `/docs` generated from the Zod schemas.
-9. Vitest against `silkgrain_test`, integration tests for the whole auth flow.
+1. `packages/contracts/src/modules/catalog.ts` — `ProductCard` as its own schema with
+   `ProductDetail` extending it, so a grid of sixteen cards does not carry nutrition and story.
+   `badges` in the output is the derived union: stored editorial badges plus `sale` from
+   `compare_at_price_cents` and `organic` from the certification.
+2. `GET /api/categories` — tree with counts computed from the database, not the mockup's
+   hard-coded 24/18/12/9/7/5.
+3. `GET /api/products` — filters (category, origin, certification, weight label, price range
+   over variants, badges), sorts (featured, price asc/desc, newest, bestselling by
+   `sold_count`), pagination, and the `priceFrom`/`priceTo` aggregate the card shows.
+4. `GET /api/products/:slug` — variants, images, nutrition, certifications, published reviews
+   with the five-star histogram, and "You May Also Like" from the same category.
+5. `GET /api/search/suggest` — six results, name and category, plus popular terms.
+6. `POST /api/cart/validate` — recompute everything from `product_variants`. The client sends
+   `variantId` and `qty` only; there is no field to put a price in, and the schema is
+   `.strict()`, so a forged price is a 422 before any handler runs.
+7. Promo codes — percent (basis points), fixed, free shipping; `min_order_cents`,
+   `max_discount_cents`, date window, global and per-customer limits against
+   `promo_redemptions`.
+8. Shipping rates from the database plus the "You're $X away from free shipping" progress.
+9. Tests: filtering, sorting, pagination, cart recalculation, a forged price, promo edge cases
+   (boundary subtotal, expired, exhausted, per-customer limit).
 
-Acceptance: migrations apply and roll back, seeds populate, auth tests pass, `/docs` renders.
+Acceptance: filtering and cart-recalculation tests green; a forged price returns 422.
 
 ---
 
 ## Decisions already taken
 
-The table lives in `CLAUDE.md`. In short: Premium palette; shipping rates in the database;
-order numbers `SG-YYYY-NNNNN`; estimated tax shown in the cart with Stripe Tax authoritative
-at checkout; the simplified wholesale form; portable local services on MySQL 8; nine tokens
-darkened for contrast with gold kept as decoration only; desktop-first with the responsive
-pass pending a scheduling call; no logo asset yet; icons from an explicit registry.
+The table lives in `CLAUDE.md`, D-1 through D-18. In short: Premium palette; shipping rates in
+the database; order numbers `SG-YYYY-NNNNN`; estimated tax in the cart with Stripe Tax
+authoritative at checkout; the simplified wholesale form; portable local services on MySQL 8;
+nine tokens darkened for contrast with gold kept as decoration only; desktop-first with the
+responsive pass pending a scheduling call; no logo asset yet; icons from an explicit registry;
+derived badges never stored; moderated reviews without customer input yet; scaled integers for
+every physical quantity; opaque rotating refresh tokens; `@node-rs/argon2`; forward-only
+migrations; no `carts` table.

@@ -556,5 +556,201 @@
       "weight": "4 oz",
       "qty": 3
     }
+  ],
+  "recipes": [
+    {
+      "title": "Uzbek Lamb Plov",
+      "time": "90 min",
+      "level": "Intermediate",
+      "cat": "Rice & Grains",
+      "img": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=1000&q=80",
+      "blurb": "The national dish — devzira rice, lamb, carrots and a whole head of garlic."
+    },
+    {
+      "title": "Mosh-Kichiri",
+      "time": "55 min",
+      "level": "Easy",
+      "cat": "Lentils & Legumes",
+      "img": "https://images.unsplash.com/photo-1515543904379-3d757afe72e4?w=900&q=80",
+      "blurb": "Comforting mung bean and rice porridge, slow-simmered with cumin."
+    },
+    {
+      "title": "Samarkand Non",
+      "time": "3 hrs",
+      "level": "Advanced",
+      "cat": "Flour & Seeds",
+      "img": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=900&q=80",
+      "blurb": "Tandoor-style flatbread crowned with sesame and nigella."
+    },
+    {
+      "title": "Dried Fruit Compote",
+      "time": "30 min",
+      "level": "Easy",
+      "cat": "Dried Fruits",
+      "img": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=900&q=80",
+      "blurb": "Apricots, raisins and plums simmered into a fragrant winter drink."
+    },
+    {
+      "title": "Lagman Hand-Pulled Noodles",
+      "time": "2 hrs",
+      "level": "Advanced",
+      "cat": "Ready Mixes",
+      "img": "https://images.unsplash.com/photo-1605522561233-768ad7a8fabf?w=900&q=80",
+      "blurb": "Stretchy noodles in a spiced beef-and-pepper broth."
+    },
+    {
+      "title": "Saffron Rice Pilaf",
+      "time": "40 min",
+      "level": "Easy",
+      "cat": "Rice & Grains",
+      "img": "https://images.unsplash.com/photo-1516684732162-798a0062be99?w=900&q=80",
+      "blurb": "Golden, aromatic rice perfumed with hand-picked saffron."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Where do you ship from, and how long does it take?",
+      "a": "Every order ships from our Houston, TX warehouse within 48 hours. Standard delivery is 3–5 business days anywhere in the continental US; express and overnight options are available at checkout."
+    },
+    {
+      "q": "Are your grains organic and lab-tested?",
+      "a": "All products are all-natural, and every batch is lab-tested for purity before it clears import. Items certified organic carry an Organic badge on their product page."
+    },
+    {
+      "q": "What is your return policy?",
+      "a": "If anything arrives damaged or you’re not satisfied, contact us within 30 days for a replacement or full refund — no need to ship the product back."
+    },
+    {
+      "q": "Do you offer wholesale or bulk pricing?",
+      "a": "Yes. We supply restaurants, grocers and distributors with volume pricing from a 50 lb minimum. Submit the wholesale form and an account manager replies within one business day."
+    },
+    {
+      "q": "How should I store rice and grains?",
+      "a": "Keep them in a cool, dry place in an airtight container. Stored properly, our aged rice keeps for 12–18 months and only improves with rest."
+    }
+  ],
+  "wholesaleRequests": [
+    {
+      "date": "Jun 25",
+      "biz": "Samarkand Grill",
+      "type": "Restaurant",
+      "vol": "200 lbs/mo",
+      "prod": "Rice, Spices",
+      "status": "New",
+      "sc": "#B85C38",
+      "sb": "#FBEAE3"
+    },
+    {
+      "date": "Jun 24",
+      "biz": "Caspian Foods Inc.",
+      "type": "Distributor",
+      "vol": "2,000 lbs/mo",
+      "prod": "Rice, Lentils",
+      "status": "Contacted",
+      "sc": "#D3A73B",
+      "sb": "#F1E7D4"
+    },
+    {
+      "date": "Jun 22",
+      "biz": "Green Valley Market",
+      "type": "Grocery",
+      "vol": "500 lbs/mo",
+      "prod": "Dried Fruits",
+      "status": "Converted",
+      "sc": "#4C7A5A",
+      "sb": "#E7F0E9"
+    },
+    {
+      "date": "Jun 20",
+      "biz": "Silk Route Catering",
+      "type": "Meal Kit",
+      "vol": "350 lbs/mo",
+      "prod": "Mixes, Rice",
+      "status": "New",
+      "sc": "#B85C38",
+      "sb": "#FBEAE3"
+    },
+    {
+      "date": "Jun 18",
+      "biz": "Bazaar Bistro",
+      "type": "Restaurant",
+      "vol": "120 lbs/mo",
+      "prod": "Spices",
+      "status": "Declined",
+      "sc": "#6B6456",
+      "sb": "#EEE9DD"
+    }
+  ],
+  "demoOrders": [
+    {
+      "no": "SG-2025-08412",
+      "date": "Jun 25",
+      "cust": "Dilshod Rakhimov",
+      "items": "3",
+      "total": "$73.07",
+      "status": "Processing",
+      "sc": "#D3A73B",
+      "sb": "#F1E7D4"
+    },
+    {
+      "no": "SG-2025-08411",
+      "date": "Jun 25",
+      "cust": "Maria Hernandez",
+      "items": "2",
+      "total": "$48.50",
+      "status": "Shipped",
+      "sc": "#0E6B4A",
+      "sb": "#E7F0E9"
+    },
+    {
+      "no": "SG-2025-08410",
+      "date": "Jun 24",
+      "cust": "Aziz Karimov",
+      "items": "8",
+      "total": "$214.00",
+      "status": "Pending",
+      "sc": "#B85C38",
+      "sb": "#FBEAE3"
+    },
+    {
+      "no": "SG-2025-08409",
+      "date": "Jun 24",
+      "cust": "Nargiza Saidova",
+      "items": "1",
+      "total": "$24.00",
+      "status": "Delivered",
+      "sc": "#6B6456",
+      "sb": "#EEE9DD"
+    },
+    {
+      "no": "SG-2025-08408",
+      "date": "Jun 23",
+      "cust": "Tom Whitfield",
+      "items": "4",
+      "total": "$96.25",
+      "status": "Shipped",
+      "sc": "#0E6B4A",
+      "sb": "#E7F0E9"
+    },
+    {
+      "no": "SG-2025-08407",
+      "date": "Jun 23",
+      "cust": "Laila Yusupova",
+      "items": "6",
+      "total": "$152.40",
+      "status": "Processing",
+      "sc": "#D3A73B",
+      "sb": "#F1E7D4"
+    },
+    {
+      "no": "SG-2025-08406",
+      "date": "Jun 22",
+      "cust": "David Brooks",
+      "items": "2",
+      "total": "$39.00",
+      "status": "Cancelled",
+      "sc": "#B85C38",
+      "sb": "#FBEAE3"
+    }
   ]
 }
