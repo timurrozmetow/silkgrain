@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+coverage/
+storybook-static/
+playwright-report/
+.turbo/
+.services/
+pnpm-lock.yaml
+
+# Design handoff is read-only source material — never reformat it.
+silkgrain-design-prompt/

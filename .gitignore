@@ -1,0 +1,58 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+storybook-static/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env — never commit real secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# uploads and generated media
+uploads/
+apps/api/uploads/
+
+# database dumps and backups
+*.sql
+*.sql.gz
+*.dump
+backups/
+
+# local portable dev services (mysql, redis, mailpit, minio)
+.services/
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors / os
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# misc
+.eslintcache
+.cache/
+tmp/

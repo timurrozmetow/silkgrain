@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10 blocks lifecycle scripts by default. These two need theirs:
+# esbuild downloads its platform binary, unrs-resolver its native resolver.
+onlyBuiltDependencies:
+  - esbuild
+  - unrs-resolver

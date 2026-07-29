@@ -1,0 +1,10 @@
+{
+  "extends": "@silkgrain/config/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tsup.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

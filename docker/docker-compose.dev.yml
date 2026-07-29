@@ -1,0 +1,93 @@
+# Development dependencies for SilkGrain.
+#
+# NOTE: the current development machine has no Docker installed, so day-to-day work uses
+# `scripts/dev-setup.ps1`, which provisions the same four services as portable Windows
+# binaries under `.services/`. This file is the reference topology and is what CI uses.
+# Ports, credentials and versions are kept identical between the two paths on purpose.
+
+name: silkgrain-dev
+
+services:
+  mysql:
+    image: mysql:8.0.42
+    container_name: silkgrain-mysql
+    restart: unless-stopped
+    command:
+      - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-silkgrain_dev_only}
+      MYSQL_DATABASE: silkgrain
+    ports:
+      # 3307 on the host: XAMPP's MariaDB already owns 3306 on the dev machine.
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-p${MYSQL_ROOT_PASSWORD:-silkgrain_dev_only}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: silkgrain-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: silkgrain-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web UI
+
+  minio:
+    image: minio/minio:latest
+    container_name: silkgrain-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-silkgrain}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-silkgrain-dev-secret}
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  mysql-data:
+  redis-data:
+  minio-data:
