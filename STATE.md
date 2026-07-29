@@ -30,15 +30,18 @@ owner accepts the work.
 
 1. **Phase 2 acceptance.** Reported; the process in `CLAUDE-CODE-PROMPT.md` says a phase is not
    left until the owner confirms.
-2. **QUESTIONS.md Q-33 — when the responsive pass happens.** Writing `tablet:` and `mobile:`
-   classes while Phase 5 markup is authored costs 8–12 h; retrofitting them across sixteen
-   finished screens costs 30–40 h. Recommended: inline.
-3. **Q-43 — nutrition label data.** The Nutrition Facts panel is seeded with category-level
-   reference values. Real per-SKU figures have to come from the supplier's certificate of
-   analysis before the store takes a real order; that is an FDA requirement, not polish.
-4. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
+2. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
    answered in place in `QUESTIONS.md` and recorded as D-12…D-18 in `CLAUDE.md`. They shaped
    the schema, so reversing one now costs a migration.
+
+Answered on 2026-07-29, nothing left to ask:
+
+- **Q-33 — the responsive pass ships inline with Phase 5** (D-19, supersedes D-8). Every screen
+  is written with `tablet:` and `mobile:` classes from the start, and Phase 5 acceptance runs
+  Lighthouse on mobile as well as desktop. The backlog entry is gone; Phase 5 stays at 70–90 h.
+- **Q-43 — nutrition data is entered in the admin panel** (D-20). The seed's category-level
+  reference values stand in until then. Phase 7's product form grows a full Nutrition Facts
+  section and a migration marking which rows were entered by hand; task 7.3 goes 10 h → 12 h.
 
 ---
 

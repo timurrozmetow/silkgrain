@@ -54,15 +54,13 @@ Needs `customer_addresses`, Stripe Customer + SetupIntent, and a card management
 
 ---
 
-### Responsive layouts
+### ~~Responsive layouts~~ — moved back into Phase 5
 
-Deferred by decision: the storefront ships desktop-first at 1280 and the responsive pass comes
-later. The handoff contains no mobile mockups, so the small-screen design has to be derived
-rather than transcribed - see QUESTIONS.md Q-33 for the layout rules already sketched out.
-
-Breakpoint tokens are already in `packages/ui/src/tokens.ts` and nothing in the components
-hard-codes a viewport, so this is additive work rather than a rewrite.
-**Estimate 30–40 h**, plus mobile Lighthouse and a second pass over the overlays.
+No longer deferred. The `for adaptive/` handoff turned out to be a complete responsive
+specification, and the owner's call on 2026-07-29 (decision D-19) is to write `tablet:` and
+`mobile:` classes as each screen is built rather than retrofit them afterwards. That is
+8–12 h inside Phase 5 against 30–40 h as a separate pass. Phase 5 acceptance now runs
+Lighthouse on mobile as well as desktop.
 
 ---
 
@@ -128,6 +126,7 @@ phase in `PLAN.md`.
 - Real company contact details. The mockup uses `(713) 555-0148` and `2200 Silk Road Blvd`,
   both placeholders (Q-9).
 - Privacy Policy, Terms of Service, Shipping Policy, Return Policy (Q-10).
-- Mobile layouts. The handoff contains desktop only; the responsive design is being derived,
-  not transcribed (Q-33).
 - Contrast fixes for four design tokens that fail WCAG 4.5:1 (Q-42).
+- Per-SKU nutrition data. The seed carries category-level reference values; the real figures
+  come from the supplier's certificate of analysis and are entered in the admin product form
+  (Q-43, D-20). Required by the FDA before the store takes a real order.
