@@ -1,0 +1,27 @@
+/*
+ * Self-hosted webfonts.
+ *
+ * @fontsource rather than the Google Fonts CDN the mockup uses: it removes a third-party
+ * request from the critical path and stops every visitor's IP reaching Google. Only the
+ * latin subset and only the weights the design actually uses.
+ */
+
+/* Cormorant Garamond - hero headlines, product names, card titles */
+@import '@fontsource/cormorant-garamond/latin-500.css';
+@import '@fontsource/cormorant-garamond/latin-600.css';
+@import '@fontsource/cormorant-garamond/latin-700.css';
+@import '@fontsource/cormorant-garamond/latin-500-italic.css';
+
+/* DM Serif Display - section and admin headings. The family ships a single weight. */
+@import '@fontsource/dm-serif-display/latin-400.css';
+@import '@fontsource/dm-serif-display/latin-400-italic.css';
+
+/* Inter - all UI copy */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+
+/* DM Mono - prices, counters, SKUs, eyebrows */
+@import '@fontsource/dm-mono/latin-400.css';
+@import '@fontsource/dm-mono/latin-500.css';

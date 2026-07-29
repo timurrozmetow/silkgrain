@@ -1,0 +1,90 @@
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background: theme('colors.parchment');
+    color: theme('colors.ink.DEFAULT');
+    font-family: theme('fontFamily.sans');
+  }
+
+  ::selection {
+    background: theme('colors.gold.DEFAULT');
+    color: theme('colors.green.deep');
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.line.DEFAULT');
+    border-radius: 6px;
+    border: 3px solid theme('colors.parchment');
+  }
+
+  /*
+   * A visible focus ring on every interactive element. The mockup omits focus states
+   * entirely, and the spec requires full keyboard operability.
+   */
+  :focus-visible {
+    outline: 2px solid theme('colors.green.DEFAULT');
+    outline-offset: 2px;
+    border-radius: theme('borderRadius.sm');
+  }
+
+  /* Headings inherit the display face; sizes come from the type scale, not from defaults. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: inherit;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+@layer components {
+  /* Keyboard users need a way past the header, mega-menu and filter sidebar. */
+  .sg-skip-link {
+    @apply sr-only;
+  }
+
+  .sg-skip-link:focus {
+    @apply not-sr-only fixed left-4 top-4 z-toast rounded-md bg-green px-4 py-3 text-bodySm font-semibold text-white;
+  }
+}
+
+/*
+ * Every animation in the design system is decorative. Honour the OS setting rather than
+ * asking each component to remember.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

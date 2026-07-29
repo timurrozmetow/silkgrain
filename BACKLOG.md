@@ -54,6 +54,18 @@ Needs `customer_addresses`, Stripe Customer + SetupIntent, and a card management
 
 ---
 
+### Responsive layouts
+
+Deferred by decision: the storefront ships desktop-first at 1280 and the responsive pass comes
+later. The handoff contains no mobile mockups, so the small-screen design has to be derived
+rather than transcribed - see QUESTIONS.md Q-33 for the layout rules already sketched out.
+
+Breakpoint tokens are already in `packages/ui/src/tokens.ts` and nothing in the components
+hard-codes a viewport, so this is additive work rather than a rewrite.
+**Estimate 30–40 h**, plus mobile Lighthouse and a second pass over the overlays.
+
+---
+
 ## Operational integrations
 
 ### Carrier integration (Shippo / EasyPost)

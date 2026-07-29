@@ -1,7 +1,31 @@
-/**
- * Design system entry point.
- *
- * Populated in Phase 1 (tokens, Tailwind preset, fonts, icons, components).
- * Everything here is derived from `silkgrain-design-prompt/project/SilkGrain Premium.dc.html`.
- */
-export {};
+export * from './cn';
+export * from './color';
+export * from './tokens';
+
+export * from './hooks/useFocusTrap';
+
+export * from './components/Accordion';
+export * from './components/Badge';
+export * from './components/Breadcrumb';
+export * from './components/Button';
+export * from './components/Card';
+export * from './components/Checkbox';
+export * from './components/Diamond';
+export * from './components/Drawer';
+export * from './components/EmptyState';
+export * from './components/Eyebrow';
+export * from './components/Field';
+export * from './components/Icon';
+export * from './components/Input';
+export * from './components/Modal';
+export * from './components/Pagination';
+export * from './components/PriceTag';
+export * from './components/ProductCard';
+export * from './components/QuantityStepper';
+export * from './components/Radio';
+export * from './components/Select';
+export * from './components/Skeleton';
+export * from './components/StarRating';
+export * from './components/Tabs';
+export * from './components/Textarea';
+export * from './components/Toast';

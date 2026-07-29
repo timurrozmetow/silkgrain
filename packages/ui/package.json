@@ -9,26 +9,54 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./tailwind-preset": {
+      "types": "./dist/tailwind-preset.d.ts",
+      "default": "./dist/tailwind-preset.js"
+    },
+    "./styles.css": "./src/styles.css",
+    "./fonts.css": "./src/fonts.css"
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist .turbo"
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6006",
+    "build:storybook": "storybook build",
+    "clean": "rimraf dist storybook-static .turbo"
   },
   "peerDependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
+  "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.1.0",
+    "@fontsource/dm-mono": "^5.1.0",
+    "@fontsource/dm-serif-display": "^5.1.0",
+    "@fontsource/inter": "^5.1.0",
+    "@phosphor-icons/react": "^2.1.7",
+    "clsx": "^2.1.1"
+  },
   "devDependencies": {
     "@silkgrain/config": "workspace:*",
+    "@storybook/addon-a11y": "^8.4.7",
+    "@storybook/addon-essentials": "^8.4.7",
+    "@storybook/react": "^8.4.7",
+    "@storybook/react-vite": "^8.4.7",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "storybook": "^8.4.7",
+    "tailwindcss": "^3.4.17",
+    "vite": "^5.4.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "rimraf": "^6.0.1",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }

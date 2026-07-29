@@ -80,7 +80,9 @@ export function baseConfig({ tsconfigRootDir }) {
         'import-x/order': [
           'error',
           {
-            groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
+            // No separate 'type' group: type-only imports sort with their own source, so
+            // `import { useId, type ReactElement } from 'react'` stays in one place.
+            groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
             pathGroups: [{ pattern: '@silkgrain/**', group: 'internal', position: 'before' }],
             'newlines-between': 'always',
             alphabetize: { order: 'asc', caseInsensitive: true },
