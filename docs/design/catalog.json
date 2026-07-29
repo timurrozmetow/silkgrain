@@ -1,0 +1,560 @@
+{
+  "$comment": "Extracted from silkgrain-design-prompt/for adaptive/SilkGrain Premium.dc.html by scripts/extract-design-data.mjs. Do not edit by hand - re-run the script instead. Prices are dollars as authored; the seed converts them to integer cents.",
+  "categories": [
+    {
+      "key": "rice",
+      "label": "Rice & Grains",
+      "count": 24,
+      "icon": "ph-bowl-food"
+    },
+    {
+      "key": "lentils",
+      "label": "Lentils & Legumes",
+      "count": 18,
+      "icon": "ph-circles-three"
+    },
+    {
+      "key": "fruits",
+      "label": "Dried Fruits",
+      "count": 12,
+      "icon": "ph-cherries"
+    },
+    {
+      "key": "spices",
+      "label": "Spices & Herbs",
+      "count": 9,
+      "icon": "ph-leaf"
+    },
+    {
+      "key": "flour",
+      "label": "Flour & Seeds",
+      "count": 7,
+      "icon": "ph-plant"
+    },
+    {
+      "key": "mixes",
+      "label": "Ready Mixes",
+      "count": 5,
+      "icon": "ph-cooking-pot"
+    }
+  ],
+  "products": [
+    {
+      "slug": "uzbek-devzira-rice",
+      "name": "Uzbek Devzira Rice",
+      "cat": "Rice & Grains",
+      "catKey": "rice",
+      "origin": "Uzbekistan",
+      "region": "Fergana Valley, Uzbekistan",
+      "rating": 4.9,
+      "reviews": 142,
+      "badges": ["Bestseller"],
+      "stock": "in",
+      "defWeight": "5 lb",
+      "tone": "linear-gradient(135deg,#F2EAD8,#E0D2B4)",
+      "icon": "ph-bowl-food",
+      "shot": "overhead · devzira rice",
+      "blurb": "Aged long-grain rice, the heart of authentic Uzbek plov.",
+      "desc": "Devzira is a heritage rice cultivated in the Fergana Valley and aged to develop its signature amber stripe. The grains drink up broth and fat without turning sticky — exactly what a great plov needs. Each lot is hand-graded and rested for at least a year before milling.",
+      "weights": [
+        {
+          "label": "2 lb",
+          "price": 14.99
+        },
+        {
+          "label": "5 lb",
+          "price": 32.5
+        },
+        {
+          "label": "10 lb",
+          "price": 59
+        },
+        {
+          "label": "25 lb",
+          "price": 129
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Rice%20grains%20(IRRI).jpg?width=600"
+    },
+    {
+      "slug": "chungara-red-rice",
+      "name": "Chungara Red Rice",
+      "cat": "Rice & Grains",
+      "catKey": "rice",
+      "origin": "Uzbekistan",
+      "region": "Chust, Uzbekistan",
+      "rating": 4.8,
+      "reviews": 88,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "2 lb",
+      "tone": "linear-gradient(135deg,#EBD9C7,#CDA98C)",
+      "icon": "ph-bowl-food",
+      "shot": "overhead · red rice",
+      "blurb": "Nutty red-husk rice with a firm, glossy grain.",
+      "desc": "A prized red rice from the Chust region, naturally tinted by its bran and full of earthy, nutty depth. Holds its shape beautifully in pilafs and grain bowls.",
+      "weights": [
+        {
+          "label": "2 lb",
+          "price": 16.5
+        },
+        {
+          "label": "5 lb",
+          "price": 36
+        },
+        {
+          "label": "10 lb",
+          "price": 66
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Mushqbudji%20rice%20grains%20close-up.jpg?width=600"
+    },
+    {
+      "slug": "lazer-white-rice",
+      "name": "Lazer White Rice",
+      "cat": "Rice & Grains",
+      "catKey": "rice",
+      "origin": "Kazakhstan",
+      "region": "Kyzylorda, Kazakhstan",
+      "rating": 4.7,
+      "reviews": 64,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "5 lb",
+      "tone": "linear-gradient(135deg,#F4EFE3,#E2DAC8)",
+      "icon": "ph-bowl-food",
+      "shot": "overhead · white rice",
+      "blurb": "Everyday medium-grain rice, clean and fluffy.",
+      "desc": "A versatile medium-grain rice from the Kyzylorda paddies of Kazakhstan. Cooks up light and separate — an honest, everyday staple for any kitchen.",
+      "weights": [
+        {
+          "label": "2 lb",
+          "price": 11.99
+        },
+        {
+          "label": "5 lb",
+          "price": 25
+        },
+        {
+          "label": "10 lb",
+          "price": 46
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Basmati%20rice%20(2256208947).jpg?width=600"
+    },
+    {
+      "slug": "green-mung-beans",
+      "name": "Green Mung Beans (Mash)",
+      "cat": "Lentils & Legumes",
+      "catKey": "lentils",
+      "origin": "Uzbekistan",
+      "region": "Samarkand, Uzbekistan",
+      "rating": 4.8,
+      "reviews": 97,
+      "badges": ["Organic"],
+      "stock": "in",
+      "defWeight": "2 lb",
+      "tone": "linear-gradient(135deg,#E4E8D2,#AFC08C)",
+      "icon": "ph-circles-three",
+      "shot": "overhead · mung beans",
+      "blurb": "Whole green mung, essential for mosh-kichiri.",
+      "desc": "Small, glossy whole mung beans — the backbone of mosh-kichiri and hearty Central Asian stews. Certified organic and triple-cleaned.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 8.99
+        },
+        {
+          "label": "2 lb",
+          "price": 16.5
+        },
+        {
+          "label": "5 lb",
+          "price": 38
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Mung%20beans.jpg?width=600"
+    },
+    {
+      "slug": "red-split-lentils",
+      "name": "Red Split Lentils",
+      "cat": "Lentils & Legumes",
+      "catKey": "lentils",
+      "origin": "Kazakhstan",
+      "region": "Kostanay, Kazakhstan",
+      "rating": 4.6,
+      "reviews": 53,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "2 lb",
+      "tone": "linear-gradient(135deg,#EEDDCB,#D8AE8A)",
+      "icon": "ph-circles-three",
+      "shot": "overhead · red lentils",
+      "blurb": "Quick-cooking red lentils for soups and dals.",
+      "desc": "Bright, fast-cooking red lentils that break down into a silky base for soups, dals and spreads. No soaking required.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 7.49
+        },
+        {
+          "label": "2 lb",
+          "price": 13.5
+        },
+        {
+          "label": "5 lb",
+          "price": 31
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Split%20Red%20Lentil.jpg?width=600"
+    },
+    {
+      "slug": "yellow-chickpeas-nohat",
+      "name": "Yellow Chickpeas (Nohat)",
+      "cat": "Lentils & Legumes",
+      "catKey": "lentils",
+      "origin": "Uzbekistan",
+      "region": "Bukhara, Uzbekistan",
+      "rating": 4.7,
+      "reviews": 71,
+      "badges": ["Organic"],
+      "stock": "low",
+      "defWeight": "2 lb",
+      "tone": "linear-gradient(135deg,#EEE3C6,#CDB37E)",
+      "icon": "ph-circles-three",
+      "shot": "overhead · chickpeas",
+      "blurb": "Large golden chickpeas, slow-soaked tradition.",
+      "desc": "Plump, golden chickpeas with a buttery bite — the nohat that crowns a proper plov. Grown organically near Bukhara.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 9.25
+        },
+        {
+          "label": "2 lb",
+          "price": 17
+        },
+        {
+          "label": "5 lb",
+          "price": 39
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Garbanzos.jpg?width=600"
+    },
+    {
+      "slug": "dried-apricots-kuraga",
+      "name": "Dried Apricots (Kuraga)",
+      "cat": "Dried Fruits",
+      "catKey": "fruits",
+      "origin": "Uzbekistan",
+      "region": "Fergana Valley, Uzbekistan",
+      "rating": 4.9,
+      "reviews": 210,
+      "badges": ["Bestseller"],
+      "stock": "in",
+      "defWeight": "1 lb",
+      "tone": "linear-gradient(135deg,#F2DEB6,#E2B06E)",
+      "icon": "ph-cherries",
+      "shot": "overhead · dried apricots",
+      "blurb": "Sun-dried Fergana apricots, no added sugar.",
+      "desc": "Whole apricots dried under the Fergana sun, with nothing added — no sugar, no sulfur. Intensely sweet, chewy and golden.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 13.5
+        },
+        {
+          "label": "2 lb",
+          "price": 25
+        },
+        {
+          "label": "5 lb",
+          "price": 58
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Dried%20Apricots.png"
+    },
+    {
+      "slug": "golden-raisins-kishmish",
+      "name": "Golden Raisins (Kishmish)",
+      "cat": "Dried Fruits",
+      "catKey": "fruits",
+      "origin": "Uzbekistan",
+      "region": "Samarkand, Uzbekistan",
+      "rating": 4.8,
+      "reviews": 134,
+      "badges": ["Bestseller"],
+      "stock": "in",
+      "defWeight": "1 lb",
+      "tone": "linear-gradient(135deg,#E9DDBF,#CDB47E)",
+      "icon": "ph-cherries",
+      "shot": "overhead · golden raisins",
+      "blurb": "Plump, honey-sweet raisins from highland vineyards.",
+      "desc": "Seedless kishmish raisins from highland vineyards, dried whole to stay plump and honey-sweet. Perfect for pilafs, baking and snacking.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 10.99
+        },
+        {
+          "label": "2 lb",
+          "price": 20
+        },
+        {
+          "label": "5 lb",
+          "price": 46
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Raisins.png"
+    },
+    {
+      "slug": "dried-black-plums",
+      "name": "Dried Black Plums",
+      "cat": "Dried Fruits",
+      "catKey": "fruits",
+      "origin": "Turkmenistan",
+      "region": "Lebap, Turkmenistan",
+      "rating": 4.6,
+      "reviews": 42,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "1 lb",
+      "tone": "linear-gradient(135deg,#DCCFC0,#9E8576)",
+      "icon": "ph-cherries",
+      "shot": "overhead · dried plums",
+      "blurb": "Smoky-sweet dried plums for stews and compote.",
+      "desc": "Deeply flavored dried plums with a smoky-sweet edge — traditional in Turkmen stews, compotes and slow-braised meats.",
+      "weights": [
+        {
+          "label": "1 lb",
+          "price": 12.25
+        },
+        {
+          "label": "2 lb",
+          "price": 22.5
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Prunes.png"
+    },
+    {
+      "slug": "zira-cumin-seeds",
+      "name": "Zira Cumin Seeds",
+      "cat": "Spices & Herbs",
+      "catKey": "spices",
+      "origin": "Uzbekistan",
+      "region": "Surkhandarya, Uzbekistan",
+      "rating": 4.9,
+      "reviews": 156,
+      "badges": ["New"],
+      "stock": "in",
+      "defWeight": "8 oz",
+      "tone": "linear-gradient(135deg,#E7DAC0,#B89B6C)",
+      "icon": "ph-leaf",
+      "shot": "overhead · cumin seeds",
+      "blurb": "Aromatic black cumin, the soul of plov.",
+      "desc": "Slender, dark zira seeds with a warm, smoky aroma far beyond ordinary cumin. Toast briefly to release the oils that define real plov.",
+      "weights": [
+        {
+          "label": "4 oz",
+          "price": 6.99
+        },
+        {
+          "label": "8 oz",
+          "price": 12.5
+        },
+        {
+          "label": "1 lb",
+          "price": 22
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Cumin%20Seeds.png"
+    },
+    {
+      "slug": "sumac-ground",
+      "name": "Sumac, Ground",
+      "cat": "Spices & Herbs",
+      "catKey": "spices",
+      "origin": "Mixed Origin",
+      "region": "Central Asia",
+      "rating": 4.7,
+      "reviews": 39,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "8 oz",
+      "tone": "linear-gradient(135deg,#E7CFC2,#C68D74)",
+      "icon": "ph-leaf",
+      "shot": "overhead · ground sumac",
+      "blurb": "Tangy crimson sumac for kebabs and salads.",
+      "desc": "Coarsely ground sumac with a bright, lemony tang. Dust over kebabs, onions and salads for instant Central Asian flavor.",
+      "weights": [
+        {
+          "label": "4 oz",
+          "price": 7.75
+        },
+        {
+          "label": "8 oz",
+          "price": 14
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Paprika.png"
+    },
+    {
+      "slug": "saffron-threads",
+      "name": "Saffron Threads",
+      "cat": "Spices & Herbs",
+      "catKey": "spices",
+      "origin": "Mixed Origin",
+      "region": "Central Asia",
+      "rating": 5,
+      "reviews": 61,
+      "badges": ["Premium", "New"],
+      "stock": "low",
+      "defWeight": "1 g",
+      "tone": "linear-gradient(135deg,#F1E1BC,#DDA63F)",
+      "icon": "ph-leaf",
+      "shot": "overhead · saffron",
+      "blurb": "Hand-picked saffron, deep color and aroma.",
+      "desc": "Premium-grade saffron threads, hand-picked and sorted for color and potency. A few strands steeped in warm water transform rice, tea and desserts.",
+      "weights": [
+        {
+          "label": "1 g",
+          "price": 24
+        },
+        {
+          "label": "2 g",
+          "price": 45
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Saffron.png"
+    },
+    {
+      "slug": "wheat-flour-oliy",
+      "name": "Wheat Flour (Oliy Navi)",
+      "cat": "Flour & Seeds",
+      "catKey": "flour",
+      "origin": "Kazakhstan",
+      "region": "Akmola, Kazakhstan",
+      "rating": 4.5,
+      "reviews": 28,
+      "badges": [],
+      "stock": "in",
+      "defWeight": "5 lb",
+      "tone": "linear-gradient(135deg,#F4EFE4,#E3DBC9)",
+      "icon": "ph-plant",
+      "shot": "overhead · wheat flour",
+      "blurb": "Fine high-grade wheat flour for non and pastry.",
+      "desc": "Top-grade (oliy navi) wheat flour milled fine and even — built for tandoor non, samsa pastry and everyday baking.",
+      "weights": [
+        {
+          "label": "2 lb",
+          "price": 9.49
+        },
+        {
+          "label": "5 lb",
+          "price": 20
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Whole%20wheat%20grain%20flour%20being%20scooped.jpg?width=600"
+    },
+    {
+      "slug": "sesame-seeds",
+      "name": "Sesame Seeds",
+      "cat": "Flour & Seeds",
+      "catKey": "flour",
+      "origin": "Uzbekistan",
+      "region": "Khorezm, Uzbekistan",
+      "rating": 4.7,
+      "reviews": 47,
+      "badges": ["Organic"],
+      "stock": "in",
+      "defWeight": "1 lb",
+      "tone": "linear-gradient(135deg,#F0E9D7,#DCCFAE)",
+      "icon": "ph-plant",
+      "shot": "overhead · sesame seeds",
+      "blurb": "Toasty hulled sesame for breads and halva.",
+      "desc": "Clean, hulled sesame seeds with a rich, toasty flavor — for crowning non, folding into halva, or pressing fresh tahini.",
+      "weights": [
+        {
+          "label": "8 oz",
+          "price": 5.99
+        },
+        {
+          "label": "1 lb",
+          "price": 10.5
+        }
+      ],
+      "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Sesame%20seeds.JPG?width=600"
+    },
+    {
+      "slug": "plov-spice-mix",
+      "name": "Plov Spice Mix",
+      "cat": "Ready Mixes",
+      "catKey": "mixes",
+      "origin": "Uzbekistan",
+      "region": "Tashkent, Uzbekistan",
+      "rating": 4.9,
+      "reviews": 188,
+      "badges": ["Bestseller", "New"],
+      "stock": "in",
+      "defWeight": "4 oz",
+      "tone": "linear-gradient(135deg,#ECDDBC,#C9A85F)",
+      "icon": "ph-cooking-pot",
+      "shot": "overhead · plov spice mix",
+      "blurb": "Balanced blend of zira, barberry and turmeric.",
+      "desc": "Our house plov blend — zira, barberry, turmeric and dried garlic in the proportions a Tashkent oshpaz would use. One scoop seasons a full kazan.",
+      "weights": [
+        {
+          "label": "4 oz",
+          "price": 8.5
+        },
+        {
+          "label": "8 oz",
+          "price": 15
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Cumin.png"
+    },
+    {
+      "slug": "lagman-noodle-kit",
+      "name": "Lagman Noodle Kit",
+      "cat": "Ready Mixes",
+      "catKey": "mixes",
+      "origin": "Uzbekistan",
+      "region": "Tashkent, Uzbekistan",
+      "rating": 4.7,
+      "reviews": 52,
+      "badges": ["New"],
+      "stock": "in",
+      "defWeight": "1 kit",
+      "tone": "linear-gradient(135deg,#EFE7D5,#D9C9A8)",
+      "icon": "ph-cooking-pot",
+      "shot": "overhead · lagman kit",
+      "blurb": "Hand-pull noodle kit with spice sachet.",
+      "desc": "Everything for a bowl of hand-pulled lagman — high-protein flour, a pulling guide and a balanced spice sachet for the broth.",
+      "weights": [
+        {
+          "label": "1 kit",
+          "price": 11.5
+        }
+      ],
+      "imageUrl": "https://www.themealdb.com/images/ingredients/Spaghetti.png"
+    }
+  ],
+  "demoCart": [
+    {
+      "slug": "uzbek-devzira-rice",
+      "weight": "5 lb",
+      "qty": 2
+    },
+    {
+      "slug": "dried-apricots-kuraga",
+      "weight": "2 lb",
+      "qty": 1
+    },
+    {
+      "slug": "plov-spice-mix",
+      "weight": "4 oz",
+      "qty": 3
+    }
+  ]
+}

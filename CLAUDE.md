@@ -3,6 +3,15 @@
 Read this before touching anything. It records decisions that are already made, so they
 don't get re-litigated, and the local quirks that will bite you otherwise.
 
+**Where the work currently stands is in [STATE.md](STATE.md)** — phase, branch, what is
+blocked on the owner, and what Phase 2 does first. Read that too if you are picking the
+project up cold.
+
+Rather than re-reading the 227 KB prototype: [docs/design/SCREENS.md](docs/design/SCREENS.md)
+distils every screen and names the parts that were never designed, and
+[docs/design/catalog.json](docs/design/catalog.json) holds the sixteen products and six
+categories verbatim (regenerate with `node scripts/extract-design-data.mjs`).
+
 ---
 
 ## What this is
