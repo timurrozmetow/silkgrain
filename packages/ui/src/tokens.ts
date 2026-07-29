@@ -219,15 +219,33 @@ export const zIndex = {
 } as const;
 
 /**
- * Breakpoints are declared now but not yet used: the storefront ships desktop-first at
- * 1280 and the responsive pass is scheduled separately (BACKLOG, "Responsive layouts").
+ * Two breakpoints, straight from the responsive handoff - not the usual four.
+ *
+ * `tablet` (<= 1024px) collapses two-column sections and sidebars, drops product grids from
+ * four columns to three and unpins sticky columns. `mobile` (<= 760px) goes single-column
+ * everywhere except product grids, which stay two-up so the catalogue is still scannable.
+ *
+ * Gutters change with them: 28px desktop, 22px tablet, 16px mobile.
  */
 export const breakpoint = {
-  mobile: '375px',
-  tablet: '768px',
-  laptop: '1024px',
-  desktop: '1280px',
-  wide: '1440px',
+  mobile: '760px',
+  tablet: '1024px',
+} as const;
+
+export const gutter = {
+  desktop: '28px',
+  tablet: '22px',
+  mobile: '16px',
+} as const;
+
+/**
+ * Touch rules the responsive handoff calls out explicitly.
+ * `minControlSize` is the 44px touch target; `minInputFontSize` is what stops iOS Safari
+ * zooming the page when a field takes focus.
+ */
+export const touch = {
+  minControlSize: '44px',
+  minInputFontSize: '16px',
 } as const;
 
 // ---------------------------------------------------------------------------------------

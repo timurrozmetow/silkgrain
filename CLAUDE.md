@@ -15,14 +15,44 @@ Currency USD, interface English, two audiences: retail and wholesale.
 
 ## Source of truth for design
 
-`silkgrain-design-prompt/project/SilkGrain Premium.dc.html` — the primary mockup.
+`silkgrain-design-prompt/for adaptive/SilkGrain Premium.dc.html` — the primary mockup.
 All 16 screens live in that one file, switched by `sc-if` flags.
+
+Two bundles were handed over. **The `for adaptive/` one supersedes `project/`**: same design,
+plus the responsive layer, plus a mobile nav panel, and it fixes two defects in the older
+file (the mega-menu was pasted a second time inside the admin header, and the first hero
+slide pulled a photo from Unsplash instead of the Wikimedia one the rest of the deck uses).
+`for adaptive/README.md` is the responsive specification and is authoritative for layout
+behaviour; `project/` is kept only as history.
 
 Hierarchy when files disagree:
 
 ```
-SilkGrain Premium.dc.html  >  ProductCardPremium.dc.html  >  uploads/silkgrain-design-prompt.md
+for adaptive/README.md (layout behaviour)
+  > for adaptive/SilkGrain Premium.dc.html
+  > for adaptive/ProductCardPremium.dc.html
+  > project/*  (superseded)
+  > uploads/silkgrain-design-prompt.md (original brief)
 ```
+
+Where that README's prose contradicts the mockup's code, the code wins: it lists the Sale
+badge as `#FF5A1E` and merges New with Organic, but `ProductCardPremium.dc.html` uses
+`Sale #B85C38`, `New #0E6B4A`, `Organic #4C7A5A`. `#FF5A1E` is the accent from the rejected
+v2 direction, so the prose is a leftover.
+
+### Responsive rules
+
+Two breakpoints, both max-width: **1024px** (tablet) and **760px** (mobile). Gutters
+28 / 22 / 16px. Tablet collapses two-column sections and sidebars, takes product grids from
+four columns to three and unpins sticky columns. Mobile goes single-column everywhere except
+product grids, which stay two-up. Buttons get a 44px minimum height and form controls a 16px
+minimum font size so iOS does not zoom on focus. Admin tables scroll horizontally at a 720px
+minimum width rather than collapsing.
+
+The prototype implements all of this with attribute-substring selectors and `!important`,
+because its authoring environment allows inline styles only. **Do not port that.** It is
+evidence of intent; the implementation uses Tailwind's `tablet:` and `mobile:` variants,
+which are wired to these exact breakpoints in the preset.
 
 **Rejected iterations — do not implement:** `SilkGrain Storefront.dc.html` (v1, old palette
 `#2E5D3A`/`#C8A84B`/`#F7F2E8`, no mega-menu / search / drawer / quick-view),
@@ -151,18 +181,19 @@ The proposed shape of `packages/contracts` is in `CONTRACTS-DRAFT.md`.
 
 ## Decisions taken so far
 
-| #    | Decision                                                                                                                                                                                                                                                                                                                                 |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-1  | Palette: Premium (`#0E6B4A` / `#D3A73B` / `#F3F0E8`). Storefront and v2 rejected.                                                                                                                                                                                                                                                        |
-| D-2  | Shipping rates live in the database and are edited in the admin panel. Seed values from the mockup: Standard $7.99, free from $75; Express $12.99; Overnight $24.99.                                                                                                                                                                     |
-| D-3  | Order number format `SG-YYYY-NNNNN` — per-year sequence, zero-padded to five digits.                                                                                                                                                                                                                                                     |
-| D-4  | Tax is shown in the cart as "Estimated Tax" using the default rate; the authoritative figure comes from Stripe Tax once the address is known at checkout.                                                                                                                                                                                |
-| D-5  | Wholesale form uses the simplified mockup field set (single contact name, no business address). Columns stay nullable so it can be extended without a migration rewrite.                                                                                                                                                                 |
-| D-6  | Local services are portable binaries, not Docker. Dev and prod both on MySQL 8.0.x.                                                                                                                                                                                                                                                      |
-| D-7  | Nine palette values move on lightness only so every text pair clears WCAG AA. `gold #D3A73B` keeps its mockup value and is fill-and-decoration only: it never carries text on a light surface, and text on a gold fill is `greenDeep`. `CONTRAST_PAIRS` in `packages/ui/src/tokens.ts` is the contract and `tokens.test.ts` enforces it. |
-| D-8  | Desktop-first at 1280. The responsive pass is deferred, so Phase 5 acceptance drops the 375/768/1024 requirement and Lighthouse runs on desktop. Breakpoint tokens already exist, so the pass is additive.                                                                                                                               |
-| D-9  | No logo asset yet. The wordmark is the mockup's own lockup: `grains` icon in a green tile plus `silk` (green) and `grain` (gold) in Cormorant 600. Favicon, OG image and email header wait for a real SVG.                                                                                                                               |
-| D-10 | Icons come from an explicit registry (`packages/ui/src/components/icon-registry.ts`). A namespace import of Phosphor measured 1.1 MB gzip; the registry brings it to 110 KB.                                                                                                                                                             |
+| #    | Decision                                                                                                                                                                                                                                                                                                                                                             |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-1  | Palette: Premium (`#0E6B4A` / `#D3A73B` / `#F3F0E8`). Storefront and v2 rejected.                                                                                                                                                                                                                                                                                    |
+| D-2  | Shipping rates live in the database and are edited in the admin panel. Seed values from the mockup: Standard $7.99, free from $75; Express $12.99; Overnight $24.99.                                                                                                                                                                                                 |
+| D-3  | Order number format `SG-YYYY-NNNNN` — per-year sequence, zero-padded to five digits.                                                                                                                                                                                                                                                                                 |
+| D-4  | Tax is shown in the cart as "Estimated Tax" using the default rate; the authoritative figure comes from Stripe Tax once the address is known at checkout.                                                                                                                                                                                                            |
+| D-5  | Wholesale form uses the simplified mockup field set (single contact name, no business address). Columns stay nullable so it can be extended without a migration rewrite.                                                                                                                                                                                             |
+| D-6  | Local services are portable binaries, not Docker. Dev and prod both on MySQL 8.0.x.                                                                                                                                                                                                                                                                                  |
+| D-7  | Nine palette values move on lightness only so every text pair clears WCAG AA. `gold #D3A73B` keeps its mockup value and is fill-and-decoration only: it never carries text on a light surface, and text on a gold fill is `greenDeep`. `CONTRAST_PAIRS` in `packages/ui/src/tokens.ts` is the contract and `tokens.test.ts` enforces it.                             |
+| D-8  | Desktop-first at 1280; the responsive pass is deferred, so Phase 5 acceptance runs Lighthouse on desktop only. Partly superseded by D-11.                                                                                                                                                                                                                            |
+| D-11 | The responsive handoff arrived after D-8 was taken, and it is a complete specification. Its two breakpoints (1024 / 760), gutters and touch rules are now tokens and Tailwind variants, so Phase 5 markup can carry `tablet:` and `mobile:` classes as it is written rather than being retrofitted. Whether that ships with Phase 5 or after it is the owner's call. |
+| D-9  | No logo asset yet. The wordmark is the mockup's own lockup: `grains` icon in a green tile plus `silk` (green) and `grain` (gold) in Cormorant 600. Favicon, OG image and email header wait for a real SVG.                                                                                                                                                           |
+| D-10 | Icons come from an explicit registry (`packages/ui/src/components/icon-registry.ts`). A namespace import of Phosphor measured 1.1 MB gzip; the registry brings it to 110 KB.                                                                                                                                                                                         |
 
 ---
 

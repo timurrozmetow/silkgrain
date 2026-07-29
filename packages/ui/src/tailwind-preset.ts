@@ -1,6 +1,19 @@
 import type { Config } from 'tailwindcss';
 
-import { color, font, layout, motion, radius, shadow, space, text, zIndex } from './tokens';
+import {
+  breakpoint,
+  color,
+  font,
+  gutter,
+  layout,
+  motion,
+  radius,
+  shadow,
+  space,
+  text,
+  touch,
+  zIndex,
+} from './tokens';
 
 /**
  * Tailwind preset generated from the design tokens.
@@ -11,6 +24,13 @@ import { color, font, layout, motion, radius, shadow, space, text, zIndex } from
 export const silkgrainPreset = {
   content: [],
   theme: {
+    // Max-width breakpoints, matching the responsive handoff. Tailwind's own scale is
+    // replaced rather than extended so nobody reaches for a breakpoint the design has no
+    // rules for.
+    screens: {
+      tablet: { max: breakpoint.tablet },
+      mobile: { max: breakpoint.mobile },
+    },
     extend: {
       colors: {
         green: {
@@ -104,6 +124,18 @@ export const silkgrainPreset = {
       maxWidth: {
         container: layout.container,
         'container-narrow': layout.containerNarrow,
+      },
+      padding: {
+        gutter: gutter.desktop,
+        'gutter-tablet': gutter.tablet,
+        'gutter-mobile': gutter.mobile,
+      },
+      minHeight: {
+        touch: touch.minControlSize,
+      },
+      minWidth: {
+        touch: touch.minControlSize,
+        'admin-table': '720px',
       },
       width: {
         drawer: layout.drawerWidth,
