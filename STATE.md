@@ -72,8 +72,12 @@ The header and footer carry **only links to pages that exist**, and grow as the 
 The design's nav is five items and one ships. This is deliberate: a header full of links to
 pages that are not built looks finished and is not.
 
-Next in Phase 5: the search overlay, the mega-menu and the cart drawer (5.2), then the product
-page and the cart page, then the content pages the nav is waiting on.
+The cart drawer and `/cart` are done too, both priced by one hook against
+`POST /api/cart/validate`. "Proceed to Checkout" is absent on purpose until `/checkout` exists
+in Phase 6.
+
+Next in Phase 5: the search overlay and the mega-menu, the product page, then the content
+pages the nav is waiting on.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
