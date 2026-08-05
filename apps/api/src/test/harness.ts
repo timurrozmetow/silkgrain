@@ -29,12 +29,37 @@ export function testEnv() {
   return loadEnv({ ...process.env, DATABASE_URL: url, NODE_ENV: 'test', LOG_LEVEL: 'silent' });
 }
 
-/** Tables the integration tests write to, in an order that respects the foreign keys. */
+/**
+ * Tables the integration tests write to.
+ *
+ * Foreign-key checks are switched off around the truncation, so the order is for reading
+ * rather than for the database. The catalogue and commerce configuration are included because
+ * the catalogue and cart tests build their own fixture (`test/fixtures/catalog.ts`) instead of
+ * running the real seed: assertions have to be checkable by eye, and the seed's thirty-two
+ * products carry pseudo-random ratings and stock levels.
+ */
 const MUTABLE_TABLES = [
   'refresh_tokens',
   'wishlist_items',
   'wishlists',
   'reviews',
+  'promo_redemptions',
+  'promo_codes',
+  'payments',
+  'webhook_events',
+  'addresses',
+  'order_items',
+  'orders',
+  'inventory_movements',
+  'product_nutrition',
+  'product_certifications',
+  'product_badges',
+  'product_images',
+  'product_variants',
+  'products',
+  'categories',
+  'shipping_rates',
+  'settings',
   'customers',
   'admin_users',
 ];

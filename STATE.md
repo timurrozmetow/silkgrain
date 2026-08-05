@@ -1,12 +1,12 @@
 # Where the project stands
 
-Updated 2026-07-29. Read this first after any context loss, then `CLAUDE.md` for the rules.
+Updated 2026-07-30. Read this first after any context loss, then `CLAUDE.md` for the rules.
 
 ---
 
 ## Position
 
-**Branch:** `phase/2-backend-core`. `main` has no commits yet — branches merge there once the
+**Branch:** `phase/3-catalog-cart`. `main` has no commits yet — branches merge there once the
 owner accepts the work.
 
 | Commit    | What                                                             |
@@ -16,23 +16,40 @@ owner accepts the work.
 | `bfae409` | Phase 1 — design system                                          |
 | `187c166` | Responsive breakpoints wired into tokens and the Tailwind preset |
 | `f1db2b8` | The design handoff distilled into docs                           |
-| _HEAD_    | Phase 2 — backend core                                           |
+| `9c72c97` | Phase 2 — backend core                                           |
+| `3696fab` | The responsive schedule and the nutrition-data decision          |
+| _HEAD_    | Phase 3 — catalogue and cart API                                 |
 
-**Phases 0, 1 and 2 are complete and verified.** `pnpm verify` exits 0: 142 tests
-(43 contracts + 41 api + 58 ui), zero lint warnings, zero type errors. Storefront bundle
+**Phases 0 through 3 are complete and verified.** `pnpm verify` exits 0: 208 tests
+(43 contracts + 107 api + 58 ui), zero lint warnings, zero type errors. Storefront bundle
 110 KB gzip against a 250 KB budget.
 
-**Next: Phase 3 — catalogue and cart API.** See `PLAN.md`.
+Beyond the suite, every new endpoint was also driven against the **real seeded development
+database** — all thirty-two products, every sort, every filter, both cart routes and
+`/docs/json`. The fixture has no product without nutrition, certifications or reviews; the
+seed does, and a response schema is a serialiser, so a mismatch there is a 500 rather than a
+type error.
+
+Phase 3 was then put through an adversarial review — six independent passes over the diff,
+every finding challenged by three sceptics, twenty of fifty-two surviving. What that changed
+is listed in `PLAN.md` under Phase 3. The two that mattered: the sidebar had no way to build
+its Weight, Origin or Certification lists, and deactivating a category hid it from the menu
+while leaving its products in the grid, in search and in the cart.
+
+**Next: Phase 4 — orders and payments.** See `PLAN.md`.
 
 ---
 
 ## Blocked on the owner
 
-1. **Phase 2 acceptance.** Reported; the process in `CLAUDE-CODE-PROMPT.md` says a phase is not
-   left until the owner confirms.
+1. **Phase 2 and Phase 3 acceptance.** Both reported; the process in `CLAUDE-CODE-PROMPT.md`
+   says a phase is not left until the owner confirms.
 2. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
    answered in place in `QUESTIONS.md` and recorded as D-12…D-18 in `CLAUDE.md`. They shaped
    the schema, so reversing one now costs a migration.
+3. **Decisions taken during Phase 3** — D-21…D-25 in `CLAUDE.md`. None costs a migration;
+   D-22 is the one worth a glance, because it makes `commerce.free_shipping_threshold_cents`
+   decorative and the shipping rate row authoritative.
 
 Answered on 2026-07-29, nothing left to ask:
 
@@ -49,14 +66,14 @@ Answered on 2026-07-29, nothing left to ask:
 
 ```
 apps/api        Fastify 4. Plugins, error handler, Drizzle schema (32 tables), migrations,
-                seeds, auth, /health, /ready, Swagger on /docs. No business endpoints yet.
+                seeds, auth, the catalogue and cart API, /health, /ready, Swagger on /docs.
 apps/web        Vite 5 + React 18. src/App.tsx is a design-system preview page, not the
                 storefront; Phase 5 replaces it.
 apps/admin      Vite 5 + React 18 shell.
 packages/ui     The design system. 22 components, tokens, Tailwind preset, Storybook.
-packages/contracts  primitives, errors, enums, Money, pagination, auth schemas. Catalog,
-                    cart, checkout, order and wholesale schemas arrive with the phases that
-                    serve them; the shape is drafted in CONTRACTS-DRAFT.md.
+packages/contracts  primitives, errors, enums, Money, pagination, auth, catalog and cart
+                    schemas. Checkout, order and wholesale arrive with the phases that serve
+                    them; the shape is drafted in CONTRACTS-DRAFT.md.
 packages/config eslint, prettier, tsconfig bases.
 docs/design     SCREENS.md and catalog.json, both distilled from the mockup.
 ```
@@ -70,8 +87,23 @@ src/plugins/                  error-handler, request-context, database, redis, s
 src/db/schema/                catalog, orders, customers, wholesale, content, system + columns.ts
 src/db/{migrate,reset,seed}   forward-only migrations, a guarded drop, a deterministic seed
 src/modules/auth/             routes, service, tokens
+src/modules/catalog/          query (filters and sorts), service (four reads), routes
+src/modules/cart/             cart, promo and shipping services, routes
 src/modules/health/           /health and /ready
+src/lib/settings.ts           reads a value the owner edits in the admin panel
 src/test/harness.ts           integration harness against silkgrain_test
+src/test/fixtures/catalog.ts  the hand-written test catalogue (decision D-24)
+```
+
+Endpoints as of Phase 3:
+
+```
+GET  /api/categories          tree with counts computed from the database
+GET  /api/products            filters, sorts, offset pagination, one facet per sidebar card
+GET  /api/products/:slug      variants, nutrition, reviews with histogram, related
+GET  /api/search/suggest      type-ahead plus popular terms
+POST /api/cart/validate       reprices a cart; an unusable promo is reported, not thrown
+POST /api/cart/promo          the Apply button; an unusable promo is a PROMO_* error
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,
@@ -100,6 +132,27 @@ an `onRoute` hook, so a route registered earlier is a route it never sees).
   of a Drizzle transaction rolls back the revocation the rejection was there to perform, and
   `@fastify/rate-limit` _throws_ whatever `errorResponseBuilder` returns, so returning a plain
   object produces a 500 instead of a 429.
+- **Catalogue filters are `EXISTS` subqueries, never conditions on a joined variant row.** A
+  join would multiply the product by its matching variants and turn the price aggregate into
+  the aggregate of the _filtered_ ones, so a card filtered to "under $20" would advertise a
+  range ending at $20 instead of its real one. `catalog.query.ts` says so at the top.
+- **A list is assembled in two steps**: one query decides which products and in what order,
+  then `IN (...)` queries fetch variants, images, badges and certifications. `loadCards` returns
+  them in the id query's order — re-sorting there would silently discard the sort.
+- **`z.coerce.boolean()` is `Boolean(value)`.** `?inStock=false` arrived as the string `"false"`,
+  which is truthy, so the filter switched itself on. `QueryBoolean` in
+  `packages/contracts/src/modules/catalog.ts` accepts the two words and rejects everything else.
+  Any future query-string boolean uses it.
+- **`availableQty` is capped at `CART_LINE_MAX_QTY`, deliberately.** An endpoint reporting
+  "1,483 in stock" hands a competitor the inventory position; capped, it still tells the
+  quantity stepper where to stop.
+- **`PUBLISHED_PRODUCT` in `catalog.query.ts` is the one definition of "in the catalogue"**,
+  and it now covers `categories.is_active` as well as `products.status`. Every query using it
+  must join `categories`; it is a list of conditions rather than one combined `SQL` so call
+  sites spread it instead of asserting that `and()` returned something.
+- **A route with its own `config.rateLimit` gets an independent bucket**, it does not add to
+  the global 300/min. That is why `/api/cart/promo` sets 12 per five minutes explicitly, and
+  why two routes sharing a concern do not share a budget unless they share a key.
 
 ---
 
@@ -146,43 +199,40 @@ Rather than re-read the 227 KB prototype:
 
 ---
 
-## Phase 3 plan, concretely
+## What Phase 4 has to get right
 
-From `PLAN.md`, adjusted for what is now known.
+Orders and payments. The full task list is in `PLAN.md`; these are the three things that will
+bite, and two of them are contracts Phase 3 has already fixed.
 
-1. `packages/contracts/src/modules/catalog.ts` — `ProductCard` as its own schema with
-   `ProductDetail` extending it, so a grid of sixteen cards does not carry nutrition and story.
-   `badges` in the output is the derived union: stored editorial badges plus `sale` from
-   `compare_at_price_cents` and `organic` from the certification.
-2. `GET /api/categories` — tree with counts computed from the database, not the mockup's
-   hard-coded 24/18/12/9/7/5.
-3. `GET /api/products` — filters (category, origin, certification, weight label, price range
-   over variants, badges), sorts (featured, price asc/desc, newest, bestselling by
-   `sold_count`), pagination, and the `priceFrom`/`priceTo` aggregate the card shows.
-4. `GET /api/products/:slug` — variants, images, nutrition, certifications, published reviews
-   with the five-star histogram, and "You May Also Like" from the same category.
-5. `GET /api/search/suggest` — six results, name and category, plus popular terms.
-6. `POST /api/cart/validate` — recompute everything from `product_variants`. The client sends
-   `variantId` and `qty` only; there is no field to put a price in, and the schema is
-   `.strict()`, so a forged price is a 422 before any handler runs.
-7. Promo codes — percent (basis points), fixed, free shipping; `min_order_cents`,
-   `max_discount_cents`, date window, global and per-customer limits against
-   `promo_redemptions`.
-8. Shipping rates from the database plus the "You're $X away from free shipping" progress.
-9. Tests: filtering, sorting, pagination, cart recalculation, a forged price, promo edge cases
-   (boundary subtotal, expired, exhausted, per-customer limit).
+1. **The order's totals must be the cart's totals.** `taxable = subtotal − discount + shipping`,
+   tax at the default rate on that base (decision D-25). `cart.service.ts` and the seeded orders
+   in `db/seed/index.ts` already agree; the checkout writer is the third place that has to, and
+   the moment it does not, a customer is charged something other than what the cart showed.
+2. **Per-customer promo limits become authoritative in the checkout transaction.** The cart only
+   checks them when it happens to know who is asking (decision D-23). The transaction that marks
+   an order paid is the one place that reads and writes `promo_redemptions` together, so it is
+   the only place the limit can actually be enforced. `promo.service.ts` says so where it gives
+   up.
+3. **Stock is decremented in the same transaction that moves the order to `paid`, inside the
+   webhook.** Not on the redirect. The `product_variants_stock_nonneg` CHECK is there to make an
+   oversell impossible even if a code path forgets to look.
 
-Acceptance: filtering and cart-recalculation tests green; a forged price returns 422.
+The cart already hands checkout everything it needs: `CartQuote` carries the priced lines, the
+discount, the selected shipping option and every option's price, so `POST /api/checkout/intent`
+recomputes rather than re-derives.
 
 ---
 
 ## Decisions already taken
 
-The table lives in `CLAUDE.md`, D-1 through D-18. In short: Premium palette; shipping rates in
+The table lives in `CLAUDE.md`, D-1 through D-25. In short: Premium palette; shipping rates in
 the database; order numbers `SG-YYYY-NNNNN`; estimated tax in the cart with Stripe Tax
 authoritative at checkout; the simplified wholesale form; portable local services on MySQL 8;
-nine tokens darkened for contrast with gold kept as decoration only; desktop-first with the
-responsive pass pending a scheduling call; no logo asset yet; icons from an explicit registry;
-derived badges never stored; moderated reviews without customer input yet; scaled integers for
-every physical quantity; opaque rotating refresh tokens; `@node-rs/argon2`; forward-only
-migrations; no `carts` table.
+nine tokens darkened for contrast with gold kept as decoration only; the responsive pass inline
+with Phase 5; no logo asset yet; icons from an explicit registry; derived badges never stored;
+moderated reviews without customer input yet; scaled integers for every physical quantity;
+opaque rotating refresh tokens; `@node-rs/argon2`; forward-only migrations; no `carts` table;
+nutrition entered by hand in the admin panel; facets computed with their own filter removed;
+the shipping rate row rather than a setting as the free-shipping authority; a cart that never
+fails over a promo code; a hand-written test catalogue; and the cart's arithmetic as the
+contract Phase 4 must match.

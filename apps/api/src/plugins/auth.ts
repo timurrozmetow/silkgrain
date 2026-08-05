@@ -23,6 +23,14 @@ declare module 'fastify' {
      * `onRequest` without the route options widening to the callback form.
      */
     requireCustomer: onRequestAsyncHookHandler;
+    /**
+     * Identifies the customer if a valid token was sent, and does nothing if not.
+     *
+     * For routes a guest is entitled to use but that behave differently for someone signed in -
+     * the cart quote, whose per-customer promo limit can only be checked against an identity.
+     * Never a substitute for `requireCustomer`: it grants nothing.
+     */
+    optionalCustomer: onRequestAsyncHookHandler;
     /** Rejects anything that is not a signed-in administrator. */
     requireAdmin: onRequestAsyncHookHandler;
     /** Rejects an administrator whose role is not in the list. */
@@ -136,6 +144,20 @@ export const authPlugin = fp<AuthOptions>(
 
     app.decorate('requireCustomer', verifyFor('customer'));
     app.decorate('requireAdmin', verifyFor('admin'));
+
+    const identifyCustomer = verifyFor('customer');
+    app.decorate(
+      'optionalCustomer',
+      async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if (!request.headers.authorization) return;
+        try {
+          await identifyCustomer(request, reply);
+        } catch {
+          // A guest with a stale token is still a guest. Rejecting the request would log
+          // somebody out of their cart because a fifteen-minute access token expired.
+        }
+      },
+    );
 
     app.decorate('requireRole', (...roles: AdminRole[]) => {
       const requireAdmin = verifyFor('admin');

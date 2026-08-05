@@ -5,6 +5,8 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 
 import type { Env } from './env';
 import { authRoutes } from './modules/auth/auth.routes';
+import { cartRoutes } from './modules/cart/cart.routes';
+import { catalogRoutes } from './modules/catalog/catalog.routes';
 import { healthRoutes } from './modules/health/health.routes';
 import { authPlugin } from './plugins/auth';
 import { databasePlugin } from './plugins/database';
@@ -81,6 +83,8 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
 
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(catalogRoutes, { prefix: '/api' });
+  await app.register(cartRoutes, { prefix: '/api/cart' });
 
   return app;
 }

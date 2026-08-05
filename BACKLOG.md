@@ -97,10 +97,35 @@ Not required by any acceptance criterion.
 
 ### Full-text search
 
-Catalog search is SQL `LIKE` against name and category. Fine for ~75 products; typo tolerance,
-synonyms ("kuraga" / "dried apricots") and relevance ranking need MySQL full-text or
-Meilisearch.
+Catalog search is SQL `LIKE` against name, subtitle, blurb and category. Fine for ~75 products;
+typo tolerance, synonyms ("kuraga" / "dried apricots") and relevance ranking need MySQL
+full-text or Meilisearch. A FULLTEXT index cannot simply be dropped in: its default minimum
+word length and stopword list would remove "rice" from its own results.
 **Estimate 12–20 h.**
+
+### Body-aware rate limiting, to close the promo-code oracle on `/api/cart/validate`
+
+`POST /api/cart/promo` is limited to 12 attempts per five minutes, because trying a code there
+is a guess at a campaign name and the reply says whether the guess landed. `/api/cart/validate`
+accepts the same optional code so a stored one can be repriced on page load, and it runs at the
+cart budget — a slower version of the same oracle.
+
+Closing it needs a limit that depends on whether the body carries `promoCode`, and
+`@fastify/rate-limit` runs on `onRequest`, before the body exists. Two ways out: register the
+plugin with `hook: 'preValidation'` (costs body parsing before the limiter, bounded by
+`bodyLimit`), or keep a Redis counter of _failed_ promo attempts per address and refuse past a
+threshold, which is the better shape because it charges only for guesses that miss. Either
+should also share one bucket across both routes.
+**Estimate 3–5 h.**
+
+### Search term logging, so "popular searches" are real
+
+The chips in the search overlay come from the best-selling product names, because there is
+nothing else true to derive them from. What the overlay actually wants is what customers type:
+a `search_queries` table written on every suggest request, aggregated over a rolling window,
+with the zero-result terms surfaced in the admin panel — those are a list of products to stock
+or synonyms to add. Pairs naturally with full-text search above.
+**Estimate 6–10 h.**
 
 ### Blog / content pages beyond recipes
 
