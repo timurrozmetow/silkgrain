@@ -36,7 +36,25 @@ is listed in `PLAN.md` under Phase 3. The two that mattered: the sidebar had no 
 its Weight, Origin or Certification lists, and deactivating a category hid it from the menu
 while leaving its products in the grid, in search and in the cart.
 
-**Next: Phase 4 — orders and payments.** See `PLAN.md`.
+**Phase 4 is under way and is _not_ finished.** What exists and is tested:
+
+| Task | State                                                                                    |
+| ---- | ---------------------------------------------------------------------------------------- |
+| 4.1  | Order numbers — `SG-YYYY-NNNNN`, retry on collision. Done, 9 tests.                      |
+| 4.3  | Stripe webhook — raw body, signature, idempotency. Done, 19 tests.                       |
+| 4.4  | The paid transaction — status, stock, movements, promo redemption. Done, in those 19.    |
+| 4.2  | `POST /api/checkout/intent` — **not started.** Needs a real Stripe key to be verifiable. |
+| 4.5  | PayPal — **not started.** Needs sandbox credentials.                                     |
+| 4.6  | Stripe Tax — **not started.** Needs an account with Tax enabled.                         |
+| 4.7  | Email queue — **not started.** BullMQ and Mailpit are both available locally.            |
+| 4.8  | Order lookup endpoints — **not started.** Needs no credentials.                          |
+
+**Blocked on credentials.** `.env` still holds the `.env.example` placeholders for every
+payment provider: `STRIPE_SECRET_KEY=sk_test_replace_me`, `STRIPE_WEBHOOK_SECRET=whsec_replace_me`,
+and PayPal's three as `replace_me`. Everything above was built and tested without them — Stripe's
+signature verification is local HMAC, so the whole webhook contour is provable offline — but the
+phase's acceptance criterion is the four Stripe test-mode card scenarios, and those need a real
+test key. Development boots on the placeholders; `loadEnv` refuses them under `NODE_ENV=production`.
 
 ---
 

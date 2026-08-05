@@ -7,3 +7,5 @@ export * from './pagination';
 export * from './modules/auth';
 export * from './modules/cart';
 export * from './modules/catalog';
+export * from './modules/checkout';
+export * from './modules/order';

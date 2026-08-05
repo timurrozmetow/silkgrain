@@ -73,6 +73,25 @@ const EnvSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+
+    /** Decision D-3. Two to four letters; the rest of the format is not configurable. */
+    ORDER_NUMBER_PREFIX: z
+      .string()
+      .regex(/^[A-Z]{2,4}$/, 'Two to four capital letters, as in SG')
+      .default('SG'),
+
+    STRIPE_SECRET_KEY: z.string().min(1),
+    STRIPE_WEBHOOK_SECRET: z.string().min(1),
+    /**
+     * Read under its `VITE_` name because the storefront needs the same value at build time
+     * and the API hands it to the client in the checkout response. Two copies of one key is
+     * one copy too many, and the copy that drifts is always the one nobody is looking at.
+     */
+    VITE_STRIPE_PUBLISHABLE_KEY: z.string().min(1),
+    STRIPE_TAX_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
   })
   .superRefine((value, ctx) => {
     if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
@@ -88,6 +107,26 @@ const EnvSchema = z
         path: ['COOKIE_SECURE'],
         message: 'Must be true in production - the refresh cookie would otherwise travel in clear',
       });
+    }
+
+    // Development boots on the placeholders from `.env.example`, because everything except
+    // the two calls that reach Stripe works without a real account. A deployment that took
+    // an order and only then discovered its keys were fictional is the failure worth
+    // preventing, so production refuses them outright.
+    if (value.NODE_ENV === 'production') {
+      for (const key of [
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'VITE_STRIPE_PUBLISHABLE_KEY',
+      ] as const) {
+        if (value[key].includes('replace_me')) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: 'Still the placeholder from .env.example',
+          });
+        }
+      }
     }
   });
 

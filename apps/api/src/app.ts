@@ -8,6 +8,7 @@ import { authRoutes } from './modules/auth/auth.routes';
 import { cartRoutes } from './modules/cart/cart.routes';
 import { catalogRoutes } from './modules/catalog/catalog.routes';
 import { healthRoutes } from './modules/health/health.routes';
+import { stripeWebhookRoutes } from './modules/webhooks/stripe.webhook';
 import { authPlugin } from './plugins/auth';
 import { databasePlugin } from './plugins/database';
 import { errorHandlerPlugin } from './plugins/error-handler';
@@ -85,6 +86,9 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(catalogRoutes, { prefix: '/api' });
   await app.register(cartRoutes, { prefix: '/api/cart' });
+  // Registered last and in its own scope: it replaces the JSON parser with a raw-bytes one,
+  // and that substitution must not escape into any other route.
+  await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', env });
 
   return app;
 }
