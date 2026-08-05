@@ -1,5 +1,6 @@
 import { createRouter } from '@tanstack/react-router';
 
+import { cartRoute } from './routes/cart';
 import { homeRoute } from './routes/home';
 import { rootRoute } from './routes/root';
 import { shopRoute } from './routes/shop';
@@ -11,7 +12,7 @@ import { shopRoute } from './routes/shop';
  * one is the same type safety with nothing to regenerate and nothing to commit that a build
  * step owns. It also puts every route in one list, which is the list a reviewer wants.
  */
-const routeTree = rootRoute.addChildren([homeRoute, shopRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, shopRoute, cartRoute]);
 
 export const router = createRouter({
   routeTree,

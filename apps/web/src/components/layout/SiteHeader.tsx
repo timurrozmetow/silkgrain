@@ -2,7 +2,9 @@ import { Icon, useFocusTrap } from '@silkgrain/ui';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
+import { useCartCount } from '../../store/cart';
 import { ButtonLink } from '../ButtonLink';
+import { CartDrawer } from '../cart/CartDrawer';
 
 import { Wordmark } from './Wordmark';
 
@@ -30,6 +32,8 @@ const NAV = [{ to: '/shop', label: 'Shop' }] as const;
 
 export function SiteHeader() {
   const [navOpen, setNavOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const cartCount = useCartCount();
 
   return (
     <>
@@ -67,10 +71,31 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-3">
-            {/* The search overlay, the cart drawer, the wishlist and the account menu are
-                task 5.2 and the pages behind them. They land with what they open. */}
-            <ButtonLink to="/shop" size="sm">
+          <div className="ml-auto flex items-center gap-2 mobile:gap-0">
+            {/* The search overlay, the mega-menu, the wishlist and the account menu are still
+                to come. They land with what they open. */}
+            <button
+              type="button"
+              className="relative flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
+              aria-label={cartCount === 0 ? 'Cart, empty' : `Cart, ${String(cartCount)} items`}
+              aria-expanded={cartOpen}
+              onClick={() => {
+                setCartOpen(true);
+              }}
+            >
+              <Icon name="shopping-bag" size={20} />
+              {cartCount > 0 && (
+                <span
+                  className="absolute right-1 top-1 flex min-w-[18px] items-center justify-center rounded-full bg-gold px-1 font-mono text-[10px] leading-[18px] text-green-deep"
+                  // The count is already in the button's own label, so this is decoration.
+                  aria-hidden
+                >
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
+            <ButtonLink to="/shop" size="sm" className="ml-2 mobile:hidden">
               Shop Now
             </ButtonLink>
           </div>
@@ -81,6 +106,13 @@ export function SiteHeader() {
         open={navOpen}
         onClose={() => {
           setNavOpen(false);
+        }}
+      />
+
+      <CartDrawer
+        open={cartOpen}
+        onClose={() => {
+          setCartOpen(false);
         }}
       />
     </>
