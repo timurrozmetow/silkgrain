@@ -48,6 +48,47 @@ const SIZES: Record<ButtonSize, { frame: string; gap: string; icon: number }> = 
   lg: { frame: 'h-[52px] px-7 text-body', gap: 'gap-2.5', icon: 18 },
 };
 
+export interface ButtonClassOptions {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  corner?: 'md' | 'sharp';
+  fullWidth?: boolean;
+  className?: string;
+}
+
+/**
+ * The button's appearance, without the button.
+ *
+ * A call to action that navigates has to be an anchor: wrapping a `<button>` in a link is
+ * invalid, and a `<button>` with an `onClick` that navigates loses the middle-click, the
+ * right-click menu and the status bar. Exporting the classes lets a router `Link` look
+ * exactly like a `Button` without either of them growing a polymorphic `as` prop, and keeps
+ * one definition of what a primary button looks like.
+ */
+export function buttonClasses({
+  variant = 'primary',
+  size = 'md',
+  corner = 'md',
+  fullWidth = false,
+  className,
+}: ButtonClassOptions = {}): string {
+  return cn(
+    'relative inline-flex items-center justify-center font-sans font-semibold',
+    'transition-[background-color,color,transform,box-shadow] duration-base ease-standard',
+    'disabled:pointer-events-none disabled:opacity-40',
+    corner === 'sharp' ? 'rounded-sharp' : 'rounded-md',
+    fullWidth && 'w-full',
+    SIZES[size].frame,
+    VARIANTS[variant],
+    className,
+  );
+}
+
+/** The icon size that goes with a button size, for a link that wants one. */
+export function buttonIconSize(size: ButtonSize = 'md'): number {
+  return SIZES[size].icon;
+}
+
 /**
  * The one button in the system.
  *
@@ -79,16 +120,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cn(
-        'relative inline-flex items-center justify-center font-sans font-semibold',
-        'transition-[background-color,color,transform,box-shadow] duration-base ease-standard',
-        'disabled:pointer-events-none disabled:opacity-40',
-        corner === 'sharp' ? 'rounded-sharp' : 'rounded-md',
-        fullWidth && 'w-full',
-        sizing.frame,
-        VARIANTS[variant],
-        className,
-      )}
+      className={buttonClasses({
+        variant,
+        size,
+        corner,
+        fullWidth,
+        ...(className === undefined ? {} : { className }),
+      })}
       {...rest}
     >
       <span className={cn('inline-flex items-center', sizing.gap, loading && 'invisible')}>
