@@ -92,6 +92,26 @@ const EnvSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((value) => value === 'true'),
+
+    /**
+     * Mail. Locally this is Mailpit, which accepts anything and delivers nowhere - exactly
+     * what you want when a test suite sends a hundred order confirmations.
+     */
+    SMTP_HOST: z.string().min(1).default('127.0.0.1'),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    /** Empty locally: Mailpit wants no credentials, and sending an empty user breaks auth. */
+    SMTP_USER: z.string().default(''),
+    SMTP_PASSWORD: z.string().default(''),
+
+    MAIL_FROM_NAME: z.string().min(1).default('SilkGrain'),
+    MAIL_FROM_ADDRESS: z.string().email(),
+    MAIL_REPLY_TO: z.string().email().or(z.literal('')).default(''),
+    // `MAIL_OPS_ADDRESS` is in `.env.example` and deliberately absent here: nothing reads it
+    // until Phase 6 sends the wholesale notice, and this file lists only what the code reads.
   })
   .superRefine((value, ctx) => {
     if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {

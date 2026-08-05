@@ -370,6 +370,36 @@ describe('stripe webhook', () => {
     expect(await stockOf(before!.variantId)).toBe(before!.stockBefore - before!.qty);
   });
 
+  /**
+   * `latest_charge` is a bare id unless the event expanded it, and absent entirely on an
+   * intent that never produced one. Dereferencing it cost a 500 and a redelivery loop before
+   * this test existed.
+   */
+  it('settles a payment whose charge was never expanded', async () => {
+    const order = await seedPendingOrder(app.db, fixture);
+    const before = order.lines[0];
+    const event = succeeded(order);
+    // Two shapes Stripe really sends, neither of them an object.
+    delete (event.data.object as { latest_charge?: unknown }).latest_charge;
+
+    expect((await deliver(event)).status).toBe(200);
+    expect((await orderRow(order.id))?.status).toBe('paid');
+    expect(await stockOf(before!.variantId)).toBe(before!.stockBefore - before!.qty);
+
+    const [payment] = await app.db.select().from(payments).where(eq(payments.orderId, order.id));
+    expect(payment?.status).toBe('succeeded');
+    expect(payment?.cardBrand).toBeNull();
+    expect(payment?.cardLast4).toBeNull();
+  });
+
+  it('settles a payment whose charge is only an id', async () => {
+    const order = await seedPendingOrder(app.db, fixture, { orderNumber: 'SG-2026-09004' });
+    const event = succeeded(order, { latest_charge: 'ch_unexpanded_1' });
+
+    expect((await deliver(event)).status).toBe(200);
+    expect((await orderRow(order.id))?.status).toBe('paid');
+  });
+
   it('acknowledges an event type it does not act on', async () => {
     const event = {
       id: nextId('evt'),

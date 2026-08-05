@@ -10,6 +10,7 @@ const VALID = {
   STRIPE_SECRET_KEY: 'sk_test_example',
   STRIPE_WEBHOOK_SECRET: 'whsec_example',
   VITE_STRIPE_PUBLISHABLE_KEY: 'pk_test_example',
+  MAIL_FROM_ADDRESS: 'orders@silkgrain.example',
 };
 
 /** What production additionally demands, so a placeholder cannot reach a live deployment. */

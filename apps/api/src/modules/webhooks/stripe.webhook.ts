@@ -9,6 +9,7 @@ import type { Database } from '../../db/client';
 import { orders } from '../../db/schema';
 import type { Env } from '../../env';
 import { AppError } from '../../lib/errors';
+import type { EmailJob } from '../mail/email.queue';
 import { markOrderPaid, markOrderRefunded, markPaymentFailed } from '../orders/settle.service';
 
 import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent } from './webhook-events';
@@ -104,7 +105,7 @@ export async function stripeWebhookRoutes(
       }
 
       try {
-        await handleEvent(app.db, event);
+        await handleEvent(app.db, event, app.enqueueEmail);
         await completeWebhookEvent(app.db, claim.id);
       } catch (error) {
         // Recorded outside the transaction that failed, which has already rolled back.
@@ -133,10 +134,15 @@ export async function stripeWebhookRoutes(
  * what it is subscribed to, and retrying an event forever because nobody handles it is worse
  * than ignoring it.
  */
-async function handleEvent(db: Database, event: Stripe.Event): Promise<void> {
+async function handleEvent(
+  db: Database,
+  event: Stripe.Event,
+  enqueueEmail: (job: EmailJob) => Promise<void>,
+): Promise<void> {
   if (event.type === 'payment_intent.succeeded') {
     const intent = event.data.object;
-    await markOrderPaid(db, await orderIdFrom(db, intent.metadata), {
+    const orderId = await orderIdFrom(db, intent.metadata);
+    const settlement = await markOrderPaid(db, orderId, {
       provider: 'stripe',
       providerPaymentId: intent.id,
       amountCents: intent.amount_received,
@@ -144,6 +150,22 @@ async function handleEvent(db: Database, event: Stripe.Event): Promise<void> {
       ...cardDetails(intent),
       rawPayload: event,
     });
+
+    // Only when this delivery is the one that moved the order. A redelivery finds it already
+    // paid and must not produce a second receipt.
+    if (settlement.changed) {
+      const [order] = await db
+        .select({ orderNumber: orders.orderNumber, email: orders.email })
+        .from(orders)
+        .where(eq(orders.id, orderId));
+      if (order) {
+        await enqueueEmail({
+          type: 'order_confirmation',
+          orderNumber: order.orderNumber,
+          email: order.email,
+        });
+      }
+    }
     return;
   }
 
@@ -199,13 +221,22 @@ async function orderIdFrom(db: Database, metadata: Stripe.Metadata | null): Prom
   return order.id;
 }
 
-/** Brand and last four, which is the most a card ever reveals to this system. */
+/**
+ * Brand and last four, which is the most a card ever reveals to this system.
+ *
+ * `latest_charge` is typed `string | Charge | null`, but the field is also simply absent on an
+ * intent that never produced a charge, and it is a bare id unless the event expanded it. Only
+ * an object carries the card, so anything else answers "no card" rather than throwing - which
+ * it did, until a payment without an expanded charge reached it.
+ */
 function cardDetails(intent: Stripe.PaymentIntent): {
   cardBrand: string | null;
   cardLast4: string | null;
 } {
-  const charge = intent.latest_charge;
-  if (charge === null || typeof charge === 'string') return { cardBrand: null, cardLast4: null };
-  const card = charge.payment_method_details?.card;
+  const charge: unknown = intent.latest_charge;
+  if (typeof charge !== 'object' || charge === null) {
+    return { cardBrand: null, cardLast4: null };
+  }
+  const card = (charge as Stripe.Charge).payment_method_details?.card;
   return { cardBrand: card?.brand ?? null, cardLast4: card?.last4 ?? null };
 }
