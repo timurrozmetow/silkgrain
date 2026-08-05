@@ -63,6 +63,25 @@ the placeholders; `loadEnv` refuses them under `NODE_ENV=production`.
 `pk_test_`; `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints the
 `whsec_`. Put all three in `.env` and 4.2 and 4.6 can be finished and verified.
 
+**Phase 5 has started**, because it needs nothing from Stripe until the checkout. Done and
+driven in a real browser: the frame (router, layout, announcement bar, sticky header, footer,
+scroll restoration, error boundary, 404), the home page's hero, category strip and both
+product rails, and `/shop` with URL-driven sorting and pagination.
+
+The header and footer carry **only links to pages that exist**, and grow as the pages land.
+The design's nav is five items and one ships. This is deliberate: a header full of links to
+pages that are not built looks finished and is not.
+
+Next in Phase 5: the search overlay, the mega-menu and the cart drawer (5.2), then the product
+page and the cart page, then the content pages the nav is waiting on.
+
+`apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
+comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
+price the moment a sale ended, and the checkout would then disagree with it.
+
+Storefront bundle is **172 KB gzip** against the 250 KB budget, up from 110 KB for the router,
+the query client and the store. Route-level code splitting is task 8.4.
+
 ---
 
 ## Blocked on the owner
