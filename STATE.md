@@ -44,17 +44,24 @@ while leaving its products in the grid, in search and in the cart.
 | 4.3  | Stripe webhook — raw body, signature, idempotency. Done, 19 tests.                      |
 | 4.4  | The paid transaction — status, stock, movements, promo redemption. Done, in those 19.   |
 | 4.8  | Order lookup, guest and account. Done, 11 tests.                                        |
-| 4.7  | Email queue — **next.** Needs no credentials; Redis and Mailpit are both up.            |
+| 4.7  | Order confirmation over BullMQ, delivered to Mailpit. Done, 6 tests.                    |
 | 4.2  | `POST /api/checkout/intent` — **not started.** Needs a real Stripe key (decision D-27). |
 | 4.6  | Stripe Tax — **not started.** Needs an account with Tax enabled.                        |
 | 4.5  | PayPal — **moved to `BACKLOG.md`** by the owner (decision D-26).                        |
 
-**Blocked on credentials.** `.env` still holds the `.env.example` placeholders for every
-payment provider: `STRIPE_SECRET_KEY=sk_test_replace_me`, `STRIPE_WEBHOOK_SECRET=whsec_replace_me`,
-and PayPal's three as `replace_me`. Everything above was built and tested without them — Stripe's
-signature verification is local HMAC, so the whole webhook contour is provable offline — but the
-phase's acceptance criterion is the four Stripe test-mode card scenarios, and those need a real
-test key. Development boots on the placeholders; `loadEnv` refuses them under `NODE_ENV=production`.
+**Everything that does not need a payment credential is finished.** What is left is the two
+tasks that call Stripe's API, and they are blocked: `.env` still holds the `.env.example`
+placeholders, `STRIPE_SECRET_KEY=sk_test_replace_me` and `STRIPE_WEBHOOK_SECRET=whsec_replace_me`.
+
+That blocks less than it sounds like. Stripe's signature verification is local HMAC, so the
+whole webhook contour, the paid transaction and the receipt are built and proved offline — the
+tests sign their own events with the SDK. What cannot be proved is the four test-mode card
+scenarios in the acceptance criterion, because they require an account. Development boots on
+the placeholders; `loadEnv` refuses them under `NODE_ENV=production`.
+
+**To unblock:** Stripe dashboard → Developers → API keys in test mode gives `sk_test_` and
+`pk_test_`; `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints the
+`whsec_`. Put all three in `.env` and 4.2 and 4.6 can be finished and verified.
 
 ---
 
@@ -107,6 +114,9 @@ src/db/{migrate,reset,seed}   forward-only migrations, a guarded drop, a determi
 src/modules/auth/             routes, service, tokens
 src/modules/catalog/          query (filters and sorts), service (four reads), routes
 src/modules/cart/             cart, promo and shipping services, routes
+src/modules/orders/           order numbers, the settlement transaction, reads, routes
+src/modules/webhooks/         Stripe events: raw body, signature, idempotency
+src/modules/mail/             mailer, templates, the BullMQ queue and its worker
 src/modules/health/           /health and /ready
 src/lib/settings.ts           reads a value the owner edits in the admin panel
 src/test/harness.ts           integration harness against silkgrain_test
@@ -122,6 +132,15 @@ GET  /api/products/:slug      variants, nutrition, reviews with histogram, relat
 GET  /api/search/suggest      type-ahead plus popular terms
 POST /api/cart/validate       reprices a cart; an unusable promo is reported, not thrown
 POST /api/cart/promo          the Apply button; an unusable promo is a PROMO_* error
+```
+
+Added in Phase 4:
+
+```
+GET  /api/orders/:number      guest lookup; the order's email is required as well
+GET  /api/account/orders      the signed-in customer's history
+GET  /api/account/orders/:num their own order, no email needed
+POST /api/webhooks/stripe     the only path to `paid`. Raw body, signature, idempotent
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,
