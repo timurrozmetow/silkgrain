@@ -45,6 +45,23 @@ read-only and seeded; accepting user submissions adds moderation, verified-buyer
 against order history, spam handling and email notifications.
 **Estimate 20–26 h.** Blocked on Q-6.
 
+### PayPal as a second payment provider
+
+Deferred out of Phase 4 by the owner, 2026-07-30 (decision D-26). The mockup puts a PayPal
+button on the checkout and in the cart's "or pay with" row; both stay hidden until this lands.
+
+Stripe's Payment Element already covers cards, Apple Pay and Google Pay, which is the large
+majority of payments. PayPal adds a second webhook contour with its own signature scheme, its
+own idempotency store, and a second place where the captured amount has to be reconciled
+against the order before anything is marked paid — that last one is where the money can go
+wrong, and it is worth doing once, deliberately, rather than alongside everything else.
+
+Needs `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `PAYPAL_WEBHOOK_ID` from a sandbox app.
+The `payments` and `webhook_events` tables already carry a `provider` column, and
+`PaymentHandoff` in `packages/contracts` is already a discriminated union with a `paypal`
+member, so nothing has to be reshaped to add it.
+**Estimate 6–8 h.**
+
 ### Address book and saved cards
 
 The account menu lists "Addresses" and "Payment Methods". Addresses are currently attached to
