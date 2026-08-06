@@ -6,6 +6,8 @@ import { useCartCount } from '../../store/cart';
 import { ButtonLink } from '../ButtonLink';
 import { CartDrawer } from '../cart/CartDrawer';
 
+import { MegaMenu } from './MegaMenu';
+import { SearchOverlay } from './SearchOverlay';
 import { Wordmark } from './Wordmark';
 
 /**
@@ -23,21 +25,41 @@ import { Wordmark } from './Wordmark';
 /**
  * Grows as the phase does.
  *
- * The design's nav is Shop, Recipes, Wholesale, About and Help. An entry appears here when
- * its page exists: a header full of links to pages that are not built yet looks finished and
- * is not, and it is the kind of thing that survives to launch because everyone assumed
- * somebody else had checked it.
+ * The design's nav is Shop, Recipes, Wholesale, About and Help. An entry appears here when its
+ * page exists: a header full of links to pages that are not built yet looks finished and is
+ * not, and it is the kind of thing that survives to launch because everyone assumed somebody
+ * else had checked it.
+ *
+ * Shop is rendered separately because it is the only item with a panel behind it. The others
+ * join `NAV` as each page is built.
  */
-const NAV = [{ to: '/shop', label: 'Shop' }] as const;
+const SHOP = { to: '/shop', label: 'Shop' } as const;
+const NAV: readonly { to: '/cart'; label: string }[] = [];
+
+/** True on a device where hovering is a real gesture rather than an accident of a tap. */
+function canHover(): boolean {
+  return window.matchMedia('(hover: hover)').matches;
+}
 
 export function SiteHeader() {
   const [navOpen, setNavOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [megaOpen, setMegaOpen] = useState(false);
   const cartCount = useCartCount();
 
   return (
     <>
-      <header className="sticky top-0 z-header border-b border-line bg-surface/[0.92] backdrop-blur-[12px]">
+      {/* The mega-menu closes on leaving the whole header rather than on leaving the Shop link,
+          or it would vanish in the gap between the link and the panel below it. A mouse-only
+          enhancement by design: keyboard and touch reach the same categories through /shop. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- see above */}
+      <header
+        className="sticky top-0 z-header border-b border-line bg-surface/[0.92] backdrop-blur-[12px]"
+        onMouseLeave={() => {
+          setMegaOpen(false);
+        }}
+      >
         <div className="mx-auto flex h-[74px] max-w-container items-center gap-6 px-gutter tablet:px-gutter-tablet mobile:h-[64px] mobile:px-gutter-mobile">
           <button
             type="button"
@@ -59,12 +81,28 @@ export function SiteHeader() {
             className="flex flex-1 items-center justify-center gap-8 mobile:hidden"
             aria-label="Primary"
           >
+            <Link
+              to={SHOP.to}
+              className="text-[14px] text-ink transition-colors hover:text-gold-dark [&.active]:text-gold-dark"
+              activeProps={{ className: 'active' }}
+              onMouseEnter={() => {
+                // Only where hovering means something. On a touch screen one tap would both
+                // open the panel and follow the link, so there the link simply goes to /shop,
+                // which lists every category anyway.
+                setMegaOpen(canHover());
+              }}
+            >
+              {SHOP.label}
+            </Link>
             {NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
                 className="text-[14px] text-ink transition-colors hover:text-gold-dark [&.active]:text-gold-dark"
                 activeProps={{ className: 'active' }}
+                onMouseEnter={() => {
+                  setMegaOpen(false);
+                }}
               >
                 {item.label}
               </Link>
@@ -72,8 +110,19 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 mobile:gap-0">
-            {/* The search overlay, the mega-menu, the wishlist and the account menu are still
-                to come. They land with what they open. */}
+            {/* The wishlist and the account menu land with their pages. */}
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
+              aria-label="Search products"
+              aria-expanded={searchOpen}
+              onClick={() => {
+                setSearchOpen(true);
+              }}
+            >
+              <Icon name="magnifying-glass" size={20} />
+            </button>
+
             <button
               type="button"
               className="relative flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
@@ -100,6 +149,13 @@ export function SiteHeader() {
             </ButtonLink>
           </div>
         </div>
+
+        <MegaMenu
+          open={megaOpen}
+          onClose={() => {
+            setMegaOpen(false);
+          }}
+        />
       </header>
 
       <MobileNav
@@ -113,6 +169,13 @@ export function SiteHeader() {
         open={cartOpen}
         onClose={() => {
           setCartOpen(false);
+        }}
+      />
+
+      <SearchOverlay
+        open={searchOpen}
+        onClose={() => {
+          setSearchOpen(false);
         }}
       />
     </>
@@ -170,7 +233,7 @@ function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2" aria-label="Mobile">
-          {NAV.map((item) => (
+          {[SHOP, ...NAV].map((item) => (
             <Link
               key={item.to}
               to={item.to}

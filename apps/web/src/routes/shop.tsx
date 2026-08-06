@@ -30,7 +30,17 @@ import { rootRoute } from './root';
 export interface ShopSearch {
   page?: number;
   sort?: ProductSort;
-  category?: string[];
+  /**
+   * Comma-separated slugs, not an array.
+   *
+   * TanStack serialises an array by JSON-encoding it, so `?category=%5B%22rice%22%5D` - which
+   * round-trips correctly and is unreadable. The whole reason filter state lives in the URL is
+   * that the URL can be shared, and `?category=rice,lentils` is both legible and exactly the
+   * form `ProductListQuery` accepts.
+   */
+  category?: string;
+  /** What the search overlay hands over when someone presses Enter. */
+  q?: string;
 }
 
 const SORT_LABELS: Record<ProductSort, string> = {
@@ -48,13 +58,19 @@ function asSort(value: unknown): ProductSort {
   return PRODUCT_SORT.includes(value as ProductSort) ? (value as ProductSort) : 'featured';
 }
 
-function asCategories(value: unknown): string[] | undefined {
-  if (typeof value === 'string' && value.length > 0) return [value];
-  if (Array.isArray(value)) {
-    const list = value.filter((entry): entry is string => typeof entry === 'string');
-    return list.length > 0 ? list : undefined;
-  }
-  return undefined;
+/** Accepts the comma-separated form and an array, in case an older link is still out there. */
+function asCategoryParam(value: unknown): string | undefined {
+  const slugs = (
+    Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === 'string')
+      : typeof value === 'string'
+        ? value.split(',')
+        : []
+  )
+    .map((slug) => slug.trim())
+    .filter((slug) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug));
+
+  return slugs.length > 0 ? slugs.join(',') : undefined;
 }
 
 function Shop() {
@@ -67,7 +83,9 @@ function Shop() {
     page,
     perPage: PER_PAGE,
     sort,
-    ...(search.category === undefined ? {} : { category: search.category }),
+    // Split back out, so the request carries a repeated `category` key per slug.
+    ...(search.category === undefined ? {} : { category: search.category.split(',') }),
+    ...(search.q === undefined ? {} : { q: search.q }),
   });
 
   const { data, isPending, isError } = useQuery({
@@ -84,12 +102,14 @@ function Shop() {
 
   return (
     <div className="mx-auto max-w-container px-gutter py-12 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-8">
-      <Eyebrow>The pantry</Eyebrow>
+      <Eyebrow>{search.q === undefined ? 'The pantry' : 'Search results'}</Eyebrow>
       <h1 className="mt-3 font-serif text-[42px] leading-tight text-ink mobile:text-[30px]">
-        Shop All Grains
+        {search.q === undefined ? 'Shop All Grains' : `“${search.q}”`}
       </h1>
       <p className="mt-3 max-w-[60ch] text-body text-body-muted">
-        Rice, lentils, dried fruit and spices, bought direct from the families who grow them.
+        {search.q === undefined
+          ? 'Rice, lentils, dried fruit and spices, bought direct from the families who grow them.'
+          : 'Matching name, description and category.'}
       </p>
 
       <div className="mt-10 flex items-center justify-between gap-6 border-b border-line pb-4 mobile:flex-col mobile:items-stretch mobile:gap-3">
@@ -165,12 +185,15 @@ export const shopRoute = createRoute({
   // Parsed rather than trusted: these come from the address bar, where anyone can type.
   validateSearch: (raw: Record<string, unknown>): ShopSearch => {
     const page = Number(raw['page']);
-    const categories = asCategories(raw['category']);
+    const categories = asCategoryParam(raw['category']);
     // Defaults are left out rather than written in, so `/shop` stays `/shop`.
     return {
       ...(Number.isInteger(page) && page > 1 ? { page } : {}),
       ...(raw['sort'] === undefined ? {} : { sort: asSort(raw['sort']) }),
       ...(categories === undefined ? {} : { category: categories }),
+      ...(typeof raw['q'] === 'string' && raw['q'].trim().length > 0
+        ? { q: raw['q'].trim().slice(0, 120) }
+        : {}),
     };
   },
   component: Shop,

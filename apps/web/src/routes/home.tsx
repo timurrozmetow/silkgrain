@@ -104,7 +104,7 @@ function CategoryStrip() {
           <Link
             key={category.slug}
             to="/shop"
-            search={{ category: [category.slug] }}
+            search={{ category: category.slug }}
             className="group flex flex-col items-center gap-3 border border-line bg-surface px-4 py-7 text-center transition-all duration-base hover:-translate-y-[3px] hover:border-green hover:bg-green"
           >
             <Icon

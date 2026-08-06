@@ -80,8 +80,13 @@ in Phase 6.
 histogram and "You May Also Like", all from one request. `ProductCard` grew an optional
 `onNavigate` so a card click routes instead of reloading the page, while staying a real anchor.
 
-Next in Phase 5: the search overlay and the mega-menu, then the content pages the nav is
-waiting on (`/about`, `/help`, `/recipes`, `/wholesale`) and `/wishlist` with `/account`.
+The search overlay and the mega-menu are done, which finishes task 5.2 except for quick view.
+Filter state in the URL is **comma-separated, not an array**: TanStack JSON-encodes an array, so
+`?category=rice` beats `?category=%5B%22rice%22%5D` for something meant to be shared.
+
+Next in Phase 5: the content pages the nav is waiting on (`/about`, `/help`, `/recipes`,
+`/wholesale`), then `/wishlist` and `/account`, the category landing page, quick view, and the
+SEO pass.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
