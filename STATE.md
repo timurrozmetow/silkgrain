@@ -84,12 +84,18 @@ The search overlay and the mega-menu are done, which finishes task 5.2 except fo
 Filter state in the URL is **comma-separated, not an array**: TanStack JSON-encodes an array, so
 `?category=rice` beats `?category=%5B%22rice%22%5D` for something meant to be shared.
 
-`/about` and `/help` are done, so the nav is Shop / About / Help. Help needed two new
-endpoints, `GET /api/faqs` and `POST /api/contact`, both tested (11 tests).
+`/about`, `/help` and `/recipes` are done, so the nav is Shop / Recipes / About / Help — four
+of the design's five. Those pages needed four endpoints no phase had claimed: `GET /api/faqs`,
+`POST /api/contact`, `GET /api/recipes` and `GET /api/recipes/:slug`, all tested (19 tests).
 
-Next in Phase 5: `/recipes` (needs a recipes endpoint), `/wishlist`, `/account`, the category
-landing page, quick view, and the SEO pass. `/wholesale` waits for Phase 6, since its enquiry
-form is the page.
+A recipe's ingredient list reuses `loadProductCards` from the catalogue service, so it carries
+the same derived badges, price range and stock state a grid does — and an unpublished product
+simply does not come back.
+
+Next in Phase 5: `/wishlist`, `/account`, the category landing page, quick view, and the SEO
+pass. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
+detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
+everything it would need.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -173,6 +179,8 @@ Added in Phase 4:
 
 ```
 GET  /api/faqs                published entries, grouped in the enum's order
+GET  /api/recipes             newest first; the newest is `featured` and not repeated
+GET  /api/recipes/:slug       one recipe, with the products it uses
 POST /api/contact             the Help form; honeypot and fill-time checked, silently
 GET  /api/orders/:number      guest lookup; the order's email is required as well
 GET  /api/account/orders      the signed-in customer's history

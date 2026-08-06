@@ -233,7 +233,7 @@ export async function listProducts(
     .where(and(...conditions));
 
   const [items, facets] = await Promise.all([
-    loadCards(
+    loadProductCards(
       db,
       ordered.map((row) => row.id),
     ),
@@ -399,8 +399,12 @@ interface VariantRow {
  *
  * The order matters: the id query is what applied the sort, and re-sorting here - or letting
  * MySQL's `IN (...)` order stand - would silently discard it.
+ *
+ * Exported because a recipe's ingredient list is the same projection: the same derived badges,
+ * the same price range, the same stock state, and the same rule that an unpublished product
+ * simply does not come back.
  */
-async function loadCards(db: Database, ids: number[]): Promise<ProductCard[]> {
+export async function loadProductCards(db: Database, ids: number[]): Promise<ProductCard[]> {
   if (ids.length === 0) return [];
 
   const [rows, variants, images, badges, certs] = await Promise.all([
@@ -598,7 +602,7 @@ export async function getProductBySlug(db: Database, slug: string): Promise<Prod
 
   const [cards, variants, images, nutritionRows, breakdown, related, certifications] =
     await Promise.all([
-      loadCards(db, [row.id]),
+      loadProductCards(db, [row.id]),
       loadVariants(db, [row.id]),
       db
         .select({
@@ -795,7 +799,7 @@ async function loadRelated(
     ids.push(...fillers.map((row) => row.id));
   }
 
-  return loadCards(db, ids);
+  return loadProductCards(db, ids);
 }
 
 // --------------------------------------------------------------------------------------

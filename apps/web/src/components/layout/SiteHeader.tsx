@@ -35,6 +35,7 @@ import { Wordmark } from './Wordmark';
  */
 const SHOP = { to: '/shop', label: 'Shop' } as const;
 const NAV = [
+  { to: '/recipes', label: 'Recipes' },
   { to: '/about', label: 'About' },
   { to: '/help', label: 'Help' },
 ] as const;

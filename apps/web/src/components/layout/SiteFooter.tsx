@@ -25,6 +25,7 @@ const COLUMNS: { heading: string; links: { to: string; label: string }[] }[] = [
     heading: 'Company',
     links: [
       { to: '/about', label: 'Our Story' },
+      { to: '/recipes', label: 'Recipes' },
       { to: '/help', label: 'Help & FAQ' },
     ],
   },

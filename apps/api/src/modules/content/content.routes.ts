@@ -3,11 +3,16 @@ import {
   ContactMessageInput,
   ContactMessageResult,
   FaqListResponse,
+  RecipeDetail,
+  RecipeListResponse,
+  Slug,
 } from '@silkgrain/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 
 import { listFaqs, submitContactMessage } from './content.service';
+import { getRecipeBySlug, listRecipes } from './recipes.service';
 
 /**
  * The Help page's two halves.
@@ -56,5 +61,34 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
       await submitContactMessage(app.db, request.body, { ip: request.ip });
       return reply.status(201).send({ received: true } as const);
     },
+  );
+
+  routes.get(
+    '/recipes',
+    {
+      schema: {
+        tags: ['content'],
+        summary: 'Published recipes, newest first',
+        description:
+          'The newest one comes back as `featured` and is not repeated in `items`. There is no ' +
+          '`featured` column: publishing something new is the intent already, and a second ' +
+          'flag would be a second thing for an editor to remember.',
+        response: { 200: RecipeListResponse },
+      },
+    },
+    () => listRecipes(app.db),
+  );
+
+  routes.get(
+    '/recipes/:slug',
+    {
+      schema: {
+        tags: ['content'],
+        summary: 'One recipe, with the products it uses',
+        params: z.object({ slug: Slug }),
+        response: { 200: RecipeDetail, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => getRecipeBySlug(app.db, request.params.slug),
   );
 }

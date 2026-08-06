@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-import { FaqCategory } from '../enums';
-import { Email, Id } from '../primitives';
+import { FaqCategory, RecipeDifficulty } from '../enums';
+import { Email, Id, IsoDate, Slug } from '../primitives';
 
+import { ProductCard } from './catalog';
 import { OrderNumber } from './order';
 
 /**
@@ -71,3 +72,50 @@ export type ContactMessageInput = z.infer<typeof ContactMessageInput>;
 
 export const ContactMessageResult = z.object({ received: z.literal(true) });
 export type ContactMessageResult = z.infer<typeof ContactMessageResult>;
+
+// --------------------------------------------------------------------------------------
+// Recipes
+// --------------------------------------------------------------------------------------
+
+/**
+ * A recipe card. The list draws exactly these fields and no body, so a page of six does not
+ * carry six method sections nobody has scrolled to.
+ */
+export const RecipeCard = z.object({
+  slug: Slug,
+  title: z.string(),
+  excerpt: z.string(),
+  image: z.object({ url: z.string().url(), alt: z.string() }).nullable(),
+  prepMinutes: z.number().int().nonnegative(),
+  cookMinutes: z.number().int().nonnegative(),
+  /** Prep plus cook, computed once on the server so every card agrees on the arithmetic. */
+  totalMinutes: z.number().int().nonnegative(),
+  servings: z.number().int().positive(),
+  difficulty: RecipeDifficulty,
+  publishedAt: IsoDate.nullable(),
+});
+export type RecipeCard = z.infer<typeof RecipeCard>;
+
+export const RecipeListResponse = z.object({
+  /** The newest published recipe, drawn as the large panel. Null when there are none. */
+  featured: RecipeCard.nullable(),
+  items: z.array(RecipeCard),
+});
+export type RecipeListResponse = z.infer<typeof RecipeListResponse>;
+
+/**
+ * One recipe, with the products it uses.
+ *
+ * `products` comes from the `recipe_products` join rather than a JSON array of ids, so
+ * "Shop the ingredients" cannot point at something that has been deleted.
+ */
+export const RecipeDetail = RecipeCard.extend({
+  /** Markdown. Ingredients and steps are headings inside it. */
+  body: z.string(),
+  products: z.array(ProductCard),
+  seo: z.object({
+    metaTitle: z.string().nullable(),
+    metaDescription: z.string().nullable(),
+  }),
+});
+export type RecipeDetail = z.infer<typeof RecipeDetail>;
