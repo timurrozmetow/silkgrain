@@ -30,6 +30,14 @@ export interface ProductCardProduct {
 export interface ProductCardProps {
   product: ProductCardProduct;
   href: string;
+  /**
+   * Called instead of following `href`, so a router can navigate without a full page load.
+   *
+   * The element stays an anchor either way: middle-click, the context menu, "copy link" and
+   * the status bar all keep working, and a crawler still sees a destination. Only the plain
+   * left click is intercepted.
+   */
+  onNavigate?: (href: string) => void;
   onQuickView?: (slug: string) => void;
   onAddToCart?: (slug: string) => void;
   onToggleWishlist?: (slug: string) => void;
@@ -62,6 +70,7 @@ const STOCK: Record<StockState, { label: string; className: string }> = {
 export function ProductCard({
   product,
   href,
+  onNavigate,
   onQuickView,
   onAddToCart,
   onToggleWishlist,
@@ -158,7 +167,22 @@ export function ProductCard({
 
         <h3 className="font-display text-cardTitle font-semibold text-ink">
           {/* The stretched pseudo-element turns the whole card into this link's hit area. */}
-          <a href={href} className="after:absolute after:inset-0 after:content-['']">
+          <a
+            href={href}
+            className="after:absolute after:inset-0 after:content-['']"
+            onClick={
+              onNavigate === undefined
+                ? undefined
+                : (event) => {
+                    // Modified clicks mean "open elsewhere", which is the browser's job.
+                    if (event.defaultPrevented) return;
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    onNavigate(href);
+                  }
+            }
+          >
             {product.name}
           </a>
         </h3>

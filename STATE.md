@@ -76,8 +76,12 @@ The cart drawer and `/cart` are done too, both priced by one hook against
 `POST /api/cart/validate`. "Proceed to Checkout" is absent on purpose until `/checkout` exists
 in Phase 6.
 
-Next in Phase 5: the search overlay and the mega-menu, the product page, then the content
-pages the nav is waiting on.
+`/product/$slug` is done: gallery, weight selection, the FDA nutrition panel, the review
+histogram and "You May Also Like", all from one request. `ProductCard` grew an optional
+`onNavigate` so a card click routes instead of reloading the page, while staying a real anchor.
+
+Next in Phase 5: the search overlay and the mega-menu, then the content pages the nav is
+waiting on (`/about`, `/help`, `/recipes`, `/wholesale`) and `/wishlist` with `/account`.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

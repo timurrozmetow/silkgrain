@@ -1,5 +1,6 @@
 import type { ProductCard as ApiProductCard } from '@silkgrain/contracts';
 import { ProductCard, Skeleton } from '@silkgrain/ui';
+import { useNavigate } from '@tanstack/react-router';
 
 import { toCardProduct } from '../lib/product-card';
 import { useCart } from '../store/cart';
@@ -19,6 +20,7 @@ export function ProductGrid({
   columns?: 3 | 4;
 }) {
   const add = useCart((state) => state.add);
+  const navigate = useNavigate();
 
   return (
     <div
@@ -31,6 +33,9 @@ export function ProductGrid({
           key={product.slug}
           product={toCardProduct(product)}
           href={`/product/${product.slug}`}
+          onNavigate={() => {
+            void navigate({ to: '/product/$slug', params: { slug: product.slug } });
+          }}
           onAddToCart={() => {
             // Straight from the grid, using the variant the server marked default. The cart
             // stores the id and nothing else; the price comes back from `/api/cart/validate`.

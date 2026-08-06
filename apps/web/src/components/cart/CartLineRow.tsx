@@ -1,6 +1,7 @@
 import type { CartQuoteLine } from '@silkgrain/contracts';
 import { Money } from '@silkgrain/contracts/money';
 import { Icon, QuantityStepper } from '@silkgrain/ui';
+import { Link } from '@tanstack/react-router';
 
 import { useCart } from '../../store/cart';
 
@@ -18,8 +19,9 @@ export function CartLineRow({ line, compact = false }: { line: CartQuoteLine; co
 
   return (
     <li className={`flex gap-4 ${compact ? 'py-4' : 'py-6'} border-b border-line-soft`}>
-      <a
-        href={`/product/${line.productSlug}`}
+      <Link
+        to="/product/$slug"
+        params={{ slug: line.productSlug }}
         className={`${compact ? 'h-16 w-16' : 'h-[84px] w-[84px]'} shrink-0 overflow-hidden bg-gold-pale`}
       >
         {line.image === null ? (
@@ -34,18 +36,19 @@ export function CartLineRow({ line, compact = false }: { line: CartQuoteLine; co
             loading="lazy"
           />
         )}
-      </a>
+      </Link>
 
       <div className="min-w-0 flex-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
           {line.categoryName}
         </p>
-        <a
-          href={`/product/${line.productSlug}`}
+        <Link
+          to="/product/$slug"
+          params={{ slug: line.productSlug }}
           className={`mt-1 block truncate ${compact ? 'text-[15px]' : 'text-[17px]'} text-ink hover:text-green`}
         >
           {line.name}
-        </a>
+        </Link>
         <p className="mt-1 text-[13px] text-muted">
           {line.weightLabel} &middot; {Money.fromCents(line.unitPriceCents).format()} each
         </p>
