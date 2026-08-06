@@ -92,6 +92,10 @@ A recipe's ingredient list reuses `loadProductCards` from the catalogue service,
 the same derived badges, price range and stock state a grid does — and an unpublished product
 simply does not come back.
 
+`/shop` now has its sidebar — categories, price, weight, origin, certifications and an
+in-stock box — all drawn from the facets Phase 3 built. Nothing in it is hard-coded, which
+matters: the mockup's weight list is 1/2/5/10/25/50 lb and this catalogue's is not.
+
 Next in Phase 5: `/wishlist`, `/account`, the category landing page, quick view, and the SEO
 pass. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
 detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
