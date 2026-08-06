@@ -1,4 +1,5 @@
 import {
+  type AccountSummary,
   type AddressView,
   type OrderSummary,
   type OrderView,
@@ -6,7 +7,7 @@ import {
   pageBounds,
   pageMeta,
 } from '@silkgrain/contracts';
-import { count, desc, eq, inArray } from 'drizzle-orm';
+import { count, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/client';
 import { addresses, orderItems, orders, payments } from '../../db/schema';
@@ -127,6 +128,39 @@ function toAddressView(row: AddressRow): AddressView {
     zip: row.zip,
     country: 'US',
     phone: row.phone,
+  };
+}
+
+/**
+ * The account page's three stat cards, in one round trip.
+ *
+ * `SUM` over an empty set is `NULL`, not zero, so the coalesce is load-bearing: a customer who
+ * has signed up but not yet checked out must read $0.00, never a blank card. The spend total is
+ * restricted to the four statuses that mean money was taken and kept; the count is deliberately
+ * not, so it agrees with the history list, which shows every order regardless of status.
+ */
+const SPENT_STATUSES = ['paid', 'processing', 'shipped', 'delivered'] as const;
+
+export async function getAccountSummary(db: Database, customerId: number): Promise<AccountSummary> {
+  const [row] = await db
+    .select({
+      orderCount: count(),
+      // Typed as string, not number: MySQL returns a SUM over BIGINT as a decimal string, and
+      // claiming it is a number would make the `Number()` below look redundant when it is the
+      // one thing making the value safe to use.
+      lifetimeSpentCents: sql<string>`COALESCE(SUM(CASE WHEN ${inArray(orders.status, [
+        ...SPENT_STATUSES,
+      ])} THEN ${orders.totalCents} ELSE 0 END), 0)`,
+    })
+    .from(orders)
+    .where(eq(orders.customerId, customerId));
+
+  return {
+    orderCount: row?.orderCount ?? 0,
+    // MySQL returns SUM over BIGINT as a decimal string; Number is exact below 2^53 cents,
+    // which is more money than this shop will ever take.
+    lifetimeSpentCents: Number(row?.lifetimeSpentCents ?? 0),
+    currency: 'USD',
   };
 }
 

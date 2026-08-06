@@ -124,8 +124,32 @@ Client-side for the same reason the cart is (D-18). The `wishlists` and `wishlis
 exist for the day a signed-in list should follow someone between devices; nothing writes them
 yet, and a table nothing writes to would be a stub.
 
-All that is left of Phase 5 is `/account`, which needs sign-in and sign-up forms and a summary
-endpoint for the lifetime-spend card. `GET /api/account/orders` is already built and tested. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
+`/account` is done, and with it **every page Phase 5 owns is built**. (`/track` is listed under
+5.8 as well, but task 6.5 claims it alongside `/order/:number`, which is where it belongs — both
+read the same guest lookup.) One route wears two
+faces: signed out it is a sign-in / sign-up card, signed in it is the dashboard the mockup draws
+— sticky profile sidebar, three stat cards, order history with Reorder. The third state matters
+as much as the two: while the silent refresh is still deciding whether the refresh cookie is
+good, neither shows, so a returning customer never sees the sign-in form flash before their own
+name replaces it.
+
+The access token lives in a module variable in `apps/web/src/lib/api.ts`, not in the store and
+not in any storage another tab could read (D-15). A guarded call that comes back 401 refreshes
+**once** and replays; refreshes are single-flight, because a refresh token rotates on use and
+presenting a rotated one revokes the whole session family — two racing refreshes would sign the
+customer out, and React 18's double-invoked effect makes that a development certainty, not a
+theoretical race.
+
+Grain points, Addresses, Payment Methods, Track Order and Settings are in the mockup's sidebar
+and have **no backing model**, so they are not printed as links to nowhere. The dark card
+announces the programme instead of inventing a balance. All five are in `BACKLOG.md`.
+
+`GET /api/account/summary` is the one endpoint this needed. `orderCount` counts every order so
+it agrees with the list beneath it; `lifetimeSpentCents` counts only `paid`, `processing`,
+`shipped` and `delivered` — a pending order was never charged, a cancelled one never was, and a
+refunded one was paid back, so none belongs in a total labelled "spent".
+
+`/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
 detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
 everything it would need.
 
@@ -133,7 +157,7 @@ everything it would need.
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
 price the moment a sale ended, and the checkout would then disagree with it.
 
-Storefront bundle is **179 KB gzip** against the 250 KB budget, up from 110 KB for the router,
+Storefront bundle is **195 KB gzip** against the 250 KB budget, up from 110 KB for the router,
 the query client and the store. Route-level code splitting is task 8.4.
 
 ---
@@ -166,7 +190,8 @@ Answered on 2026-07-29, nothing left to ask:
 apps/api        Fastify 4. Plugins, error handler, Drizzle schema (32 tables), migrations,
                 seeds, auth, the catalogue and cart API, /health, /ready, Swagger on /docs.
 apps/web        Vite 5 + React 18 + TanStack Router/Query + Zustand. The storefront: the
-                frame, home, /shop, /product/$slug, /cart and the cart drawer.
+                frame, home, /shop, /shop/c/$slug, /product/$slug, /cart and the drawer,
+                /about, /help, /recipes, /wishlist, /account.
 apps/admin      Vite 5 + React 18 shell.
 packages/ui     The design system. 22 components, tokens, Tailwind preset, Storybook.
 packages/contracts  primitives, errors, enums, Money, pagination, auth, catalog, cart,
@@ -217,6 +242,7 @@ POST /api/contact             the Help form; honeypot and fill-time checked, sil
 GET  /api/orders/:number      guest lookup; the order's email is required as well
 GET  /api/account/orders      the signed-in customer's history
 GET  /api/account/orders/:num their own order, no email needed
+GET  /api/account/summary     the account page's stat cards: order count, lifetime spend
 POST /api/webhooks/stripe     the only path to `paid`. Raw body, signature, idempotent
 ```
 

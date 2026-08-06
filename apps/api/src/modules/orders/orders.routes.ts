@@ -1,4 +1,5 @@
 import {
+  AccountSummary,
   ApiError,
   OrderLookupQuery,
   OrderNumberParams,
@@ -12,7 +13,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import { unauthorized } from '../../lib/errors';
 
-import { getOrderByNumber, listCustomerOrders } from './orders.service';
+import { getAccountSummary, getOrderByNumber, listCustomerOrders } from './orders.service';
 
 /**
  * Reading orders.
@@ -46,6 +47,24 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     },
     (request) =>
       getOrderByNumber(app.db, request.params.orderNumber, { email: request.query.email }),
+  );
+
+  routes.get(
+    '/account/summary',
+    {
+      onRequest: app.requireCustomer,
+      schema: {
+        tags: ['orders'],
+        summary: 'The signed-in customer’s account stat cards',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AccountSummary, 401: ApiError },
+      },
+    },
+    (request) => {
+      const customerId = request.auth?.sub;
+      if (customerId === undefined) throw unauthorized();
+      return getAccountSummary(app.db, customerId);
+    },
   );
 
   routes.get(

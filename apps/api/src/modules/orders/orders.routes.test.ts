@@ -1,4 +1,4 @@
-import type { OrderSummary, OrderView } from '@silkgrain/contracts';
+import type { AccountSummary, OrderSummary, OrderView } from '@silkgrain/contracts';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -228,8 +228,66 @@ describe('reading orders', () => {
     expect(body.orderNumber).toBe(order.orderNumber);
   });
 
-  it('refuses both account routes without a session', async () => {
+  it('refuses every account route without a session', async () => {
     expect((await get('/api/account/orders')).status).toBe(401);
     expect((await get('/api/account/orders/SG-2026-08020')).status).toBe(401);
+    expect((await get('/api/account/summary')).status).toBe(401);
+  });
+
+  // ------------------------------------------------------------------------- account summary
+
+  it('sums lifetime spend from paid orders only, and counts every order', async () => {
+    const email = fixture.returningCustomer.email;
+    const customerId = fixture.returningCustomer.id;
+
+    // A second paid order, on top of the fixture's historical one (paid, 5736 cents).
+    const paid = await seedPendingOrder(app.db, fixture, {
+      orderNumber: 'SG-2026-08100',
+      email,
+      customerId,
+    });
+    await app.db.update(orders).set({ status: 'paid' }).where(eq(orders.id, paid.id));
+
+    // A pending order counts as an order, but not a cent of it has been taken.
+    await seedPendingOrder(app.db, fixture, {
+      orderNumber: 'SG-2026-08101',
+      email,
+      customerId,
+    });
+
+    // A refunded order was paid once, but the money went back, so it is not "spent".
+    const refunded = await seedPendingOrder(app.db, fixture, {
+      orderNumber: 'SG-2026-08102',
+      email,
+      customerId,
+    });
+    await app.db.update(orders).set({ status: 'refunded' }).where(eq(orders.id, refunded.id));
+
+    const token = await signIn(email);
+    const { status, body } = await get<AccountSummary>('/api/account/summary', token);
+
+    expect(status).toBe(200);
+    // The fixture's historical order plus the three seeded here.
+    expect(body.orderCount).toBe(4);
+    // Only the two paid ones: 5736 from the fixture and this order's own total.
+    expect(body.lifetimeSpentCents).toBe(5736 + paid.totalCents);
+    expect(body.currency).toBe('USD');
+  });
+
+  it('reads zero for a customer who has never ordered', async () => {
+    const newcomer = 'newcomer@example.com';
+    await app.db.insert(customers).values({
+      email: newcomer,
+      passwordHash: await hashPassword(FIXTURE_PASSWORD),
+      firstName: 'Aziza',
+      lastName: 'Karimova',
+    });
+
+    const token = await signIn(newcomer);
+    const { status, body } = await get<AccountSummary>('/api/account/summary', token);
+
+    expect(status).toBe(200);
+    expect(body.orderCount).toBe(0);
+    expect(body.lifetimeSpentCents).toBe(0);
   });
 });

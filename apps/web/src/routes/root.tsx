@@ -1,10 +1,12 @@
 import { Button, EmptyState } from '@silkgrain/ui';
 import { Outlet, createRootRoute, useRouter } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
 import { ButtonLink } from '../components/ButtonLink';
 import { AnnouncementBar } from '../components/layout/AnnouncementBar';
 import { SiteFooter } from '../components/layout/SiteFooter';
 import { SiteHeader } from '../components/layout/SiteHeader';
+import { useAuth } from '../store/auth';
 
 /**
  * The frame every page sits in.
@@ -14,6 +16,13 @@ import { SiteHeader } from '../components/layout/SiteHeader';
  * focusable only programmatically, so it never becomes a tab stop of its own.
  */
 function RootLayout() {
+  // One silent attempt at restoring a session from the refresh cookie, for the whole app. The
+  // store guards against running twice, so StrictMode's double effect costs nothing.
+  const restore = useAuth((state) => state.restore);
+  useEffect(() => {
+    void restore();
+  }, [restore]);
+
   return (
     <div className="flex min-h-screen flex-col bg-parchment">
       <a

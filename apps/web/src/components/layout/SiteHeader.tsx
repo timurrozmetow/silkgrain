@@ -116,7 +116,13 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 mobile:gap-0">
-            {/* The account menu lands with its page. */}
+            <Link
+              to="/account"
+              className="flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
+              aria-label="Your account"
+            >
+              <Icon name="user" size={20} />
+            </Link>
             <Link
               to="/wishlist"
               className="relative flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
@@ -256,7 +262,12 @@ function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2" aria-label="Mobile">
-          {[SHOP, ...NAV, { to: '/wishlist', label: 'Wishlist' } as const].map((item) => (
+          {[
+            SHOP,
+            ...NAV,
+            { to: '/wishlist', label: 'Wishlist' } as const,
+            { to: '/account', label: 'My Account' } as const,
+          ].map((item) => (
             <Link
               key={item.to}
               to={item.to}

@@ -37,12 +37,55 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-async function request<Result>(path: string, init: RequestInit): Promise<Result> {
+/**
+ * The access token, and the one hook that can mint a new one.
+ *
+ * The token lives in a module variable rather than in a header baked into every call, because
+ * it changes: it is fifteen minutes long and rotates, and a closure captured at call time would
+ * send yesterday's. The auth store owns it and pushes each new value here (decision D-15 keeps
+ * it in memory, never in storage a script on another tab could read).
+ *
+ * `refresher` is registered by the same store. When a guarded call comes back 401 - the token
+ * expired mid-session - the transport asks the refresher for a fresh one and replays the call
+ * exactly once. The refresher talks to `/auth/refresh` with its own `fetch`, not through
+ * `request`, so an expired session cannot send it looping back through here.
+ */
+let accessToken: string | null = null;
+let refresher: (() => Promise<string | null>) | null = null;
+let refreshing: Promise<string | null> | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+export function registerTokenRefresher(fn: (() => Promise<string | null>) | null): void {
+  refresher = fn;
+}
+
+/** One refresh in flight at a time: three 401s at once must not rotate the token three times. */
+function refreshOnce(): Promise<string | null> {
+  if (!refresher) return Promise.resolve(null);
+  refreshing ??= refresher().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function request<Result>(
+  path: string,
+  init: RequestInit,
+  allowRetry = true,
+): Promise<Result> {
+  const sent = accessToken;
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
       ...init,
-      headers: { Accept: 'application/json', ...(init.headers as Record<string, string>) },
+      headers: {
+        Accept: 'application/json',
+        ...(sent ? { Authorization: `Bearer ${sent}` } : {}),
+        ...(init.headers as Record<string, string>),
+      },
       // The refresh cookie is scoped to /api/auth, but the browser still needs permission to
       // send it at all.
       credentials: 'include',
@@ -51,6 +94,14 @@ async function request<Result>(path: string, init: RequestInit): Promise<Result>
     // A dropped connection is not an API error and has no code, but every caller has to be
     // able to tell the customer something, so it arrives in the same shape as one.
     throw new ApiRequestError(0, 'NETWORK', 'Could not reach the server', cause);
+  }
+
+  // A guarded call whose token expired mid-session: refresh once and replay. Only when a token
+  // was actually sent, so a public 401 is never mistaken for an expired session, and only once,
+  // so a genuinely revoked session fails instead of looping.
+  if (response.status === 401 && sent && allowRetry) {
+    const renewed = await refreshOnce();
+    if (renewed) return request<Result>(path, init, false);
   }
 
   if (response.status === 204) return undefined as Result;

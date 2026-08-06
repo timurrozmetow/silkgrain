@@ -62,6 +62,18 @@ The `payments` and `webhook_events` tables already carry a `provider` column, an
 member, so nothing has to be reshaped to add it.
 **Estimate 6–8 h.**
 
+### Account settings — editing a profile and changing a password
+
+The mockup's account sidebar has a Settings entry, and `packages/contracts` already declares
+`UpdateProfileInput` and `ChangePasswordInput` for it. Nothing implements them: there is no
+`PATCH /api/auth/me` and no `POST /api/auth/password`, so `/account` shows no Settings link
+rather than a link to nowhere.
+
+Small and self-contained, but not free: changing a password has to revoke every other refresh
+token family so a stolen session dies with the old password, and a changed email has to
+re-enter the unverified state rather than silently moving where receipts are sent.
+**Estimate 5–7 h.**
+
 ### Address book and saved cards
 
 The account menu lists "Addresses" and "Payment Methods". Addresses are currently attached to
