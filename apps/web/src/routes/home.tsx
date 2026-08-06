@@ -4,9 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
 
 import { ButtonLink } from '../components/ButtonLink';
+import { FeaturedSlider } from '../components/home/FeaturedSlider';
+import { Testimonials } from '../components/home/Testimonials';
 import { ProductGrid, ProductGridSkeleton } from '../components/ProductGrid';
 import { apiGet } from '../lib/api';
 import { ORGANIZATION_JSON_LD, Seo } from '../lib/seo';
+import { useParallax } from '../lib/use-parallax';
 
 import { rootRoute } from './root';
 
@@ -18,9 +21,8 @@ import { rootRoute } from './root';
  * Both are in `BACKLOG.md` with an estimate. Rendering either against invented data would put
  * a price on the page that no order could ever honour.
  *
- * The featured slider, the origin story, the wholesale band and the testimonials are still to
- * come. They are written as their destinations are built - a call to action pointing at a
- * route that does not exist is worse than a section that is not there yet.
+ * The wholesale band is the third, and for a different reason: its call to action goes to
+ * `/wholesale`, which Phase 6 builds. A banner linking nowhere is worse than no banner.
  */
 
 const SECTION = 'mx-auto max-w-container px-gutter tablet:px-gutter-tablet mobile:px-gutter-mobile';
@@ -34,16 +36,21 @@ function Home() {
         canonicalPath="/"
         jsonLd={ORGANIZATION_JSON_LD}
       />
+      <FeaturedSlider />
       <Hero />
       <CategoryStrip />
       <BestSellers />
       <ValueProps />
+      <OriginStory />
       <NewArrivals />
+      <Testimonials />
     </>
   );
 }
 
 function Hero() {
+  const parallax = useParallax(0.12);
+
   return (
     <section
       className={`${SECTION} grid grid-cols-[1.02fr_0.98fr] items-center gap-16 py-20 tablet:gap-10 tablet:py-14 mobile:grid-cols-1 mobile:gap-8 mobile:py-10`}
@@ -87,8 +94,10 @@ function Hero() {
         </dl>
       </div>
 
-      {/* The photograph is a placeholder tile until real product photography exists (Q-8). */}
-      <div className="relative">
+      {/* The photograph is a placeholder tile until real product photography exists (Q-8).
+          It carries the mockup's `scrollY * 0.12` parallax, which the hook turns off entirely
+          under prefers-reduced-motion rather than merely damping. */}
+      <div className="relative" style={{ transform: `translate3d(0, ${String(-parallax)}px, 0)` }}>
         <div className="absolute -left-3 -top-3 h-full w-full border border-gold" aria-hidden />
         <div className="relative flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-gold-pale to-surface shadow-[0_30px_70px_rgba(14,58,42,0.18)]">
           <Icon name="grains" size={96} className="text-green/25" />
@@ -213,6 +222,52 @@ const VALUES: { icon: IconName; title: string; body: string }[] = [
     body: 'Dispatched from Houston within 48 hours, anywhere in the fifty states.',
   },
 ];
+
+/**
+ * The origin story, two columns with a placeholder map tile.
+ *
+ * Static copy on purpose: it is brand writing, not content an editor changes per deploy, and
+ * `/about` is where the long version lives. It ships now because that destination exists - the
+ * same test every call to action on this page has to pass.
+ */
+function OriginStory() {
+  return (
+    <section className={`${SECTION} py-20 mobile:py-12`}>
+      <div className="grid grid-cols-2 items-center gap-14 tablet:gap-10 mobile:grid-cols-1 mobile:gap-8">
+        <div>
+          <Eyebrow>Where it comes from</Eyebrow>
+          <h2 className="mt-3 font-serif text-[40px] leading-tight text-ink mobile:text-[28px]">
+            From the Heart of the Silk Road
+          </h2>
+          <p className="mt-5 text-body text-body-muted">
+            The Fergana Valley has grown rice for a thousand years, and the families who farm it
+            still sort devzira by hand. We buy from named growers, pay before the harvest ships, and
+            bring it to Houston without a broker in between.
+          </p>
+          <p className="mt-4 text-body text-body-muted">
+            Apricots dry on the branch in Samarkand. Spices are ground the week they leave us. What
+            reaches your kitchen is what a family in Uzbekistan would cook with themselves.
+          </p>
+          <Link
+            to="/about"
+            className="mt-7 inline-flex items-center gap-2 text-bodySm font-semibold text-green hover:text-gold-dark"
+          >
+            Read our story
+            <Icon name="arrow-right" size={16} />
+          </Link>
+        </div>
+
+        {/* A map tile, as the mockup has it - a placeholder until a real illustration exists. */}
+        <div className="relative flex aspect-[5/4] items-center justify-center overflow-hidden rounded-lg border border-line bg-gradient-to-br from-sage-bg to-surface">
+          <Icon name="map-trifold" size={72} className="text-green/25" />
+          <span className="absolute bottom-5 left-5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
+            Fergana · Samarkand · Bukhara
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function ValueProps() {
   return (

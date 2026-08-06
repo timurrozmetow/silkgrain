@@ -420,7 +420,10 @@ export async function seedCatalogFixture(db: Database): Promise<CatalogFixture> 
       authorName: 'Aigerim S.',
       rating: 5,
       title: 'The real thing',
-      body: 'Exactly the rice my grandmother used.',
+      // Long enough to qualify as a testimonial, and deliberately so: the home page quotes
+      // five-star reviews above `TESTIMONIAL_MIN_BODY_LENGTH` characters, and a fixture whose
+      // every review fell under it would let that query return nothing and still pass.
+      body: 'Exactly the rice my grandmother used, and the first plov I have made in years that tasted like hers.',
       status: 'published',
       isVerifiedPurchase: true,
       publishedAt: new Date(now - 30 * DAY),
@@ -440,7 +443,7 @@ export async function seedCatalogFixture(db: Database): Promise<CatalogFixture> 
       authorName: 'Dilnoza R.',
       rating: 5,
       title: null,
-      body: 'Plov has never been better.',
+      body: 'Plov has never been better in this house, and the grains stay separate every single time.',
       status: 'published',
       isVerifiedPurchase: false,
       publishedAt: new Date(now - 10 * DAY),

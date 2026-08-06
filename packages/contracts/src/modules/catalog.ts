@@ -187,6 +187,26 @@ export const ProductReview = z.object({
 });
 export type ProductReview = z.infer<typeof ProductReview>;
 
+/**
+ * A published review, lifted out of its product for the home page's testimonials.
+ *
+ * The mockup's three cards carry a quote, a name, and a line reading "Brooklyn, NY · Devzira
+ * Rice". The product is real and comes back here; the city does not exist on a review and is
+ * not invented, so the card says what the shop actually knows about the person who wrote it.
+ */
+export const Testimonial = ProductReview.extend({
+  product: z.object({ slug: Slug, name: z.string() }),
+});
+export type Testimonial = z.infer<typeof Testimonial>;
+
+export const TestimonialListQuery = z
+  .object({ limit: z.coerce.number().int().min(1).max(12).default(3) })
+  .strict();
+export type TestimonialListQuery = z.infer<typeof TestimonialListQuery>;
+
+export const TestimonialListResponse = z.object({ items: z.array(Testimonial) });
+export type TestimonialListResponse = z.infer<typeof TestimonialListResponse>;
+
 export const ReviewBreakdown = z.object({
   average: z.number().min(0).max(5),
   count: z.number().int().nonnegative(),

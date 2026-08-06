@@ -90,6 +90,16 @@ export function buttonIconSize(size: ButtonSize = 'md'): number {
 }
 
 /**
+ * The gap between a button's icon and its label.
+ *
+ * Exported beside `buttonIconSize` so a link rendering the same pair reads both from `SIZES`
+ * rather than restating `gap-2` and drifting the day a size changes.
+ */
+export function buttonContentGap(size: ButtonSize = 'md'): string {
+  return SIZES[size].gap;
+}
+
+/**
  * The one button in the system.
  *
  * While `loading`, the label stays mounted but invisible so the button keeps its width, and

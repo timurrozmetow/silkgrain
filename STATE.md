@@ -157,7 +157,31 @@ everything it would need.
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
 price the moment a sale ended, and the checkout would then disagree with it.
 
-Storefront bundle is **195 KB gzip** against the 250 KB budget, up from 110 KB for the router,
+The home page is now the mockup's, less two sections and a band: the featured slider, the hero's
+`scrollY * 0.12` parallax, the origin story and the testimonials all landed. The slider's three
+slides are the products an editor has ticked as featured, not hard-coded copy, so the front page
+changes without a deploy. The mockup's third slide is a `WELCOME10` welcome offer and is not
+built: a promo code printed in markup is a promise the database may not keep, and the
+announcement bar already carries that message from a setting the owner edits.
+
+Testimonials are **published five-star reviews**, through a new `GET /api/testimonials`. There is
+no `testimonials` table on purpose — it would hold a second, unmoderated copy of the reviews the
+shop already has. The mockup's "Brooklyn, NY" is dropped for the same reason the Plov Set is:
+a review has no city on it, and inventing one invents a customer. The product replaces it, which
+the shop does know and which gives the card somewhere to link.
+
+The wholesale band is the one section still missing, and only because its call to action goes to
+`/wholesale`, which Phase 6 builds.
+
+The 404 is the designed one — a 140px DM Serif numeral with a gold zero, "This page wandered off
+the Silk Road", two ways out — and carries its own `noindex` title. The status code is still 200
+until Nginx answers 404 for an unknown path, which is Phase 9.
+
+Cart changes are announced through one polite live region in the layout (`CartAnnouncer`), which
+covers every way the cart can change rather than each of them separately. It is silent on the
+first render: a cart restored from `localStorage` has not changed.
+
+Storefront bundle is **198 KB gzip** against the 250 KB budget, up from 110 KB for the router,
 the query client and the store. Route-level code splitting is task 8.4.
 
 ---
@@ -227,6 +251,7 @@ Endpoints as of Phase 3:
 GET  /api/categories          tree with counts computed from the database
 GET  /api/products            filters, sorts, offset pagination, one facet per sidebar card
 GET  /api/products/:slug      variants, nutrition, reviews with histogram, related
+GET  /api/testimonials        published five-star reviews for the home page (Phase 5)
 GET  /api/search/suggest      type-ahead plus popular terms
 POST /api/cart/validate       reprices a cart; an unusable promo is reported, not thrown
 POST /api/cart/promo          the Apply button; an unusable promo is a PROMO_* error
@@ -290,6 +315,13 @@ an `onRoute` hook, so a route registered earlier is a route it never sees).
   and it now covers `categories.is_active` as well as `products.status`. Every query using it
   must join `categories`; it is a list of conditions rather than one combined `SQL` so call
   sites spread it instead of asserting that `and()` returned something.
+- **A `requestAnimationFrame` throttle must not store the frame id as its "pending" flag.**
+  `frame = requestAnimationFrame(() => { frame = 0; … })` reads correctly and deadlocks the
+  moment a frame runs synchronously: the callback clears the variable, then the assignment
+  overwrites it with the id, and every later event takes the early return forever. The parallax
+  hook holds a separate boolean set _before_ the request. Found by driving the real page — the
+  transform never moved, and the first suspect (a hidden tab, where rAF genuinely never fires)
+  was only half the story.
 - **A route with its own `config.rateLimit` gets an independent bucket**, it does not add to
   the global 300/min. That is why `/api/cart/promo` sets 12 per five minutes explicitly, and
   why two routes sharing a concern do not share a budget unless they share a key.

@@ -7,12 +7,20 @@ import {
   SearchSuggestQuery,
   SearchSuggestResponse,
   Slug,
+  TestimonialListQuery,
+  TestimonialListResponse,
 } from '@silkgrain/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import { getProductBySlug, listCategories, listProducts, suggestProducts } from './catalog.service';
+import {
+  getProductBySlug,
+  listCategories,
+  listProducts,
+  listTestimonials,
+  suggestProducts,
+} from './catalog.service';
 
 const SlugParams = z.object({ slug: Slug });
 
@@ -64,6 +72,23 @@ export async function catalogRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) => getProductBySlug(app.db, request.params.slug),
+  );
+
+  routes.get(
+    '/testimonials',
+    {
+      schema: {
+        tags: ['catalog'],
+        summary: 'Five-star reviews for the home page',
+        description:
+          'Published five-star reviews of products still in the catalogue, long enough to read ' +
+          'as a pull quote, verified buyers first. Not a separate table: a testimonial is a ' +
+          'review, and a second copy of one would be a second copy nobody moderates.',
+        querystring: TestimonialListQuery,
+        response: { 200: TestimonialListResponse, 422: ApiError },
+      },
+    },
+    async (request) => ({ items: await listTestimonials(app.db, request.query.limit) }),
   );
 
   routes.get(

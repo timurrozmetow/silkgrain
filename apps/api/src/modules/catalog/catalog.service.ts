@@ -16,6 +16,7 @@ import {
   type ReviewBreakdown,
   type SearchSuggestResponse,
   type StockState,
+  type Testimonial,
   pageMeta,
 } from '@silkgrain/contracts';
 import {
@@ -757,6 +758,62 @@ async function loadReviewBreakdown(db: Database, productId: number): Promise<Rev
       publishedAt: (item.publishedAt ?? item.createdAt).toISOString(),
     })),
   };
+}
+
+/**
+ * The home page's testimonials, drawn from reviews that already exist.
+ *
+ * The mockup writes three quotes by name. Rendering invented ones on a real shop would be
+ * fabricating customer reviews, so these are the moderated rows in `reviews` instead - which is
+ * also why there is no `testimonials` table: it would hold a second, unmoderated copy of the
+ * same thing.
+ *
+ * Only five-star reviews of products still in the catalogue, and only ones long enough to read
+ * as a pull quote: "Great!" set in 21px italic Cormorant looks like a mistake. `PUBLISHED_PRODUCT`
+ * is joined for the usual reason - a review of a product an editor has since archived must not
+ * outlive it on the front page.
+ */
+const TESTIMONIAL_MIN_BODY_LENGTH = 60;
+
+export async function listTestimonials(db: Database, limit: number): Promise<Testimonial[]> {
+  const rows = await db
+    .select({
+      id: reviews.id,
+      authorName: reviews.authorName,
+      rating: reviews.rating,
+      title: reviews.title,
+      body: reviews.body,
+      isVerifiedPurchase: reviews.isVerifiedPurchase,
+      publishedAt: reviews.publishedAt,
+      createdAt: reviews.createdAt,
+      productSlug: products.slug,
+      productName: products.name,
+    })
+    .from(reviews)
+    .innerJoin(products, eq(products.id, reviews.productId))
+    .innerJoin(categories, eq(categories.id, products.categoryId))
+    .where(
+      and(
+        ...PUBLISHED_PRODUCT,
+        eq(reviews.status, 'published'),
+        eq(reviews.rating, 5),
+        sql`CHAR_LENGTH(${reviews.body}) >= ${TESTIMONIAL_MIN_BODY_LENGTH}`,
+      ),
+    )
+    // Verified buyers first: the shop has proof they bought the thing they are praising.
+    .orderBy(desc(reviews.isVerifiedPurchase), desc(reviews.publishedAt), desc(reviews.id))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    authorName: row.authorName,
+    rating: row.rating,
+    title: row.title,
+    body: row.body,
+    isVerifiedPurchase: row.isVerifiedPurchase,
+    publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+    product: { slug: row.productSlug, name: row.productName },
+  }));
 }
 
 /** Same category first, topped up from the rest of the catalogue so the row is never short. */
