@@ -105,7 +105,16 @@ Filtered, sorted and paginated shop views all canonicalise to a bare `/shop`. A 
 and the cart are `noindex,follow`. `sitemap.xml` is still to come and needs a route in Nginx,
 which is Phase 9.
 
-Next in Phase 5: `/wishlist`, `/account`, the category landing page and quick view. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
+`/shop/c/$slug` and quick view are done. The category page is a real landing page with its own
+canonical, which is the point of the shop view canonicalising away: this is the page meant to
+rank. Sub-category chips come from the tree's `children`, so they appear the moment an editor
+creates a branch — the development seed has none, so they do not render there.
+
+Quick view shares the product route's query key, so opening one warms the cache for the full
+page and vice versa. It is not a second product page: nutrition, provenance and reviews are
+not in it, and "Full details" is how you reach them.
+
+Next in Phase 5, and all that is left of it: `/wishlist` and `/account`. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
 detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
 everything it would need.
 

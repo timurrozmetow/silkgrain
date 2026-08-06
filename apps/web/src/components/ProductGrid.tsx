@@ -1,9 +1,12 @@
 import type { ProductCard as ApiProductCard } from '@silkgrain/contracts';
 import { ProductCard, Skeleton } from '@silkgrain/ui';
 import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import { toCardProduct } from '../lib/product-card';
 import { useCart } from '../store/cart';
+
+import { QuickView } from './shop/QuickView';
 
 /**
  * The grid every listing uses.
@@ -21,29 +24,44 @@ export function ProductGrid({
 }) {
   const add = useCart((state) => state.add);
   const navigate = useNavigate();
+  // Owned by the grid rather than by each card, so one modal serves the whole listing and
+  // closing it cannot leave a second one mounted underneath.
+  const [quickViewSlug, setQuickViewSlug] = useState<string | null>(null);
 
   return (
-    <div
-      className={`grid gap-6 ${
-        columns === 4 ? 'grid-cols-4' : 'grid-cols-3'
-      } tablet:grid-cols-3 tablet:gap-5 mobile:grid-cols-2 mobile:gap-4`}
-    >
-      {products.map((product) => (
-        <ProductCard
-          key={product.slug}
-          product={toCardProduct(product)}
-          href={`/product/${product.slug}`}
-          onNavigate={() => {
-            void navigate({ to: '/product/$slug', params: { slug: product.slug } });
-          }}
-          onAddToCart={() => {
-            // Straight from the grid, using the variant the server marked default. The cart
-            // stores the id and nothing else; the price comes back from `/api/cart/validate`.
-            add(product.defaultVariantId);
-          }}
-        />
-      ))}
-    </div>
+    <>
+      <div
+        className={`grid gap-6 ${
+          columns === 4 ? 'grid-cols-4' : 'grid-cols-3'
+        } tablet:grid-cols-3 tablet:gap-5 mobile:grid-cols-2 mobile:gap-4`}
+      >
+        {products.map((product) => (
+          <ProductCard
+            key={product.slug}
+            product={toCardProduct(product)}
+            href={`/product/${product.slug}`}
+            onNavigate={() => {
+              void navigate({ to: '/product/$slug', params: { slug: product.slug } });
+            }}
+            onQuickView={() => {
+              setQuickViewSlug(product.slug);
+            }}
+            onAddToCart={() => {
+              // Straight from the grid, using the variant the server marked default. The cart
+              // stores the id and nothing else; the price comes back from `/api/cart/validate`.
+              add(product.defaultVariantId);
+            }}
+          />
+        ))}
+      </div>
+
+      <QuickView
+        slug={quickViewSlug}
+        onClose={() => {
+          setQuickViewSlug(null);
+        }}
+      />
+    </>
   );
 }
 

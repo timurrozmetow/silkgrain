@@ -2,6 +2,7 @@ import { createRouter } from '@tanstack/react-router';
 
 import { aboutRoute } from './routes/about';
 import { cartRoute } from './routes/cart';
+import { categoryRoute } from './routes/category';
 import { helpRoute } from './routes/help';
 import { homeRoute } from './routes/home';
 import { productRoute } from './routes/product';
@@ -19,6 +20,7 @@ import { shopRoute } from './routes/shop';
 const routeTree = rootRoute.addChildren([
   homeRoute,
   shopRoute,
+  categoryRoute,
   productRoute,
   cartRoute,
   aboutRoute,

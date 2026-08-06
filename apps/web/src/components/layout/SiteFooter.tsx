@@ -19,7 +19,13 @@ import { Wordmark } from './Wordmark';
 const COLUMNS: { heading: string; links: { to: string; label: string }[] }[] = [
   {
     heading: 'Shop',
-    links: [{ to: '/shop', label: 'All Products' }],
+    links: [
+      { to: '/shop', label: 'All Products' },
+      { to: '/shop/c/rice', label: 'Rice & Grains' },
+      { to: '/shop/c/lentils', label: 'Lentils & Legumes' },
+      { to: '/shop/c/fruits', label: 'Dried Fruits' },
+      { to: '/shop/c/spices', label: 'Spices & Herbs' },
+    ],
   },
   {
     heading: 'Company',
