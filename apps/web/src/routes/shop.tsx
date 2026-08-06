@@ -11,6 +11,7 @@ import {
   type FilterValues,
 } from '../components/shop/FilterSidebar';
 import { apiGet, queryString } from '../lib/api';
+import { Seo } from '../lib/seo';
 
 import { rootRoute } from './root';
 
@@ -164,6 +165,15 @@ function Shop() {
 
   return (
     <div className="mx-auto max-w-container px-gutter py-12 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-8">
+      <Seo
+        title={search.q === undefined ? 'Shop all grains — SilkGrain' : `“${search.q}” — SilkGrain`}
+        description="Rice, lentils, dried fruit and spices, bought direct from the families who grow them and shipped fresh from Houston."
+        // Every filtered, sorted and paginated view points at the bare /shop. Pointing each
+        // combination at itself is how thirty products become ten thousand indexed pages.
+        canonicalPath="/shop"
+        // A search result is one visitor's query, not a page of the catalogue.
+        noIndex={search.q !== undefined}
+      />
       <Eyebrow>{search.q === undefined ? 'The pantry' : 'Search results'}</Eyebrow>
       <h1 className="mt-3 font-serif text-[42px] leading-tight text-ink mobile:text-[30px]">
         {search.q === undefined ? 'Shop All Grains' : `“${search.q}”`}

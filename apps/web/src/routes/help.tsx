@@ -16,6 +16,7 @@ import { createRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 
 import { apiGet, apiPost, ApiRequestError } from '../lib/api';
+import { Seo } from '../lib/seo';
 
 import { rootRoute } from './root';
 
@@ -41,6 +42,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 function Help() {
   return (
     <div className="mx-auto max-w-container px-gutter py-14 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-8">
+      <Seo
+        title="Help & FAQ — SilkGrain"
+        description="Shipping, storage, wholesale and returns, answered. If something is missing, the contact form reaches a person."
+        canonicalPath="/help"
+      />
       <Eyebrow>Help</Eyebrow>
       <h1 className="mt-3 font-serif text-[42px] leading-tight text-ink mobile:text-[30px]">
         Questions, answered

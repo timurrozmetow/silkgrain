@@ -96,8 +96,16 @@ simply does not come back.
 in-stock box — all drawn from the facets Phase 3 built. Nothing in it is hard-coded, which
 matters: the mockup's weight list is 1/2/5/10/25/50 lb and this catalogue's is not.
 
-Next in Phase 5: `/wishlist`, `/account`, the category landing page, quick view, and the SEO
-pass. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
+Titles, descriptions, canonicals, Open Graph and JSON-LD are done, through one `<Seo>`
+component in `apps/web/src/lib/seo.tsx` rather than `react-helmet-async`. Every tag it writes
+carries `data-seo` and each render clears the previous set first, so a product's description
+cannot survive into the next page — the failure mode of every head manager that only ever adds.
+
+Filtered, sorted and paginated shop views all canonicalise to a bare `/shop`. A search result
+and the cart are `noindex,follow`. `sitemap.xml` is still to come and needs a route in Nginx,
+which is Phase 9.
+
+Next in Phase 5: `/wishlist`, `/account`, the category landing page and quick view. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
 detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
 everything it would need.
 

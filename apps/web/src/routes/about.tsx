@@ -2,6 +2,7 @@ import { Eyebrow, Icon, type IconName } from '@silkgrain/ui';
 import { createRoute } from '@tanstack/react-router';
 
 import { ButtonLink } from '../components/ButtonLink';
+import { Seo } from '../lib/seo';
 
 import { rootRoute } from './root';
 
@@ -47,6 +48,11 @@ const STATS = [
 function About() {
   return (
     <>
+      <Seo
+        title="Our story — SilkGrain"
+        description="Forty-odd named farms across Uzbekistan, Kazakhstan and Tajikistan, a warehouse in Houston, and a rule that anything we would not cook with does not go on the shelf."
+        canonicalPath="/about"
+      />
       <section className="bg-gradient-to-b from-gold-pale to-parchment py-20 mobile:py-12">
         <div className={SECTION}>
           <Eyebrow>Our story</Eyebrow>

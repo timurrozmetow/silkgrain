@@ -6,6 +6,7 @@ import { Link, createRoute } from '@tanstack/react-router';
 import { ButtonLink } from '../components/ButtonLink';
 import { ProductGrid, ProductGridSkeleton } from '../components/ProductGrid';
 import { apiGet } from '../lib/api';
+import { ORGANIZATION_JSON_LD, Seo } from '../lib/seo';
 
 import { rootRoute } from './root';
 
@@ -27,6 +28,12 @@ const SECTION = 'mx-auto max-w-container px-gutter tablet:px-gutter-tablet mobil
 function Home() {
   return (
     <>
+      <Seo
+        title="SilkGrain — Ancient Grains. Modern Table."
+        description="Central Asian rice, lentils, dried fruit and spices, bought direct from the families who grow them and shipped fresh from Houston."
+        canonicalPath="/"
+        jsonLd={ORGANIZATION_JSON_LD}
+      />
       <Hero />
       <CategoryStrip />
       <BestSellers />

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ButtonLink } from '../components/ButtonLink';
 import { CartLineRow } from '../components/cart/CartLineRow';
 import { FreeShippingMeter } from '../components/cart/FreeShippingMeter';
+import { Seo } from '../lib/seo';
 import { useCartQuote } from '../lib/use-cart-quote';
 
 import { rootRoute } from './root';
@@ -28,9 +29,20 @@ function Cart() {
 
   const { data, isPending, isEmpty } = useCartQuote(promoCode === undefined ? {} : { promoCode });
 
+  // A cart is one person's, and there is nothing on it worth indexing.
+  const seo = (
+    <Seo
+      title="Your cart — SilkGrain"
+      description="Review your order before checkout."
+      canonicalPath="/cart"
+      noIndex
+    />
+  );
+
   if (isEmpty) {
     return (
       <div className="mx-auto max-w-container px-gutter py-24 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-14">
+        {seo}
         <EmptyState
           icon="shopping-bag"
           title="Your cart is empty"
@@ -43,6 +55,7 @@ function Cart() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-gutter py-12 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-8">
+      {seo}
       <Eyebrow>Your order</Eyebrow>
       <h1 className="mt-3 font-serif text-[42px] leading-tight text-ink mobile:text-[30px]">
         Shopping Cart

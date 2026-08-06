@@ -1,0 +1,17 @@
+# SilkGrain
+#
+# The cart, the checkout, an order and the account area are one person's and are marked
+# noindex in the page itself as well. Disallowing them here keeps a crawler from spending
+# its budget on pages it would only be told to drop.
+
+User-agent: *
+Allow: /
+Disallow: /cart
+Disallow: /checkout
+Disallow: /order/
+Disallow: /account
+Disallow: /api/
+# A search result is a visitor's query, not a page of the catalogue.
+Disallow: /shop?q=
+
+Sitemap: https://silkgrain.example/sitemap.xml

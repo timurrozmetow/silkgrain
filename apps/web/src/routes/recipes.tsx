@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createRoute } from '@tanstack/react-router';
 
 import { apiGet } from '../lib/api';
+import { Seo } from '../lib/seo';
 
 import { rootRoute } from './root';
 
@@ -32,6 +33,11 @@ function Recipes() {
 
   return (
     <div className="mx-auto max-w-container px-gutter py-14 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-8">
+      <Seo
+        title="Recipes — SilkGrain"
+        description="The dishes these ingredients were grown for: plov, lagman, mosh-kichiri and more, written the way they are actually cooked."
+        canonicalPath="/recipes"
+      />
       <div className="mx-auto max-w-[60ch] text-center">
         <Eyebrow>From our kitchen</Eyebrow>
         <h1 className="mt-3 font-serif text-[42px] leading-tight text-ink mobile:text-[30px]">

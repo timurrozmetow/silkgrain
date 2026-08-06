@@ -22,6 +22,7 @@ import { NutritionPanel } from '../components/product/NutritionPanel';
 import { ReviewsPanel } from '../components/product/ReviewsPanel';
 import { ProductGrid } from '../components/ProductGrid';
 import { apiGet } from '../lib/api';
+import { breadcrumbJsonLd, Seo } from '../lib/seo';
 import { useCart } from '../store/cart';
 
 import { rootRoute } from './root';
@@ -94,6 +95,22 @@ function ProductDetail({ data }: { data: ProductDetailResponse }) {
 
   return (
     <div className="mx-auto max-w-container px-gutter py-8 tablet:px-gutter-tablet mobile:px-gutter-mobile">
+      <Seo
+        title={product.seo.metaTitle ?? `${product.name} — SilkGrain`}
+        description={product.seo.metaDescription ?? product.blurb}
+        canonicalPath={`/product/${product.slug}`}
+        type="product"
+        imageUrl={product.image?.url ?? null}
+        jsonLd={[
+          productJsonLd(product),
+          breadcrumbJsonLd([
+            { name: 'Home', path: '/' },
+            { name: 'Shop', path: '/shop' },
+            { name: product.category.name, path: `/shop?category=${product.category.slug}` },
+            { name: product.name, path: `/product/${product.slug}` },
+          ]),
+        ]}
+      />
       <Breadcrumb
         items={[
           { label: 'Home', href: '/' },
@@ -368,6 +385,47 @@ function ProductDetail({ data }: { data: ProductDetailResponse }) {
       )}
     </div>
   );
+}
+
+/**
+ * The Product block, as an `AggregateOffer`.
+ *
+ * A product here has several weights at several prices, which is exactly what
+ * `AggregateOffer` describes. Publishing one `Offer` at the cheapest variant would put "from
+ * $12.00" in a search result beside a page whose default weight costs $32.50.
+ *
+ * `aggregateRating` is omitted rather than sent as zero when nothing has been reviewed:
+ * Google treats a zero-count rating as invalid markup, and it would be a lie besides.
+ */
+function productJsonLd(product: ProductDetailResponse['product']): Record<string, unknown> {
+  const inStock = product.stockState !== 'out';
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.blurb,
+    sku: product.variants.find((variant) => variant.isDefault)?.sku ?? product.variants[0]?.sku,
+    category: product.category.name,
+    brand: { '@type': 'Brand', name: 'SilkGrain' },
+    ...(product.image === null ? {} : { image: [product.image.url] }),
+    ...(product.reviews.count > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: product.reviews.average,
+            reviewCount: product.reviews.count,
+          },
+        }
+      : {}),
+    offers: {
+      '@type': 'AggregateOffer',
+      priceCurrency: 'USD',
+      lowPrice: (product.priceFromCents / 100).toFixed(2),
+      highPrice: (product.priceToCents / 100).toFixed(2),
+      offerCount: product.variants.length,
+      availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+    },
+  };
 }
 
 const BADGE_LABELS: Record<string, string> = {
