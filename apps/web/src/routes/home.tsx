@@ -53,10 +53,16 @@ function Hero() {
           Devzira rice from the Fergana Valley, apricots dried on the branch, spices ground the week
           they ship. Bought direct from the families who grow them.
         </p>
-        <div className="mt-9">
+        <div className="mt-9 flex items-center gap-7 mobile:flex-wrap mobile:gap-4">
           <ButtonLink to="/shop" size="lg" corner="sharp">
             Shop the pantry
           </ButtonLink>
+          <Link
+            to="/about"
+            className="text-bodySm text-green underline underline-offset-4 hover:text-gold-dark"
+          >
+            Read our story
+          </Link>
         </div>
         <dl className="mt-12 flex gap-10 border-t border-line pt-7 mobile:flex-wrap mobile:gap-6">
           {[

@@ -34,7 +34,10 @@ import { Wordmark } from './Wordmark';
  * join `NAV` as each page is built.
  */
 const SHOP = { to: '/shop', label: 'Shop' } as const;
-const NAV: readonly { to: '/cart'; label: string }[] = [];
+const NAV = [
+  { to: '/about', label: 'About' },
+  { to: '/help', label: 'Help' },
+] as const;
 
 /** True on a device where hovering is a real gesture rather than an accident of a tap. */
 function canHover(): boolean {

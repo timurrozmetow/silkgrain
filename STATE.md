@@ -84,9 +84,12 @@ The search overlay and the mega-menu are done, which finishes task 5.2 except fo
 Filter state in the URL is **comma-separated, not an array**: TanStack JSON-encodes an array, so
 `?category=rice` beats `?category=%5B%22rice%22%5D` for something meant to be shared.
 
-Next in Phase 5: the content pages the nav is waiting on (`/about`, `/help`, `/recipes`,
-`/wholesale`), then `/wishlist` and `/account`, the category landing page, quick view, and the
-SEO pass.
+`/about` and `/help` are done, so the nav is Shop / About / Help. Help needed two new
+endpoints, `GET /api/faqs` and `POST /api/contact`, both tested (11 tests).
+
+Next in Phase 5: `/recipes` (needs a recipes endpoint), `/wishlist`, `/account`, the category
+landing page, quick view, and the SEO pass. `/wholesale` waits for Phase 6, since its enquiry
+form is the page.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -169,6 +172,8 @@ POST /api/cart/promo          the Apply button; an unusable promo is a PROMO_* e
 Added in Phase 4:
 
 ```
+GET  /api/faqs                published entries, grouped in the enum's order
+POST /api/contact             the Help form; honeypot and fill-time checked, silently
 GET  /api/orders/:number      guest lookup; the order's email is required as well
 GET  /api/account/orders      the signed-in customer's history
 GET  /api/account/orders/:num their own order, no email needed

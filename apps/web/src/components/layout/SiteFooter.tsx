@@ -21,6 +21,13 @@ const COLUMNS: { heading: string; links: { to: string; label: string }[] }[] = [
     heading: 'Shop',
     links: [{ to: '/shop', label: 'All Products' }],
   },
+  {
+    heading: 'Company',
+    links: [
+      { to: '/about', label: 'Our Story' },
+      { to: '/help', label: 'Help & FAQ' },
+    ],
+  },
 ];
 
 const SOCIALS: { href: string; icon: IconName; label: string }[] = [

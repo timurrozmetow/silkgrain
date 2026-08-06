@@ -60,6 +60,8 @@ const MUTABLE_TABLES = [
   'categories',
   'shipping_rates',
   'settings',
+  'faqs',
+  'contact_messages',
   'customers',
   'admin_users',
 ];
