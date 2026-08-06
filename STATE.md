@@ -87,7 +87,7 @@ waiting on (`/about`, `/help`, `/recipes`, `/wholesale`) and `/wishlist` with `/
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
 price the moment a sale ended, and the checkout would then disagree with it.
 
-Storefront bundle is **172 KB gzip** against the 250 KB budget, up from 110 KB for the router,
+Storefront bundle is **179 KB gzip** against the 250 KB budget, up from 110 KB for the router,
 the query client and the store. Route-level code splitting is task 8.4.
 
 ---
@@ -119,13 +119,13 @@ Answered on 2026-07-29, nothing left to ask:
 ```
 apps/api        Fastify 4. Plugins, error handler, Drizzle schema (32 tables), migrations,
                 seeds, auth, the catalogue and cart API, /health, /ready, Swagger on /docs.
-apps/web        Vite 5 + React 18. src/App.tsx is a design-system preview page, not the
-                storefront; Phase 5 replaces it.
+apps/web        Vite 5 + React 18 + TanStack Router/Query + Zustand. The storefront: the
+                frame, home, /shop, /product/$slug, /cart and the cart drawer.
 apps/admin      Vite 5 + React 18 shell.
 packages/ui     The design system. 22 components, tokens, Tailwind preset, Storybook.
-packages/contracts  primitives, errors, enums, Money, pagination, auth, catalog and cart
-                    schemas. Checkout, order and wholesale arrive with the phases that serve
-                    them; the shape is drafted in CONTRACTS-DRAFT.md.
+packages/contracts  primitives, errors, enums, Money, pagination, auth, catalog, cart,
+                    checkout and order schemas. Wholesale arrives with Phase 6; the shape is
+                    drafted in CONTRACTS-DRAFT.md.
 packages/config eslint, prettier, tsconfig bases.
 docs/design     SCREENS.md and catalog.json, both distilled from the mockup.
 ```
