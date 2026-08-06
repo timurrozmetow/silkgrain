@@ -114,7 +114,18 @@ Quick view shares the product route's query key, so opening one warms the cache 
 page and vice versa. It is not a second product page: nutrition, provenance and reviews are
 not in it, and "Full details" is how you reach them.
 
-Next in Phase 5, and all that is left of it: `/wishlist` and `/account`. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
+`/wishlist` is done. The store holds slugs, and `GET /api/products?slug=…` — a filter added for
+this — turns them into cards in one request, through the same projection every grid uses. So a
+wishlist card carries the same derived badges and stock state as a card in the catalogue, and a
+product that has since been unpublished simply does not come back, which is also how a stale
+entry prunes itself.
+
+Client-side for the same reason the cart is (D-18). The `wishlists` and `wishlist_items` tables
+exist for the day a signed-in list should follow someone between devices; nothing writes them
+yet, and a table nothing writes to would be a stub.
+
+All that is left of Phase 5 is `/account`, which needs sign-in and sign-up forms and a summary
+endpoint for the lifetime-spend card. `GET /api/account/orders` is already built and tested. `/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
 detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
 everything it would need.
 

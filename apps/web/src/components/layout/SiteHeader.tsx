@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
 import { useCartCount } from '../../store/cart';
+import { useWishlistCount } from '../../store/wishlist';
 import { ButtonLink } from '../ButtonLink';
 import { CartDrawer } from '../cart/CartDrawer';
 
@@ -51,6 +52,7 @@ export function SiteHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [megaOpen, setMegaOpen] = useState(false);
   const cartCount = useCartCount();
+  const wishlistCount = useWishlistCount();
 
   return (
     <>
@@ -114,7 +116,24 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 mobile:gap-0">
-            {/* The wishlist and the account menu land with their pages. */}
+            {/* The account menu lands with its page. */}
+            <Link
+              to="/wishlist"
+              className="relative flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
+              aria-label={
+                wishlistCount === 0 ? 'Wishlist, empty' : `Wishlist, ${String(wishlistCount)} saved`
+              }
+            >
+              <Icon name="heart" size={20} />
+              {wishlistCount > 0 && (
+                <span
+                  className="absolute right-1 top-1 flex min-w-[18px] items-center justify-center rounded-full bg-gold px-1 font-mono text-[10px] leading-[18px] text-green-deep"
+                  aria-hidden
+                >
+                  {wishlistCount}
+                </span>
+              )}
+            </Link>
             <button
               type="button"
               className="flex h-11 w-11 items-center justify-center text-ink transition-colors hover:text-green"
@@ -237,7 +256,7 @@ function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2" aria-label="Mobile">
-          {[SHOP, ...NAV].map((item) => (
+          {[SHOP, ...NAV, { to: '/wishlist', label: 'Wishlist' } as const].map((item) => (
             <Link
               key={item.to}
               to={item.to}

@@ -62,6 +62,7 @@ function likePattern(term: string): string {
 export interface ProductFilterInput {
   /** Already resolved from slugs, with children folded in. Empty array means "match nothing". */
   categoryIds?: number[];
+  slug?: string[];
   origin?: Origin[];
   cert?: Certification[];
   badge?: Badge[];
@@ -116,6 +117,10 @@ export function buildProductConditions(
         ? inArray(products.categoryId, filters.categoryIds)
         : sql`1 = 0`,
     );
+  }
+
+  if (filters.slug && filters.slug.length > 0) {
+    conditions.push(inArray(products.slug, filters.slug));
   }
 
   if (!omit.origin && filters.origin && filters.origin.length > 0) {
@@ -308,6 +313,7 @@ export function filtersFrom(
 ): ProductFilterInput {
   return {
     ...(categoryIds === undefined ? {} : { categoryIds }),
+    ...(query.slug === undefined ? {} : { slug: query.slug }),
     ...(query.origin === undefined ? {} : { origin: query.origin }),
     ...(query.cert === undefined ? {} : { cert: query.cert }),
     ...(query.badge === undefined ? {} : { badge: query.badge }),

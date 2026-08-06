@@ -9,6 +9,7 @@ import { productRoute } from './routes/product';
 import { recipesRoute } from './routes/recipes';
 import { rootRoute } from './routes/root';
 import { shopRoute } from './routes/shop';
+import { wishlistRoute } from './routes/wishlist';
 
 /**
  * The route tree, written out rather than generated from the filesystem.
@@ -26,6 +27,7 @@ const routeTree = rootRoute.addChildren([
   aboutRoute,
   helpRoute,
   recipesRoute,
+  wishlistRoute,
 ]);
 
 export const router = createRouter({

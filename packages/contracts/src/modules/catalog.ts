@@ -243,6 +243,15 @@ export type ProductSort = z.infer<typeof ProductSort>;
 export const ProductListQuery = z
   .object({
     category: repeatable(Slug).optional(),
+    /**
+     * Specific products, by slug.
+     *
+     * The wishlist holds slugs and nothing else, and this is how it turns them into cards -
+     * one request for the whole list, through the same projection every grid uses. It is a
+     * filter rather than a separate endpoint precisely so a wishlist card carries the same
+     * derived badges and stock state as a card in the catalogue.
+     */
+    slug: repeatable(Slug).optional(),
     origin: repeatable(Origin).optional(),
     cert: repeatable(Certification).optional(),
     badge: repeatable(Badge).optional(),

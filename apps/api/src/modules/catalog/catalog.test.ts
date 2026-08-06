@@ -229,6 +229,27 @@ describe('catalogue', () => {
       expect(status).toBe(422);
     });
 
+    /** What the wishlist uses: a set of slugs, in one request, through the normal projection. */
+    it('filters to specific products by slug', async () => {
+      const picked = await get<ProductListResponse>(
+        '/api/products?slug=samarkand-saffron,red-lentils',
+      );
+      expect(slugsOf(picked.body).sort()).toEqual(['red-lentils', 'samarkand-saffron']);
+
+      // A slug that is not in the catalogue is simply absent, not an error - a wishlist can
+      // easily name a product that has since been unpublished.
+      const withStale = await get<ProductListResponse>(
+        '/api/products?slug=red-lentils,hidden-draft,gone-forever',
+      );
+      expect(slugsOf(withStale.body)).toEqual(['red-lentils']);
+
+      // Still ANDs with everything else.
+      const narrowed = await get<ProductListResponse>(
+        '/api/products?slug=samarkand-saffron,red-lentils&cert=halal',
+      );
+      expect(slugsOf(narrowed.body)).toEqual(['red-lentils']);
+    });
+
     it('searches names, blurbs and category names', async () => {
       const rice = await get<ProductListResponse>('/api/products?q=rice');
       expect(slugsOf(rice.body).sort()).toEqual(['chungara-rice', 'devzira-rice']);

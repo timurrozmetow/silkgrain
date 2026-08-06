@@ -1,10 +1,11 @@
 import type { ProductCard as ApiProductCard } from '@silkgrain/contracts';
 import { ProductCard, Skeleton } from '@silkgrain/ui';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { toCardProduct } from '../lib/product-card';
 import { useCart } from '../store/cart';
+import { useWishlist } from '../store/wishlist';
 
 import { QuickView } from './shop/QuickView';
 
@@ -18,11 +19,16 @@ import { QuickView } from './shop/QuickView';
 export function ProductGrid({
   products,
   columns = 4,
+  trailing,
 }: {
   products: ApiProductCard[];
   columns?: 3 | 4;
+  /** An extra cell after the last card - the wishlist's dashed "Discover more" tile. */
+  trailing?: ReactNode;
 }) {
   const add = useCart((state) => state.add);
+  const toggleWishlist = useWishlist((state) => state.toggle);
+  const wishlisted = useWishlist((state) => state.slugs);
   const navigate = useNavigate();
   // Owned by the grid rather than by each card, so one modal serves the whole listing and
   // closing it cannot leave a second one mounted underneath.
@@ -43,6 +49,10 @@ export function ProductGrid({
             onNavigate={() => {
               void navigate({ to: '/product/$slug', params: { slug: product.slug } });
             }}
+            wishlisted={wishlisted.includes(product.slug)}
+            onToggleWishlist={() => {
+              toggleWishlist(product.slug);
+            }}
             onQuickView={() => {
               setQuickViewSlug(product.slug);
             }}
@@ -53,6 +63,7 @@ export function ProductGrid({
             }}
           />
         ))}
+        {trailing}
       </div>
 
       <QuickView
