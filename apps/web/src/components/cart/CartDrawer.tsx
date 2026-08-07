@@ -56,6 +56,9 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       {isEmpty ? (
         <EmptyState
           icon="shopping-bag"
+          // Inside the drawer, whose own title is the h2. Everywhere else an empty state stands
+          // under the page's h1 and takes the default.
+          headingLevel={3}
           title="Your cart is empty"
           description="Rice, lentils, dried fruit and spices, direct from the growers."
           action={

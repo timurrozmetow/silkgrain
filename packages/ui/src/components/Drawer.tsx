@@ -1,6 +1,7 @@
 import { useCallback, useId, useRef, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { panelVisibility } from '../a11y';
 import { cn } from '../cn';
 import { useFocusTrap, useScrollLock } from '../hooks/useFocusTrap';
 
@@ -22,7 +23,8 @@ export interface DrawerProps {
  * Right-hand slide-in panel, 430px wide, used by the cart.
  *
  * It stays mounted while closed and animates on `translateX` so the slide runs in both
- * directions; `inert`-like isolation comes from the focus trap, which only engages when open.
+ * directions. The focus trap keeps focus inside while it is open; `panelVisibility` keeps its
+ * controls out of the tab order while it is closed, and explains why.
  */
 export function Drawer({
   open,
@@ -67,7 +69,8 @@ export function Drawer({
         className={cn(
           'fixed bottom-0 right-0 top-0 z-drawer flex w-drawer max-w-[92vw] flex-col',
           'bg-surface shadow-drawer outline-none',
-          'transition-transform duration-drawer ease-standard',
+          'transition-[transform,visibility] duration-drawer ease-standard',
+          panelVisibility(open),
           open ? 'translate-x-0' : 'translate-x-[104%]',
           className,
         )}

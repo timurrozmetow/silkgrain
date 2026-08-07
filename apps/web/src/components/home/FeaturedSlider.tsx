@@ -170,7 +170,11 @@ function Slide({
           src={product.image.url}
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
-          loading="lazy"
+          // Eager and high priority, not lazy: this is the first thing above the fold and so the
+          // page's Largest Contentful Paint. Deferring the one image the score is measured on is
+          // the opposite of what lazy loading is for - it was costing about 400ms of LCP here.
+          loading="eager"
+          fetchPriority="high"
         />
       )}
       {/* A wash dark enough for white text to clear AA over any photograph behind it. */}

@@ -62,6 +62,22 @@ The `payments` and `webhook_events` tables already carry a `provider` column, an
 member, so nothing has to be reshaped to add it.
 **Estimate 6–8 h.**
 
+### A session hint cookie, so an anonymous visit stops probing `/auth/refresh`
+
+The storefront asks `/auth/refresh` once on load to find out whether the httpOnly refresh cookie
+is still good. For a visitor who has never signed in — most visitors — that is a request that
+always answers 401, and the browser logs every one of them as a console error. Lighthouse counts
+it under Best Practices; a developer reading the console counts it as noise that is always there.
+
+The client cannot avoid it on its own: the refresh cookie is httpOnly by design, so nothing in
+the page can tell whether a session might exist. The fix is a second, deliberately boring cookie
+set beside the refresh one — no PII, no token, just a readable marker — cleared on logout, which
+the store checks before probing.
+
+Small, but it touches the auth cookie contour, which is worth doing on purpose rather than as a
+footnote to a storefront phase.
+**Estimate 2–3 h.**
+
 ### Account settings — editing a profile and changing a password
 
 The mockup's account sidebar has a Settings entry, and `packages/contracts` already declares

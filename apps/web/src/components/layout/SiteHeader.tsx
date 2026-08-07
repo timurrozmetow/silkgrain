@@ -1,4 +1,4 @@
-import { Icon, useFocusTrap } from '@silkgrain/ui';
+import { Icon, panelVisibility, useFocusTrap } from '@silkgrain/ui';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
@@ -245,9 +245,9 @@ function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
         aria-modal={open}
         aria-label="Menu"
         aria-hidden={!open}
-        className={`fixed left-0 top-0 z-modal flex h-full w-[330px] max-w-[86vw] flex-col bg-surface transition-transform duration-[450ms] ease-[cubic-bezier(.22,1,.36,1)] ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed left-0 top-0 z-modal flex h-full w-[330px] max-w-[86vw] flex-col bg-surface transition-[transform,visibility] duration-[450ms] ease-[cubic-bezier(.22,1,.36,1)] ${panelVisibility(
+          open,
+        )} ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <div className="flex h-[64px] items-center justify-between border-b border-line px-5">
           <Wordmark />

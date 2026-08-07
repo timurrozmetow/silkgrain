@@ -1,6 +1,6 @@
 import type { CategoryListResponse, ProductListResponse } from '@silkgrain/contracts';
 import { Money } from '@silkgrain/contracts/money';
-import { Icon, isIconName } from '@silkgrain/ui';
+import { Icon, isIconName, panelVisibility } from '@silkgrain/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
@@ -38,7 +38,9 @@ export function MegaMenu({ open, onClose }: { open: boolean; onClose: () => void
       // Not a dialog: it is a menu that opens on hover and closes on leaving the header, so it
       // traps nothing and steals no focus. Keyboard users reach the same links through the
       // Shop link itself, which goes to /shop.
-      className={`absolute left-0 top-full w-full border-b border-line bg-surface shadow-[0_30px_60px_rgba(11,46,33,0.12)] transition-[opacity,transform] duration-base ease-standard mobile:hidden ${
+      className={`absolute left-0 top-full w-full border-b border-line bg-surface shadow-[0_30px_60px_rgba(11,46,33,0.12)] transition-[opacity,transform,visibility] duration-base ease-standard mobile:hidden ${panelVisibility(
+        open,
+      )} ${
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'
       }`}
       aria-hidden={!open}

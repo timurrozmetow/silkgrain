@@ -218,7 +218,11 @@ export function ProductCard({
               onClick={() => {
                 onAddToCart(product.slug);
               }}
-              aria-label={`Add ${product.name} to cart`}
+              // The visible label leads, then the product. A name that reads "Add Devzira Red
+              // Rice to cart" beside a button that says "Add to Cart" fails
+              // `label-content-name-mismatch`: voice control users say what they see, and "add
+              // to cart" has to match something. Same words, order changed.
+              aria-label={`Add to Cart: ${product.name}`}
               className={cn(
                 'relative z-10 inline-flex items-center gap-1.5 rounded-md bg-green px-4 py-2.5',
                 'text-caption font-semibold text-white',

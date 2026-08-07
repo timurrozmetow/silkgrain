@@ -1,6 +1,6 @@
 import type { SearchSuggestResponse } from '@silkgrain/contracts';
 import { Money } from '@silkgrain/contracts/money';
-import { Icon, useFocusTrap } from '@silkgrain/ui';
+import { Icon, panelVisibility, useFocusTrap } from '@silkgrain/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
@@ -84,9 +84,9 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         aria-modal={open}
         aria-label="Search products"
         aria-hidden={!open}
-        className={`fixed left-0 top-0 z-modal w-full bg-surface shadow-panel transition-transform duration-base ease-standard ${
-          open ? 'translate-y-0' : '-translate-y-full'
-        }`}
+        className={`fixed left-0 top-0 z-modal w-full bg-surface shadow-panel transition-[transform,visibility] duration-base ease-standard ${panelVisibility(
+          open,
+        )} ${open ? 'translate-y-0' : '-translate-y-full'}`}
       >
         <div className="mx-auto max-w-container px-gutter py-8 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-5">
           <form
