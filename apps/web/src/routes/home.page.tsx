@@ -19,8 +19,8 @@ import { useParallax } from '../lib/use-parallax';
  * Both are in `BACKLOG.md` with an estimate. Rendering either against invented data would put
  * a price on the page that no order could ever honour.
  *
- * The wholesale band is the third, and for a different reason: its call to action goes to
- * `/wholesale`, which Phase 6 builds. A banner linking nowhere is worse than no banner.
+ * The wholesale band waited for `/wholesale` to exist, on the rule that a banner linking nowhere
+ * is worse than no banner. Task 6.6 built the page, so the band ships with it.
  */
 
 const SECTION = 'mx-auto max-w-container px-gutter tablet:px-gutter-tablet mobile:px-gutter-mobile';
@@ -40,6 +40,7 @@ function Home() {
       <BestSellers />
       <ValueProps />
       <OriginStory />
+      <WholesaleBand />
       <NewArrivals />
       <Testimonials />
     </>
@@ -262,6 +263,57 @@ function OriginStory() {
             Fergana · Samarkand · Bukhara
           </span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** The four audiences the mockup names, and the same enum the wholesale form's select offers. */
+const WHOLESALE_AUDIENCES: { icon: IconName; label: string }[] = [
+  { icon: 'fork-knife', label: 'Restaurant' },
+  { icon: 'storefront', label: 'Grocery store' },
+  { icon: 'package', label: 'Distributor' },
+  { icon: 'cooking-pot', label: 'Meal kit' },
+];
+
+function WholesaleBand() {
+  return (
+    <section className="relative overflow-hidden bg-green-deep py-16 mobile:py-12">
+      {/* The gold zig-zag the mockup lays over this band, drawn with two crossing gradients. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-[0.045]"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(45deg,#D3A73B 0 1px,transparent 1px 7px),repeating-linear-gradient(-45deg,#D3A73B 0 1px,transparent 1px 7px)',
+        }}
+      />
+      <div className={`${SECTION} relative text-center`}>
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold">Wholesale</p>
+        <h2 className="mx-auto mt-4 max-w-[30ch] font-serif text-[38px] leading-tight text-ondeep mobile:text-[26px]">
+          Supplying restaurants &amp; retailers across the US
+        </h2>
+        <p className="mx-auto mt-4 max-w-[56ch] text-bodySm text-ondeep-muted">
+          MOQ from 50 lbs. Custom packaging, volume pricing, and a dedicated account manager for
+          every partner.
+        </p>
+
+        <ul className="mx-auto mt-9 flex max-w-[640px] justify-between gap-6 mobile:flex-wrap mobile:justify-center mobile:gap-8">
+          {WHOLESALE_AUDIENCES.map((audience) => (
+            <li key={audience.label} className="flex flex-col items-center gap-2.5">
+              <span className="flex h-12 w-12 items-center justify-center rounded-pill border border-gold/40 text-gold">
+                <Icon name={audience.icon} size={22} />
+              </span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-ondeep-muted">
+                {audience.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <ButtonLink to="/wholesale" variant="goldOutline" size="lg" className="mt-10">
+          Request wholesale pricing
+        </ButtonLink>
       </div>
     </section>
   );

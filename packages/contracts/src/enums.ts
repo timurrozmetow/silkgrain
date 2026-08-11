@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { BUSINESS_TYPE, VOLUME_BAND } from './constants';
+
 /**
  * Every closed value set in the platform, declared exactly once.
  *
@@ -138,12 +140,11 @@ export type InventoryReason = z.infer<typeof InventoryReason>;
 // Wholesale
 // --------------------------------------------------------------------------------------
 
-export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit', 'other'] as const;
+// Both arrays live in `../constants`, Zod-free, because the wholesale form's selects need them
+// and a value import from this file would put the whole schema layer in the browser bundle.
 export const BusinessType = z.enum(BUSINESS_TYPE);
 export type BusinessType = z.infer<typeof BusinessType>;
 
-/** Monthly volume in pounds, as offered by the mockup's select. */
-export const VOLUME_BAND = ['50-200', '200-500', '500-2000', '2000+'] as const;
 export const VolumeBand = z.enum(VOLUME_BAND);
 export type VolumeBand = z.infer<typeof VolumeBand>;
 

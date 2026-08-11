@@ -172,9 +172,23 @@ the new account. Claiming orders by email at sign-up would let anyone register w
 else's address and inherit their history, and there is no email verification standing in the way
 yet; the two belong together and are in `BACKLOG.md` as one item.
 
-`/wholesale` is task 6.6 and still to come — its enquiry form is the page, and it needs an
-endpoint of its own. There is no recipe detail page: the design never drew one (Q-25), and
-`GET /api/recipes/:slug` already returns everything it would need.
+**Task 6.6 is done too** — `/wholesale` and `POST /api/wholesale/requests`, 10 tests. The field
+set is the mockup's (decision D-5): one contact name, no business address, and the
+`wholesale_requests` columns for the rest stay nullable so a longer form needs no migration
+rewrite. The category chips come from `GET /api/categories`, not the mockup's fixed six, so a new
+category appears in the form the moment an editor creates one. An empty selection stores NULL
+rather than `[]`, so "chose nothing" is one shape downstream and not two.
+
+The honeypot and the fill-time check now live in `apps/api/src/lib/form-guards.ts`, shared with
+the Help form: two copies of "three seconds is not a reading speed" would eventually disagree
+about the number. Three enquiries an hour per address, tighter than Help's five.
+
+With `/wholesale` up, **the nav is the design's full five** and the home page's wholesale band
+ships — it had been waiting on exactly this, on the rule that a banner linking nowhere is worse
+than no banner.
+
+There is no recipe detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug`
+already returns everything it would need.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -393,6 +407,12 @@ GET  /api/account/orders      the signed-in customer's history
 GET  /api/account/orders/:num their own order, no email needed
 GET  /api/account/summary     the account page's stat cards: order count, lifetime spend
 POST /api/webhooks/stripe     the only path to `paid`. Raw body, signature, idempotent
+```
+
+Added in Phase 6:
+
+```
+POST /api/wholesale/requests  the enquiry form; same guards as /api/contact, 3 an hour
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,

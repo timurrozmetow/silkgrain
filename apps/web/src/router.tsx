@@ -12,6 +12,7 @@ import { recipesRoute } from './routes/recipes';
 import { rootRoute } from './routes/root';
 import { shopRoute } from './routes/shop';
 import { trackRoute } from './routes/track';
+import { wholesaleRoute } from './routes/wholesale';
 import { wishlistRoute } from './routes/wishlist';
 
 /**
@@ -34,6 +35,7 @@ const routeTree = rootRoute.addChildren([
   accountRoute,
   orderRoute,
   trackRoute,
+  wholesaleRoute,
 ]);
 
 export const router = createRouter({

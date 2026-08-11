@@ -33,3 +33,9 @@ export const PRODUCT_SORT = [
   'bestselling',
   'rating',
 ] as const;
+
+/** The wholesale form's two selects. Both orders are the order the options are listed in. */
+export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit', 'other'] as const;
+
+/** Monthly volume in pounds, as offered by the mockup's select. */
+export const VOLUME_BAND = ['50-200', '200-500', '500-2000', '2000+'] as const;

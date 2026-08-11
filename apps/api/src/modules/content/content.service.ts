@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 
 import type { Database } from '../../db/client';
 import { contactMessages, faqs } from '../../db/schema';
+import { looksAutomated } from '../../lib/form-guards';
 
 /**
  * The FAQ, and the Help page's message.
@@ -28,22 +29,6 @@ export async function listFaqs(db: Database): Promise<FaqListResponse> {
   })).filter((group) => group.items.length > 0);
 
   return { groups };
-}
-
-/**
- * Whether a submission looks like a person filled it in.
- *
- * Three seconds is not a reading speed. Neither check is a CAPTCHA and neither is meant to be:
- * they cost a real customer nothing, and they stop the volume of undirected form spam that
- * makes an inbox useless.
- */
-const MINIMUM_FILL_SECONDS = 3;
-
-export function looksAutomated(input: ContactMessageInput, now = Date.now()): boolean {
-  if (input.website !== undefined && input.website.length > 0) return true;
-  const elapsedSeconds = (now - input.formRenderedAt) / 1000;
-  // A negative age means the clock was tampered with, which is not something a browser does.
-  return elapsedSeconds < MINIMUM_FILL_SECONDS;
 }
 
 export interface ContactContext {

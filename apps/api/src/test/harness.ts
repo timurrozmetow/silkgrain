@@ -64,6 +64,8 @@ const MUTABLE_TABLES = [
   'contact_messages',
   'recipe_products',
   'recipes',
+  'wholesale_request_notes',
+  'wholesale_requests',
   'customers',
   'admin_users',
 ];

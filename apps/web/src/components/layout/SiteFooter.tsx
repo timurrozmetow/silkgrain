@@ -31,6 +31,7 @@ const COLUMNS: { heading: string; links: { to: string; label: string }[] }[] = [
     heading: 'Company',
     links: [
       { to: '/about', label: 'Our Story' },
+      { to: '/wholesale', label: 'Wholesale' },
       { to: '/recipes', label: 'Recipes' },
       { to: '/help', label: 'Help & FAQ' },
       { to: '/track', label: 'Track Order' },

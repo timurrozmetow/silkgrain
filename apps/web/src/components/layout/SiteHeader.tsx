@@ -24,19 +24,18 @@ import { Wordmark } from './Wordmark';
  */
 
 /**
- * Grows as the phase does.
+ * The design's nav, now complete: Shop, Recipes, Wholesale, About, Help.
  *
- * The design's nav is Shop, Recipes, Wholesale, About and Help. An entry appears here when its
- * page exists: a header full of links to pages that are not built yet looks finished and is
- * not, and it is the kind of thing that survives to launch because everyone assumed somebody
- * else had checked it.
+ * Each entry appeared only once its page existed. That rule is worth keeping for whatever comes
+ * next: a header full of links to pages that are not built looks finished and is not, and it is
+ * the kind of thing that survives to launch because everyone assumed somebody else had checked.
  *
- * Shop is rendered separately because it is the only item with a panel behind it. The others
- * join `NAV` as each page is built.
+ * Shop is rendered separately because it is the only item with a panel behind it.
  */
 const SHOP = { to: '/shop', label: 'Shop' } as const;
 const NAV = [
   { to: '/recipes', label: 'Recipes' },
+  { to: '/wholesale', label: 'Wholesale' },
   { to: '/about', label: 'About' },
   { to: '/help', label: 'Help' },
 ] as const;
