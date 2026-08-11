@@ -196,11 +196,18 @@ seed's image hosts blocked, which separates what this code costs from what the f
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Accessibility  | **95–97 on all eleven screens, both form factors.** Criterion met.                                                                                                                                              |
 | SEO            | **100** on every public page. 66 on `/cart`, `/wishlist`, `/account` and the 404, from a single failing audit — `is-crawlable`. Those four are deliberately `noindex`, so the low score is the correct outcome. |
-| Performance    | **Desktop 95–100 — criterion met.** Mobile 70–89 — not met.                                                                                                                                                     |
-| Best practices | **96** on every screen.                                                                                                                                                                                         |
+| Performance    | Pages without the seed's third-party images: **desktop 97–100, mobile 87–89.** Pages with them: desktop 89–99, mobile 71–88, swinging ten points between runs. **The ≥90 mobile bar is not met anywhere.**      |
+| Best practices | **96**, except 73 on the pages that load third-party images — their cookies are the whole finding.                                                                                                              |
 
-Two optimisations were done rather than deferred, and they moved it: the main chunk went from
-**198 KB gzip to 162 KB**, desktop from 84–100 to 95–100, mobile from 62–87 to 70–89.
+**The number is not stable, and that is itself a finding.** Three full matrix runs on the same
+build: every page without third-party images repeated to the point (cart 89/89, about 89/89,
+wishlist 88/88, product 87/87, account 82/82), while home went 85 → 71, shop 86 → 73 and recipes
+88 → 80 — purely on how `themealdb.com` and Unsplash felt that minute. Blocked, on the final
+build, they read home 80, shop 84, category 86, recipes 88. Until images are self-hosted (task
+**7.4**) this metric cannot be measured reliably, never mind hit a threshold.
+
+Three optimisations were done rather than deferred. The main chunk went from **198 KB gzip to
+162 KB**, and mobile CLS on `/help` from 0.263 to 0.004.
 
 - **Zod was in the storefront bundle** — 146 KB of sources, for two constant arrays. A value
   import from the `@silkgrain/contracts` barrel pulls the whole schema layer; type imports are
@@ -213,6 +220,13 @@ Two optimisations were done rather than deferred, and they moved it: the main ch
   `validateSearch` stays in the definition — it runs before the component's chunk is fetched —
   and the two pages that read their own route use `getRouteApi(id)` rather than importing the
   route object, which would be a cycle with the lazy import.
+- **A skeleton that lied about its height.** `/help` scored 73 on mobile against 87–89 for its
+  peers, consistently, across every run. Not the bundle: **CLS 0.263**, where every other page
+  reads 0.005. The FAQ placeholder was five 64px bars reserving 368px for a list that needs 744,
+  so the contact form beside it dropped 376px the moment the answers arrived. Lighthouse weights
+  CLS at a quarter of the score, so one mismatched placeholder cost the page fifteen points. The
+  skeleton now mirrors the loaded shape — a heading and a row per FAQ category, from the same
+  list the response is grouped by — and `/help` reads 86–87 with CLS 0.004.
 
 What is left is not bundle size. Splitting removed 32 KB and FCP did not move: under the mobile
 preset's 4× CPU throttle a client-rendered page paints nothing until the framework boots, and the
