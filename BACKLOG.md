@@ -62,6 +62,18 @@ The `payments` and `webhook_events` tables already carry a `provider` column, an
 member, so nothing has to be reshaped to add it.
 **Estimate 6–8 h.**
 
+### The catalogue's grid / list toggle
+
+Task 5.4 lists it and the mockup draws it — two icon buttons in the results bar, `squares-four`
+active and `list` inactive. What the mockup never draws is the list itself: every screen in the
+prototype renders the grid, so the row layout, what it shows that a card does not, and how it
+behaves at 760px are all undesigned.
+
+So the toggle is not built. A control that changes nothing is worse than an absent one — the same
+reason the header only ever carried links to pages that existed. Needs a designed list row first,
+then a `layout` prop on `ProductCard` and the toggle's state in the URL beside `sort`.
+**Estimate 4–6 h.** Blocked on a design for the list row.
+
 ### A session hint cookie, so an anonymous visit stops probing `/auth/refresh`
 
 The storefront asks `/auth/refresh` once on load to find out whether the httpOnly refresh cookie

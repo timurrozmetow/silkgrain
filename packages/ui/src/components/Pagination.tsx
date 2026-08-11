@@ -56,7 +56,9 @@ export function Pagination({
               onChange(item);
             }}
             className={cn(
+              // 44px on mobile: page numbers sit close together and are hit with a thumb.
               'flex h-10 w-10 items-center justify-center rounded-md font-mono text-bodySm',
+              'mobile:h-11 mobile:w-11',
               'transition-colors duration-fast',
               item === page
                 ? 'bg-green text-white'
@@ -74,7 +76,7 @@ export function Pagination({
           onClick={() => {
             onChange(page + 1);
           }}
-          className="flex h-10 items-center gap-1.5 rounded-md border border-line bg-surface px-4 text-bodySm text-body transition-colors duration-fast hover:border-green hover:text-green"
+          className="flex h-10 items-center gap-1.5 rounded-md border border-line bg-surface px-4 text-bodySm text-body transition-colors duration-fast hover:border-green hover:text-green mobile:h-11"
         >
           Next
           <Icon name="arrow-right" size={15} />

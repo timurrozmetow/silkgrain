@@ -240,7 +240,37 @@ task **7.4**.
 That leaves **Q-46** for the owner: accept Phase 5 with the mobile bar carried into Phase 8
 alongside 7.4, or treat prerendering as its own decision.
 
-Three real defects came out of the run and are fixed: the four overlay panels kept their controls
+### The 1440 / 1024 / 760 pass
+
+The other half of Phase 5's acceptance — every screen checked at three widths — is done, driven
+in the browser rather than eyeballed. Eleven screens × three widths, measuring what the
+responsive handoff actually specifies: horizontal overflow, gutter, product-grid columns, sticky
+behaviour, touch-target height and form-control font size.
+
+What it confirmed: no horizontal overflow anywhere, gutters exactly 28 / 22 / 16, product grids
+4 → 3 → 2, sticky columns unpinned at 1024 and below.
+
+What it caught — and every one of these had shipped:
+
+- **Form controls were 14px on mobile.** iOS Safari zooms the page when a field under 16px takes
+  focus and never zooms back; the handoff makes 16px a rule. `controlClasses` now carries
+  `mobile:text-[16px]`, which covers every `Input`, `Textarea` and `Select` at once.
+- **Six kinds of touch target were under the 44px floor**: the `sm` button (36px), the product
+  card's wishlist heart (34), its Quick view pill (35) and Add to Cart (39), FAQ accordion rows
+  (30), pagination numbers (40) and the slider's indicators — 3px, the worst of them, now a
+  44px hit area around an unchanged 3px rule. **No component in `packages/ui` had used the
+  `mobile:` variant before this**: the responsive layer had been written per page, and the shared
+  components were the gap that left.
+- **`/shop` rendered a four-up grid**; the mockup's catalogue is `repeat(3,1fr)` with a 22px gap,
+  because the 260px sidebar has already taken its share of the row. The gap is now paired with
+  the column count — 24px at four across, 22px at three — so the two cases cannot drift.
+
+Task 5.4's **grid / list toggle is not built**, deliberately. The mockup draws the two icon
+buttons but never draws a list: every screen in the prototype renders the grid, so the row
+layout, what it shows that a card does not, and how it behaves at 760px are all undesigned. It is
+in `BACKLOG.md` with that reasoning. A control that changes nothing is worse than an absent one.
+
+Three real defects came out of the Lighthouse run and are fixed: the four overlay panels kept their controls
 in the tab order while closed (`aria-hidden` hides from a screen reader and does nothing to Tab —
 see `packages/ui/src/a11y.ts`), the add-to-cart button's accessible name did not contain its own
 visible label, and `EmptyState` hard-coded an `h3` that skipped a level under a page's `h1`.

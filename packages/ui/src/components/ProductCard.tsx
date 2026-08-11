@@ -130,7 +130,10 @@ export function ProductCard({
                 : `Save ${product.name} to wishlist`
             }
             className={cn(
+              // 34px is the mockup's desktop size; the responsive handoff's 44px touch floor
+              // applies on mobile, where this is hit with a thumb rather than a cursor.
               'absolute right-3 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center',
+              'mobile:h-11 mobile:w-11',
               'rounded-pill bg-[rgba(253,250,244,0.92)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
               'transition-[color,background-color,transform] duration-base',
               'hover:scale-105 hover:bg-terracotta hover:text-white',
@@ -150,6 +153,7 @@ export function ProductCard({
             className={cn(
               'absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5',
               'rounded-pill bg-white px-3.5 py-2 text-[12.5px] font-semibold text-green',
+              'mobile:min-h-11 mobile:px-4',
               'shadow-[0_4px_12px_rgba(0,0,0,0.16)] transition-colors duration-base',
               'hover:bg-green hover:text-white',
             )}
@@ -225,6 +229,7 @@ export function ProductCard({
               aria-label={`Add to Cart: ${product.name}`}
               className={cn(
                 'relative z-10 inline-flex items-center gap-1.5 rounded-md bg-green px-4 py-2.5',
+                'mobile:min-h-11',
                 'text-caption font-semibold text-white',
                 'transition-[background-color,transform] duration-base',
                 'hover:-translate-y-px hover:bg-green-hover',

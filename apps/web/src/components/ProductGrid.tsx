@@ -36,9 +36,12 @@ export function ProductGrid({
 
   return (
     <>
+      {/* The mockup pairs each column count with its own gap - 24px at four across, 22px at
+          three, where the grid sits beside a sidebar and the cards are narrower. `columns`
+          already distinguishes those two cases, so nothing new has to be passed in. */}
       <div
-        className={`grid gap-6 ${
-          columns === 4 ? 'grid-cols-4' : 'grid-cols-3'
+        className={`grid ${
+          columns === 4 ? 'grid-cols-4 gap-6' : 'grid-cols-3 gap-[22px]'
         } tablet:grid-cols-3 tablet:gap-5 mobile:grid-cols-2 mobile:gap-4`}
       >
         {products.map((product) => (

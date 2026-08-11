@@ -112,10 +112,20 @@ export function FeaturedSlider() {
                   onClick={() => {
                     go(position);
                   }}
-                  className={`h-[3px] rounded-pill transition-all duration-base ${
-                    position === current ? 'w-9 bg-gold' : 'w-4 bg-white/45 hover:bg-white/70'
-                  }`}
-                />
+                  // The indicator is a 3px rule by design. The *target* cannot be: padding gives
+                  // it a 44px-tall hit area on mobile without changing what is drawn, which is
+                  // the responsive handoff's touch rule met without redrawing the mockup.
+                  className="group flex items-center py-2 mobile:min-h-11"
+                >
+                  <span
+                    aria-hidden
+                    className={`h-[3px] rounded-pill transition-all duration-base ${
+                      position === current
+                        ? 'w-9 bg-gold'
+                        : 'w-4 bg-white/45 group-hover:bg-white/70'
+                    }`}
+                  />
+                </button>
               ))}
             </div>
 

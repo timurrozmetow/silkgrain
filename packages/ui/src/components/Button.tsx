@@ -42,8 +42,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
   danger: 'bg-terracotta text-white border border-transparent hover:brightness-110',
 };
 
+/**
+ * `sm` grows to 44px on mobile, which is the responsive handoff's touch-target floor.
+ *
+ * Only `sm` needs it - `md` is already 44 and `lg` is 52. Done here rather than at the call
+ * sites because a small button is small wherever it appears, and hunting them down one at a
+ * time is how three of them stay 36px until somebody complains.
+ */
 const SIZES: Record<ButtonSize, { frame: string; gap: string; icon: number }> = {
-  sm: { frame: 'h-9 px-4 text-caption', gap: 'gap-2', icon: 15 },
+  sm: { frame: 'h-9 px-4 text-caption mobile:h-11', gap: 'gap-2', icon: 15 },
   md: { frame: 'h-11 px-5 text-bodySm', gap: 'gap-2', icon: 16 },
   lg: { frame: 'h-[52px] px-7 text-body', gap: 'gap-2.5', icon: 18 },
 };

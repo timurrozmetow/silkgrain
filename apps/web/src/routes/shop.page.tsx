@@ -177,7 +177,12 @@ function Shop() {
                 action={<ButtonLink to="/shop">Clear filters</ButtonLink>}
               />
             ) : (
-              <ProductGrid products={data.items} />
+              <ProductGrid
+                products={data.items}
+                // Three across, not four: the mockup's catalogue grid is `repeat(3,1fr)`,
+                // because the 260px filter sidebar has already taken its share of the row.
+                columns={3}
+              />
             )}
           </div>
 

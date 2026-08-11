@@ -44,7 +44,9 @@ export function AccordionItem({
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onToggle}
-          className="flex w-full items-center gap-4 text-left"
+          // The row is 30px tall inside the item's padding, which a cursor hits easily and a
+          // thumb does not. 44px on mobile, per the responsive handoff.
+          className="flex w-full items-center gap-4 text-left mobile:min-h-11"
         >
           <span className="flex-1 text-[16.5px] font-semibold text-ink">{question}</span>
           <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-pill bg-[#EBEAE1] text-green">

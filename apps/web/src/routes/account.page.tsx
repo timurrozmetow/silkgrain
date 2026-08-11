@@ -143,7 +143,7 @@ function AuthPanel() {
             onClick={() => {
               setMode(value);
             }}
-            className={`h-10 rounded-md text-bodySm font-semibold transition-colors ${
+            className={`h-10 rounded-md text-bodySm font-semibold transition-colors mobile:h-11 ${
               mode === value ? 'bg-green text-white' : 'text-body hover:text-green'
             }`}
           >

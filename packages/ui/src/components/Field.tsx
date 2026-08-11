@@ -80,10 +80,17 @@ export function Field({
   );
 }
 
-/** Shared visual treatment for text-like controls. */
+/**
+ * Shared visual treatment for text-like controls.
+ *
+ * `mobile:text-[16px]` is not a design choice: iOS Safari zooms the whole page when a field
+ * with text under 16px takes focus, and the page never zooms back. The responsive handoff makes
+ * it a rule, and it belongs here rather than at each call site - `text-bodySm` is 14px, so every
+ * Input and Textarea in the product would otherwise trip it.
+ */
 export const controlClasses = (invalid: boolean): string =>
   cn(
-    'w-full rounded-md border bg-white px-3.5 py-3 font-sans text-bodySm text-ink',
+    'w-full rounded-md border bg-white px-3.5 py-3 font-sans text-bodySm text-ink mobile:text-[16px]',
     'outline-none transition-[border-color,box-shadow] duration-fast',
     'placeholder:text-muted-soft',
     'disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-60',
