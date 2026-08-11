@@ -6,10 +6,12 @@ import { cartRoute } from './routes/cart';
 import { categoryRoute } from './routes/category';
 import { helpRoute } from './routes/help';
 import { homeRoute } from './routes/home';
+import { orderRoute } from './routes/order';
 import { productRoute } from './routes/product';
 import { recipesRoute } from './routes/recipes';
 import { rootRoute } from './routes/root';
 import { shopRoute } from './routes/shop';
+import { trackRoute } from './routes/track';
 import { wishlistRoute } from './routes/wishlist';
 
 /**
@@ -30,6 +32,8 @@ const routeTree = rootRoute.addChildren([
   recipesRoute,
   wishlistRoute,
   accountRoute,
+  orderRoute,
+  trackRoute,
 ]);
 
 export const router = createRouter({

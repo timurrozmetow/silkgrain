@@ -149,9 +149,32 @@ it agrees with the list beneath it; `lifetimeSpentCents` counts only `paid`, `pr
 `shipped` and `delivered` — a pending order was never charged, a cancelled one never was, and a
 refunded one was paid back, so none belongs in a total labelled "spent".
 
-`/wholesale` waits for Phase 6, since its enquiry form is the page. There is no recipe
-detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug` already returns
-everything it would need.
+**Phase 6's task 6.5 is done** — `/order/:orderNumber` and `/track`, both built on the guest
+lookup Phase 4 already tested. They need nothing from Stripe, which is why they came first.
+
+Access is the interesting part. A signed-in customer needs only the number: the session says who
+is asking. A guest supplies the email the order was placed with, because order numbers are a
+per-year sequence and can be walked — and a wrong email and a number never issued answer
+identically, so walking them reveals nothing. The email lives in React state, **never in the
+URL**: `?email=` is the API's contract, not the page's, and an address in the address bar ends up
+in history and in shared links.
+
+The tracking timeline derives from the order's own timestamps, which `BACKLOG.md` had already
+settled as the plan until a carrier integration lands. Four of the mockup's five steps exist in
+the data; "Out for Delivery" is a carrier scan event and is not drawn, because a step that never
+lights up is worse than four that do. `Packed` shows as reached without a date — the admin moves
+an order to `processing` when it is packed and no column records when. A cancelled or refunded
+order gets a statement instead of a timeline: it is not moving, and drawing it stalled at the step
+it died on says the opposite.
+
+One-click registration on the confirmation screen deliberately does **not** attach the order to
+the new account. Claiming orders by email at sign-up would let anyone register with somebody
+else's address and inherit their history, and there is no email verification standing in the way
+yet; the two belong together and are in `BACKLOG.md` as one item.
+
+`/wholesale` is task 6.6 and still to come — its enquiry form is the page, and it needs an
+endpoint of its own. There is no recipe detail page: the design never drew one (Q-25), and
+`GET /api/recipes/:slug` already returns everything it would need.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

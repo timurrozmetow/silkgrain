@@ -62,6 +62,18 @@ The `payments` and `webhook_events` tables already carry a `provider` column, an
 member, so nothing has to be reshaped to add it.
 **Estimate 6–8 h.**
 
+### Attaching a guest's past orders to a new account
+
+The confirmation screen offers one-click registration, and it deliberately stops short of moving
+the order onto the new account. Claiming orders by email at sign-up would let anyone register with
+somebody else's address and inherit their order history — the addresses, the totals, the items —
+and there is no email verification standing in the way yet.
+
+So the two land together or not at all: verify the address, then claim every `orders` row with
+that email and a null `customer_id`. Needs a verification token table, the email, and the claim
+inside one transaction.
+**Estimate 6–8 h.**
+
 ### The catalogue's grid / list toggle
 
 Task 5.4 lists it and the mockup draws it — two icon buttons in the results bar, `squares-four`

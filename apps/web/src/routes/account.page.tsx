@@ -16,13 +16,14 @@ import {
   Pagination,
   Skeleton,
   StatusChip,
-  type ChipTone,
 } from '@silkgrain/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 
+import { ButtonLink } from '../components/ButtonLink';
 import { ApiRequestError, apiGet } from '../lib/api';
+import { ORDER_CHIP, formatOrderDate } from '../lib/order-status';
 import { Seo } from '../lib/seo';
 import { useAuth } from '../store/auth';
 import { useCart } from '../store/cart';
@@ -454,14 +455,21 @@ function AccountSidebar({ customer }: { customer: CustomerProfile }) {
             </div>
           </div>
 
-          {/* Only the destinations that exist. Track Order, Addresses, Payment Methods and
-              Settings from the mockup have no backing model yet and wait in BACKLOG, so they are
-              not printed here as links to nowhere. */}
+          {/* Only the destinations that exist. Addresses, Payment Methods and Settings from the
+              mockup have no backing model yet and wait in BACKLOG, so they are not printed here
+              as links to nowhere. */}
           <nav className="mt-6 flex flex-col gap-1" aria-label="Account">
             <span className="flex items-center gap-3 rounded-md bg-sage-bg px-3 py-2.5 text-bodySm font-medium text-green">
               <Icon name="receipt" size={18} />
               Order history
             </span>
+            <Link
+              to="/track"
+              className="flex items-center gap-3 rounded-md px-3 py-2.5 text-bodySm text-body transition-colors hover:bg-surface-alt hover:text-green"
+            >
+              <Icon name="truck" size={18} />
+              Track order
+            </Link>
             <Link
               to="/wishlist"
               className="flex items-center gap-3 rounded-md px-3 py-2.5 text-bodySm text-body transition-colors hover:bg-surface-alt hover:text-green"
@@ -555,25 +563,6 @@ function StatCard({
   );
 }
 
-/** Order status to the chip tone and label the account history shows. */
-const ORDER_CHIP: Record<OrderSummary['status'], { tone: ChipTone; label: string }> = {
-  pending: { tone: 'warning', label: 'Pending' },
-  paid: { tone: 'info', label: 'Paid' },
-  processing: { tone: 'info', label: 'Processing' },
-  shipped: { tone: 'info', label: 'Shipped' },
-  delivered: { tone: 'positive', label: 'Delivered' },
-  cancelled: { tone: 'negative', label: 'Cancelled' },
-  refunded: { tone: 'neutral', label: 'Refunded' },
-};
-
-function formatOrderDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
 function OrderCard({ order }: { order: OrderSummary }) {
   const add = useCart((state) => state.add);
   const [reorder, setReorder] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
@@ -632,6 +621,17 @@ function OrderCard({ order }: { order: OrderSummary }) {
           <span className="font-serif text-[20px] text-ink">
             {Money.fromCents(order.totalCents).format()}
           </span>
+          {/* The mockup's "Track" button. It goes to the order rather than to `/track`, because a
+              signed-in customer's session already answers what that page's form asks for. */}
+          <ButtonLink
+            to="/order/$orderNumber"
+            params={{ orderNumber: order.orderNumber }}
+            variant="ghost"
+            size="sm"
+            iconLeft="truck"
+          >
+            Track
+          </ButtonLink>
           <Button
             variant="outline"
             size="sm"
