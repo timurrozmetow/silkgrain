@@ -63,6 +63,37 @@ the placeholders; `loadEnv` refuses them under `NODE_ENV=production`.
 `pk_test_`; `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints the
 `whsec_`. Put all three in `.env` and 4.2 and 4.6 can be finished and verified.
 
+### What is already built for the day the key arrives
+
+Everything on this side of the SDK call, so nothing has to be designed under time pressure.
+
+**`createPendingOrder` in `apps/api/src/modules/checkout/checkout.service.ts` — 12 tests.** This
+is all of `POST /api/checkout/intent` except `stripe.paymentIntents.create`: it reprices the cart
+through the same `quoteCart` the storefront has been calling, refuses a total the customer never
+saw, then writes the order, its line snapshots and both addresses in one transaction with a
+freshly allocated number. It leaves the order `pending` and touches no stock, because both of
+those belong to the webhook and to nowhere else.
+
+The three rules it holds are the ones `CLAUDE.md` says Phase 4 has to get right, and each has a
+test that fails if it slips:
+
+- The order's totals are the quote's totals, to the cent — the third copy of the arithmetic
+  agreeing with the other two.
+- A stale total is a **409** carrying the fresh quote, never a silent charge. Any server-side
+  adjustment counts as stale too, not only a different number: two changes can cancel out.
+- The discount is allocated across lines with `Money.allocate`, so the line discounts sum exactly
+  to the order's. A lost cent here surfaces later as a reconciliation failure against Stripe.
+
+`CART_PRICE_MISMATCH` was reserved for this and unused; its status moved from 422 to **409**,
+which is what the working agreement says a stale total is and what `CheckoutIntentResult`'s
+sibling `CheckoutTotalMismatch` was written for.
+
+**So the remaining work behind the key is:** call `paymentIntents.create` with
+`quote.totalCents`, hand back `CheckoutIntentResult` with the client secret and publishable key
+(the `PaymentHandoff` union already has the shape), mount the Payment Element on a `/checkout`
+page, and let the webhook — already built and tested — do the rest. Stripe Tax (4.6) replaces the
+estimated `taxCents` at that point, which is decision D-4's plan.
+
 **Phase 5 has started**, because it needs nothing from Stripe until the checkout. Done and
 driven in a real browser: the frame (router, layout, announcement bar, sticky header, footer,
 scroll restoration, error boundary, 404), the home page's hero, category strip and both

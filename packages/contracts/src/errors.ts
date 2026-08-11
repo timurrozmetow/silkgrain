@@ -50,7 +50,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   RATE_LIMITED: 429,
 
-  CART_PRICE_MISMATCH: 422,
+  /**
+   * 409, not 422: the body was perfectly processable, the server's own figures moved under it.
+   * `CLAUDE.md` states the rule outright - "a stale total is a 409, never a silent charge" - and
+   * the checkout raises this with the fresh quote attached so the summary can be redrawn.
+   */
+  CART_PRICE_MISMATCH: 409,
   CART_ITEM_UNAVAILABLE: 422,
   INSUFFICIENT_STOCK: 422,
 
