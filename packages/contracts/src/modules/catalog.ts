@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { PRODUCT_SORT } from '../constants';
 import { Badge, Certification, Origin, ProductStatus, StockState, WeightUnit } from '../enums';
 import { PageMeta } from '../pagination';
 import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
@@ -249,14 +250,6 @@ export const ProductDetailResponse = z.object({
 });
 export type ProductDetailResponse = z.infer<typeof ProductDetailResponse>;
 
-export const PRODUCT_SORT = [
-  'featured',
-  'price_asc',
-  'price_desc',
-  'newest',
-  'bestselling',
-  'rating',
-] as const;
 export const ProductSort = z.enum(PRODUCT_SORT);
 export type ProductSort = z.infer<typeof ProductSort>;
 

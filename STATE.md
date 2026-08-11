@@ -181,8 +181,9 @@ Cart changes are announced through one polite live region in the layout (`CartAn
 covers every way the cart can change rather than each of them separately. It is silent on the
 first render: a cart restored from `localStorage` has not changed.
 
-Storefront bundle is **198 KB gzip** against the 250 KB budget, up from 110 KB for the router,
-the query client and the store. Route-level code splitting is task 8.4.
+Storefront's first paint is **162 KB gzip** against the 250 KB budget, plus the route's own chunk
+— 4.5 KB for the home page. Route-level splitting and taking Zod out of the bundle brought that
+down from 198 KB; the details are under Lighthouse below.
 
 ### Lighthouse — measured, and one criterion not met
 
@@ -193,23 +194,37 @@ seed's image hosts blocked, which separates what this code costs from what the f
 
 | Category       | Result                                                                                                                                                                                                          |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accessibility  | **96–97 on all eleven screens, both form factors.** Criterion met.                                                                                                                                              |
+| Accessibility  | **95–97 on all eleven screens, both form factors.** Criterion met.                                                                                                                                              |
 | SEO            | **100** on every public page. 66 on `/cart`, `/wishlist`, `/account` and the 404, from a single failing audit — `is-crawlable`. Those four are deliberately `noindex`, so the low score is the correct outcome. |
-| Performance    | Desktop 84–100. **Mobile 62–87 — criterion not met.**                                                                                                                                                           |
-| Best practices | 96, except 73 on home and shop: third-party cookies from the seed's image hosts.                                                                                                                                |
+| Performance    | **Desktop 95–100 — criterion met.** Mobile 70–89 — not met.                                                                                                                                                     |
+| Best practices | **96** on every screen.                                                                                                                                                                                         |
 
-The mobile gap is measured, not guessed, and neither half of it is fixable inside Phase 5:
+Two optimisations were done rather than deferred, and they moved it: the main chunk went from
+**198 KB gzip to 162 KB**, desktop from 84–100 to 95–100, mobile from 62–87 to 70–89.
 
-- **The seed's images live on other people's servers.** `/shop` pulls 3.4 MB in 25 requests, with
-  `themealdb.com` serving 733 KB, 585 KB and 435 KB PNGs that take 9–11 seconds each; `/recipes`
-  pulls 887 KB from `images.unsplash.com`, up to 6.7 s a request, which is why it scores 62.
-  Blocked, home and shop go to 82–83. Own images with resize and webp is task **7.4**.
-- **One unsplit bundle.** What is left is FCP 3.0 s under the mobile preset's 4× CPU throttle.
-  Cleanest on `/help`, which has no images at all and still scores 73. TBT is 10–20 ms and CLS
-  0.005 — this is download-and-parse, not execution or layout. Route splitting is task **8.4**.
+- **Zod was in the storefront bundle** — 146 KB of sources, for two constant arrays. A value
+  import from the `@silkgrain/contracts` barrel pulls the whole schema layer; type imports are
+  erased and cost nothing, which is why it went unnoticed. `@silkgrain/contracts/constants` is a
+  third entry point beside `money`, Zod-free by construction, and the storefront reads
+  `CART_LINE_MAX_QTY` and `PRODUCT_SORT` from there. −17 KB gzip.
+- **Route-level splitting** (task **8.4**, pulled forward). Each route is now a definition file
+  plus a `<name>.page.tsx` behind `lazyRouteComponent`, so a visitor downloads the page they
+  asked for: 1.2–4.9 KB gzip a page against 36 KB for all of them. −32 KB gzip off first paint.
+  `validateSearch` stays in the definition — it runs before the component's chunk is fetched —
+  and the two pages that read their own route use `getRouteApi(id)` rather than importing the
+  route object, which would be a cycle with the lazy import.
 
-Whether to accept Phase 5 on A11y and SEO and move the performance bar to Phase 8, or pull 8.4
-forward now, is **Q-46** — the owner's call.
+What is left is not bundle size. Splitting removed 32 KB and FCP did not move: under the mobile
+preset's 4× CPU throttle a client-rendered page paints nothing until the framework boots, and the
+main chunk holds 910 KB of sources of which 421 KB is `react-dom`, `router-core`, `query-core` and
+`react-router` before a line of ours, plus 278 KB of icon registry the header and cards need
+immediately. **≥90 on mobile needs prerendering or SSR**, which is an architecture decision and
+not a task in the plan. The seed's third-party images are the other half — `/shop` pulls 3.4 MB
+from `themealdb.com`, `/recipes` 887 KB from Unsplash — and own images with resize and webp is
+task **7.4**.
+
+That leaves **Q-46** for the owner: accept Phase 5 with the mobile bar carried into Phase 8
+alongside 7.4, or treat prerendering as its own decision.
 
 Three real defects came out of the run and are fixed: the four overlay panels kept their controls
 in the tab order while closed (`aria-hidden` hides from a screen reader and does nothing to Tab —
@@ -227,9 +242,11 @@ owner's call. Decision D-7 bars gold from carrying text everywhere else, and not
 
 1. **Phase 2 and Phase 3 acceptance.** Both reported; the process in `CLAUDE-CODE-PROMPT.md`
    says a phase is not left until the owner confirms.
-2. **Q-46 — Phase 5's mobile Performance bar.** A11y and SEO pass; mobile Performance is 62–87
-   and the two things holding it there are tasks 7.4 and 8.4. Accept the phase and move the bar
-   to Phase 8, or pull 8.4 forward? Recommendation and numbers are in `QUESTIONS.md`.
+2. **Q-46 — Phase 5's mobile Performance bar.** A11y, SEO and desktop Performance all pass. 8.4
+   was pulled forward and done, which took mobile from 62–87 to 70–89; the rest is the seed's
+   third-party images (task 7.4) and the cost of booting a client-rendered app, which only
+   prerendering or SSR changes. Accept the phase and carry the mobile bar into Phase 8, or treat
+   prerendering as its own decision? Numbers and a recommendation are in `QUESTIONS.md`.
 3. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
    answered in place in `QUESTIONS.md` and recorded as D-12…D-18 in `CLAUDE.md`. They shaped
    the schema, so reversing one now costs a migration.

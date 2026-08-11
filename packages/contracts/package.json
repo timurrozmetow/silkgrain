@@ -13,6 +13,10 @@
     "./money": {
       "types": "./dist/money.d.ts",
       "default": "./dist/money.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
     }
   },
   "publishConfig": {

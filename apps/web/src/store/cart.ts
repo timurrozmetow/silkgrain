@@ -1,4 +1,4 @@
-import { CART_LINE_MAX_QTY } from '@silkgrain/contracts';
+import { CART_LINE_MAX_QTY } from '@silkgrain/contracts/constants';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 

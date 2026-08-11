@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { CART_LINE_MAX_QTY } from '../constants';
 import { PromoType, ShippingMethod, StockState } from '../enums';
 import { ErrorCode } from '../errors';
 import { Cents, Currency, Id, Slug } from '../primitives';
@@ -13,9 +14,13 @@ import { Cents, Currency, Id, Slug } from '../primitives';
  * sends a price" a property of the type system rather than a rule someone has to remember.
  */
 
-/** One line may not exceed this. Beyond it the customer is a wholesale enquiry, not a cart. */
-export const CART_LINE_MAX_QTY = 99;
-/** Guards the recalculation query: fifty lines is already an implausible retail order. */
+/**
+ * `CART_LINE_MAX_QTY` lives in `../constants` because the storefront's cart store needs it and
+ * importing it from here would drag Zod into the browser bundle. `CART_MAX_LINES` stays: only
+ * the server reads it.
+ *
+ * Guards the recalculation query - fifty lines is already an implausible retail order.
+ */
 export const CART_MAX_LINES = 50;
 
 export const CartLineInput = z

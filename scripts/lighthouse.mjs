@@ -32,7 +32,9 @@ const BASE = process.env.LIGHTHOUSE_BASE ?? 'http://localhost:4173';
 const PAGES = [
   ['home', '/'],
   ['shop', '/shop'],
-  ['category', '/shop/c/rice-grains'],
+  // Slugs come from the development seed. A slug that does not exist renders "No such
+  // category", which scores beautifully and measures nothing.
+  ['category', '/shop/c/rice'],
   ['product', '/product/devzira-rice'],
   ['cart', '/cart'],
   ['recipes', '/recipes'],
