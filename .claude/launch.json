@@ -18,6 +18,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@silkgrain/web", "preview"],
       "port": 4173
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/admin", "dev"],
+      "port": 5174
+    },
+    {
+      "name": "admin-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/admin", "preview"],
+      "port": 4174
     }
   ]
 }

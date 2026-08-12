@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 
 import type { Env } from './env';
+import { adminRoutes } from './modules/admin/admin.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import { cartRoutes } from './modules/cart/cart.routes';
 import { catalogRoutes } from './modules/catalog/catalog.routes';
@@ -95,6 +96,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await app.register(orderRoutes, { prefix: '/api' });
   await app.register(contentRoutes, { prefix: '/api' });
   await app.register(wholesaleRoutes, { prefix: '/api' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
   // Registered last and in its own scope: it replaces the JSON parser with a raw-bytes one,
   // and that substitution must not escape into any other route.
   await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', env });

@@ -8,6 +8,7 @@ export * from './money';
 export * from './pagination';
 
 export * from './modules/account';
+export * from './modules/admin';
 export * from './modules/auth';
 export * from './modules/cart';
 export * from './modules/catalog';

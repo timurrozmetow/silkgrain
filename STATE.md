@@ -221,6 +221,48 @@ than no banner.
 There is no recipe detail page: the design never drew one (Q-25), and `GET /api/recipes/:slug`
 already returns everything it would need.
 
+---
+
+## Phase 7 — the admin panel, started
+
+**Tasks 7.1 and 7.2 are done**: the frame and the dashboard, with `GET /api/admin/dashboard`
+behind them and 10 tests. They landed together on purpose — a frame with no screen cannot be
+driven, and a dashboard with no frame has nowhere to sit.
+
+`apps/admin` was a Phase 0 scaffold until now: no router, no query client, no session. It has all
+three, and its own copy of the transport rather than the storefront's. That is deliberate. The two
+authentication contours are separate by design — separate tables, cookies and token audiences —
+and the one place that difference lives is the refresh call. A shared client would need a mode
+flag, and a mode flag on an auth client is how an admin token ends up on a customer route.
+
+The panel sits behind **one** gate rather than a guard per route: every screen in it reads or
+writes shop data, so "signed in" is the floor for all of them, and eight copies of that check is
+seven chances to forget one. Sign-in renders in place of the panel instead of at `/login`, which
+saves a redirect target read from the URL — a thing to get wrong.
+
+The dashboard's figures are computed on the way out, nothing cached: a dashboard reading a summary
+table can disagree with the orders it summarises. **Revenue means the same thing here as on the
+customer's lifetime-spend card** — paid, processing, shipped, delivered — because two definitions
+of a sale in one codebase is how a shop gets two answers to "how much did we make". A delta
+against an empty previous window is **null, not zero**, and the client prints a dash: a first
+month shown as "0.0%" is a number an operator would believe.
+
+Days with no sales are filled in before the chart sees them. A `GROUP BY` returns only the days
+with rows, and a line drawn through those alone invents a trend across the quiet ones.
+
+The chart is inline SVG in a stretched viewBox — no library, no resize listener, and the stroke is
+`vectorEffect="non-scaling-stroke"` so it stays an even hairline rather than thicker vertically
+than horizontally.
+
+The top bar deliberately carries no search field, no notification bell and no "Add Product"
+button, all three of which the mockup draws. None has anywhere to go yet. A dead control in a back
+office is worse than a missing one: an operator clicks it, nothing happens, and they stop trusting
+the rest of the screen.
+
+Still to come: products and the nutrition panel (7.3), image upload (7.4), orders (7.5), wholesale
+(7.6), customers, promos, pricing and settings (7.7), RBAC and the audit log (7.8), the end-to-end
+scenario (7.9).
+
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
 price the moment a sale ended, and the checkout would then disagree with it.
@@ -444,6 +486,12 @@ Added in Phase 6:
 
 ```
 POST /api/wholesale/requests  the enquiry form; same guards as /api/contact, 3 an hour
+```
+
+Added in Phase 7:
+
+```
+GET  /api/admin/dashboard     KPIs, a 30-day revenue series, low stock, recent orders
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,
