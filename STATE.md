@@ -259,8 +259,35 @@ button, all three of which the mockup draws. None has anywhere to go yet. A dead
 office is worse than a missing one: an operator clicks it, nothing happens, and they stop trusting
 the rest of the screen.
 
-**Task 7.3 is half done**: the migration and the product list, with `GET /api/admin/products`
-behind them and 11 tests. The form is next.
+**Task 7.3's API is done**: the migration, the product list and the write path, with 28 tests
+across `GET /api/admin/products`, `GET|POST|PUT /api/admin/products/:id`. The form UI is what
+remains.
+
+A save is **one transaction** covering the product row, its variants, certifications, badges and
+nutrition panel. Half a save — new variants beside old certifications — is a state nobody designed
+and nobody would think to look for.
+
+Variants are **reconciled, not replaced**: a row named by id is updated, a row without one is
+created, a row the payload omits is deleted. Deleting and re-inserting them all would issue new
+ids on every save, and an id that changes is an id `order_items` and `wishlist_items` have already
+written down. Deleting is safe because `order_items.variant_id` is `ON DELETE SET NULL` and the
+line keeps its own snapshot of name, SKU and price.
+
+The route is **PUT rather than PATCH**, deliberately: the form sends the whole product every time,
+and a partial body would make "this variant is gone" indistinguishable from "I did not mention it".
+
+Nutrition arrives in **milligrams**, not grams. An FDA label is written in grams for the macros and
+milligrams for sodium, so the form multiplies by a thousand before sending — which keeps fractions
+out of the request entirely and honours the no-floats rule. `1.5 g` is `1500`, exactly, with no
+rounding decision left on the server. The panel refuses saturated fat above total fat and sugars
+above carbohydrates, both of which are labels nobody read.
+
+Sending a panel at all sets `source` to `entered`. That is the point of decision D-20: whoever
+pressed save is now answerable for those figures, and the seed's category-level averages stay
+`reference` until someone types over them.
+
+`publishedAt` is stamped on first activation and never again — re-stamping would push a product
+back to the top of "newest" every time somebody fixed a typo. A draft is left undated.
 
 The list is a **separate service from the storefront's**, not the same query with a flag. That one
 starts from `PUBLISHED_PRODUCT` and exists to hide what a customer must not see; this one starts
@@ -280,7 +307,7 @@ labelled as a category-level average rather than something read off a packet. De
 for exactly this, and the list shows it per product — an editor deciding what to verify next can
 see which panels are still the seed's.
 
-Still to come: the product form with the full Nutrition Facts panel (the rest of 7.3), image upload
+Still to come: the product form itself (the rest of 7.3), image upload
 (7.4), orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
 audit log (7.8), the end-to-end scenario (7.9).
 
@@ -514,6 +541,9 @@ Added in Phase 7:
 ```
 GET  /api/admin/dashboard     KPIs, a 30-day revenue series, low stock, recent orders
 GET  /api/admin/products      every product, drafts included; search covers the SKU
+GET  /api/admin/products/:id  everything the form edits, cost price and panel source included
+POST /api/admin/products      create, one transaction
+PUT  /api/admin/products/:id  replace and reconcile variants; an omitted variant is deleted
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,

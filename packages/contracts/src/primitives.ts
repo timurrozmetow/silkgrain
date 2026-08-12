@@ -4,6 +4,15 @@ import { z } from 'zod';
 export const Id = z.number().int().positive();
 
 /**
+ * The same id, arriving as text in a URL.
+ *
+ * Separate from `Id` on purpose rather than making that one coerce: an id in a JSON body arrives as
+ * a number and a string there is a client bug worth rejecting, while an id in a path is always text
+ * and coercing it is the only way it can ever validate. Every `/:id` route uses this.
+ */
+export const PathId = z.coerce.number().int().positive();
+
+/**
  * Money is always whole cents, never a float.
  * `nonnegative` because every amount we transport (price, subtotal, tax, discount)
  * is a magnitude; direction is expressed by the field name, not by the sign.
