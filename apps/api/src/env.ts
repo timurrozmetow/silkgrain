@@ -110,6 +110,25 @@ const EnvSchema = z
     MAIL_FROM_NAME: z.string().min(1).default('SilkGrain'),
     MAIL_FROM_ADDRESS: z.string().email(),
     MAIL_REPLY_TO: z.string().email().or(z.literal('')).default(''),
+
+    /**
+     * Object storage for product images. Locally MinIO, in production any S3-compatible endpoint.
+     *
+     * `S3_PUBLIC_URL` is separate from `S3_ENDPOINT` on purpose: the API talks to the bucket over
+     * one address and the browser fetches the finished image over another. Locally they happen to
+     * be the same host; in production the endpoint is internal and the public URL is a CDN.
+     * `S3_FORCE_PATH_STYLE` is true for MinIO and false for most clouds, which is why it is a knob.
+     */
+    S3_ENDPOINT: z.string().url(),
+    S3_REGION: z.string().min(1).default('us-east-1'),
+    S3_BUCKET: z.string().min(1),
+    S3_ACCESS_KEY_ID: z.string().min(1),
+    S3_SECRET_ACCESS_KEY: z.string().min(1),
+    S3_FORCE_PATH_STYLE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    S3_PUBLIC_URL: z.string().url(),
     // `MAIL_OPS_ADDRESS` is in `.env.example` and deliberately absent here: nothing reads it
     // until Phase 6 sends the wholesale notice, and this file lists only what the code reads.
   })

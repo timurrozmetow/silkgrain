@@ -16,6 +16,8 @@ import {
 } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
 
+import { listImages } from './images.service';
+
 /**
  * Reading and writing one product from the admin form.
  *
@@ -34,7 +36,7 @@ export async function getAdminProduct(db: Database, id: number): Promise<AdminPr
   const [row] = await db.select().from(products).where(eq(products.id, id));
   if (!row) throw notFound('Product');
 
-  const [variants, certifications, badges, nutrition] = await Promise.all([
+  const [variants, certifications, badges, nutrition, images] = await Promise.all([
     db
       .select()
       .from(productVariants)
@@ -49,6 +51,7 @@ export async function getAdminProduct(db: Database, id: number): Promise<AdminPr
       .from(productBadges)
       .where(eq(productBadges.productId, id)),
     db.select().from(productNutrition).where(eq(productNutrition.productId, id)),
+    listImages(db, id),
   ]);
 
   const panel = nutrition[0];
@@ -88,6 +91,7 @@ export async function getAdminProduct(db: Database, id: number): Promise<AdminPr
     })),
     certifications: certifications.map((entry) => entry.certification),
     badges: badges.map((entry) => entry.badge),
+    images,
     nutrition:
       panel === undefined
         ? null

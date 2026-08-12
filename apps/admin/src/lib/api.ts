@@ -126,3 +126,26 @@ export function apiPut<Result>(path: string, body: unknown): Promise<Result> {
     body: JSON.stringify(body),
   });
 }
+
+export function apiPatch<Result>(path: string, body: unknown): Promise<Result> {
+  return request<Result>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiDelete<Result>(path: string): Promise<Result> {
+  return request<Result>(path, { method: 'DELETE' });
+}
+
+/**
+ * A multipart POST for a file upload.
+ *
+ * Its own function because the JSON helpers set `Content-Type: application/json`, and a body of
+ * `FormData` must be left to set its own multipart boundary header - naming the content type by
+ * hand would strip the boundary and the server would read an empty file.
+ */
+export function apiUpload<Result>(path: string, body: FormData): Promise<Result> {
+  return request<Result>(path, { method: 'POST', body });
+}

@@ -278,6 +278,37 @@ export const AdminVariantView = z.object({
 });
 export type AdminVariantView = z.infer<typeof AdminVariantView>;
 
+/** A product image row, as the admin edits its order and alt text. */
+export const AdminProductImage = z.object({
+  id: Id,
+  url: z.string().url(),
+  alt: z.string(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  position: z.number().int().nonnegative(),
+  isPrimary: z.boolean(),
+});
+export type AdminProductImage = z.infer<typeof AdminProductImage>;
+
+/**
+ * Reordering images and choosing the primary, in one call.
+ *
+ * The two belong together: the primary is what a card shows, and an editor dragging images into an
+ * order is usually deciding which leads. `order` lists every image id exactly once; a request that
+ * names a stranger, or forgets one, is rejected whole rather than applied in part.
+ */
+export const AdminImageArrangement = z
+  .object({
+    order: z.array(Id).min(1),
+    primaryId: Id,
+  })
+  .strict();
+export type AdminImageArrangement = z.infer<typeof AdminImageArrangement>;
+
+/** The alt text an editor types for one image. */
+export const AdminImageAltInput = z.object({ alt: z.string().trim().max(300) }).strict();
+export type AdminImageAltInput = z.infer<typeof AdminImageAltInput>;
+
 /**
  * One product, everything the form edits.
  *
@@ -305,6 +336,7 @@ export const AdminProductDetail = z.object({
   variants: z.array(AdminVariantView),
   certifications: z.array(Certification),
   badges: z.array(ProductBadge),
+  images: z.array(AdminProductImage),
   nutrition: AdminNutritionInput.nullable(),
   /** Where the panel's figures came from. Null when there is no panel. */
   nutritionSource: NutritionSource.nullable(),

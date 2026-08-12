@@ -1,6 +1,10 @@
+import multipart from '@fastify/multipart';
 import {
   AdminDashboard,
+  AdminImageAltInput,
+  AdminImageArrangement,
   AdminProductDetail,
+  AdminProductImage,
   AdminProductInput,
   AdminProductListQuery,
   AdminProductListResponse,
@@ -11,7 +15,10 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import { AppError } from '../../lib/errors';
+
 import { loadDashboard } from './dashboard.service';
+import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
 
@@ -25,9 +32,15 @@ import { listAdminProducts } from './products.service';
  * The dashboard is readable by every role. Role-specific gates arrive with the routes that need
  * them (task 7.8); a read of figures the whole team works from is not one of them.
  */
-// eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugins are async by contract
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   const routes = app.withTypeProvider<ZodTypeProvider>();
+
+  // Scoped to the admin routes, so the multipart content-type parser never touches the JSON
+  // contours. One file, capped: a product photo over 12 MB is a phone dump nobody needs stored.
+  await app.register(multipart, { limits: { files: 1, fileSize: 12 * 1024 * 1024 } });
+
+  const ImageParams = z.object({ id: PathId, imageId: PathId });
+  const ImageList = z.object({ images: z.array(AdminProductImage) });
 
   routes.get(
     '/dashboard',
@@ -142,5 +155,99 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       await updateProduct(app.db, request.params.id, request.body);
       return getAdminProduct(app.db, request.params.id);
     },
+  );
+
+  // ---------------------------------------------------------------------------------- images
+
+  routes.post(
+    '/products/:id/images',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Upload one product image',
+        description:
+          'multipart/form-data, one file. It is re-encoded to a capped webp with its metadata ' +
+          'stripped before storage, and the first image a product gets becomes its primary.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        // The body is multipart, not JSON, so no body schema; the parser reads the file below.
+        response: { 201: ImageList, 401: ApiError, 404: ApiError, 413: ApiError, 422: ApiError },
+      },
+    },
+    async (request, reply) => {
+      const file = await request.file();
+      if (!file) throw new AppError('VALIDATION_FAILED', 'No file was uploaded');
+
+      const buffer = await file.toBuffer();
+      // `alt` rides alongside the file as a form field; `file.fields` carries the text parts.
+      const altField = file.fields['alt'];
+      const alt =
+        altField && !Array.isArray(altField) && altField.type === 'field'
+          ? String(altField.value)
+          : '';
+
+      const images = await addImage(app.db, app.storage, request.params.id, buffer, alt);
+      return reply.status(201).send({ images });
+    },
+  );
+
+  routes.put(
+    '/products/:id/images',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Reorder images and choose the primary',
+        description:
+          '`order` must list every image of the product exactly once. A partial arrangement is ' +
+          'rejected whole rather than applied in part.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminImageArrangement,
+        response: { 200: ImageList, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    async (request) => ({ images: await arrangeImages(app.db, request.params.id, request.body) }),
+  );
+
+  routes.patch(
+    '/products/:id/images/:imageId',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Set an image’s alt text',
+        security: [{ bearerAuth: [] }],
+        params: ImageParams,
+        body: AdminImageAltInput,
+        response: { 200: ImageList, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    async (request) => ({
+      images: await setImageAlt(
+        app.db,
+        request.params.id,
+        request.params.imageId,
+        request.body.alt,
+      ),
+    }),
+  );
+
+  routes.delete(
+    '/products/:id/images/:imageId',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Delete an image; the primary passes on if it was primary',
+        security: [{ bearerAuth: [] }],
+        params: ImageParams,
+        response: { 200: ImageList, 401: ApiError, 404: ApiError },
+      },
+    },
+    async (request) => ({
+      images: await removeImage(app.db, app.storage, request.params.id, request.params.imageId),
+    }),
   );
 }

@@ -11,6 +11,11 @@ const VALID = {
   STRIPE_WEBHOOK_SECRET: 'whsec_example',
   VITE_STRIPE_PUBLISHABLE_KEY: 'pk_test_example',
   MAIL_FROM_ADDRESS: 'orders@silkgrain.example',
+  S3_ENDPOINT: 'http://127.0.0.1:9000',
+  S3_BUCKET: 'silkgrain-media',
+  S3_ACCESS_KEY_ID: 'silkgrain',
+  S3_SECRET_ACCESS_KEY: 'silkgrain-dev-secret',
+  S3_PUBLIC_URL: 'http://127.0.0.1:9000/silkgrain-media',
 };
 
 /** What production additionally demands, so a placeholder cannot reach a live deployment. */

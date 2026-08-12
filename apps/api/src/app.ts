@@ -20,6 +20,7 @@ import { mailPlugin } from './plugins/mail';
 import { redisPlugin } from './plugins/redis';
 import { requestContextPlugin } from './plugins/request-context';
 import { securityPlugin } from './plugins/security';
+import { storagePluginFp } from './plugins/storage';
 import { swaggerPlugin } from './plugins/swagger';
 
 /**
@@ -84,6 +85,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await app.register(authPlugin, { env });
   // After the database and Redis, which the worker and the queue both need.
   await app.register(mailPlugin, { env });
+  await app.register(storagePluginFp, { env });
 
   // Swagger goes on before the routes, not after: it collects the document through an
   // `onRoute` hook, and a route registered earlier is a route it never sees.

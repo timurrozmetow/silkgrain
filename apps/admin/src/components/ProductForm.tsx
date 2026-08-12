@@ -23,6 +23,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { ApiRequestError, apiGet, apiPost, apiPut } from '../lib/api';
 import { centsToDollars, dollarsToCents, gramsToMg, mgToGrams, toInt } from '../lib/form-values';
 
+import { ProductImages } from './ProductImages';
+
 /**
  * The one form that creates and edits a product.
  *
@@ -510,6 +512,14 @@ export function ProductForm({ productId }: { productId: number | null }) {
           Add a variant
         </Button>
       </Section>
+
+      {/* Images live only on the edit form: there is no product to attach one to until it exists,
+          and they save on their own rather than with the form (see ProductImages). */}
+      {isEdit && detail.data !== undefined && (
+        <Section title="Images" note="Drag to add · first leads">
+          <ProductImages productId={detail.data.id} initial={detail.data.images} />
+        </Section>
+      )}
 
       <Section title="Certifications & badges">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-admin-muted">

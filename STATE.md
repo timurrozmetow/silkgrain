@@ -326,8 +326,33 @@ an entered nutrition panel, confirmed the row stored 690 cents, 1500 mg of fat a
 entered`, saw it appear in the storefront once active, edited the price and confirmed the variant
 kept its id (750 cents on row 80, not a new row). The test product was deleted afterwards.
 
-Still to come: image upload
-(7.4), orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
+**Task 7.4 is done**: product image upload, 10 tests against the real MinIO. A drop or a file
+picker sends one image to `POST /api/admin/products/:id/images`, where sharp rotates it upright,
+caps it at 1600px on the long edge, strips its metadata (a phone writes GPS into a JPEG; a product
+photo has no business carrying where it was taken) and re-encodes it to webp. The object key is a
+content hash, so the same bytes land on the same object and a processed image can be cached
+forever - the bucket sets a one-year immutable Cache-Control.
+
+`Storage` is the one file that talks to the bucket. It provisions the bucket lazily on first use,
+not at boot: the storefront never touches it, and a boot that failed because MinIO was down would
+take the shop offline over a feature three admins use. The bucket is opened for anonymous reads
+because a product image is public by definition; writes go only through the credentials. The API
+writes over `S3_ENDPOINT` and the browser reads over `S3_PUBLIC_URL`, separate so production can
+point the second at a CDN without a code change.
+
+Images have their own lifecycle, not the product save's: each upload, reorder and delete is its
+own request returning the updated list, because batching would mean holding unsaved binary in the
+browser and losing it on a validation error elsewhere in the form. Reordering is left/right
+buttons rather than drag-to-sort - a keyboard can reach them. Deleting the primary promotes
+whatever is now first, so a product with images always has exactly one. The delete removes the
+row first and the object second, best-effort: the database is the source of truth for what
+exists, the bucket is a cache of pixels, and an orphaned blob is cheaper than a blocked delete.
+
+`sharp` and `@aws-sdk/client-s3` are new dependencies; `@fastify/multipart` is pinned to the 8.x
+line, because 9.x wants Fastify 5 and this is Fastify 4. The image tests need MinIO running, the
+same way the email tests need Mailpit - `pnpm setup:services` covers both.
+
+Still to come: orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
 audit log (7.8), the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
@@ -563,6 +588,10 @@ GET  /api/admin/products      every product, drafts included; search covers the 
 GET  /api/admin/products/:id  everything the form edits, cost price and panel source included
 POST /api/admin/products      create, one transaction
 PUT  /api/admin/products/:id  replace and reconcile variants; an omitted variant is deleted
+POST   /api/admin/products/:id/images            upload one image; re-encoded to webp
+PUT    /api/admin/products/:id/images            reorder and choose the primary
+PATCH  /api/admin/products/:id/images/:imageId   set alt text
+DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 ```
 
 `apps/admin` now carries the dashboard, the product list and the product form — router, query
