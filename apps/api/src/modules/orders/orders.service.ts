@@ -47,6 +47,20 @@ export async function getOrderByNumber(
         row.email === access.email.trim().toLowerCase();
   if (!permitted) throw notFound('Order');
 
+  return projectOrder(db, row);
+}
+
+export type OrderRow = typeof orders.$inferSelect;
+
+/**
+ * One order row turned into the projection every reader shares.
+ *
+ * Separated from the access check above so the back office can read an order it is entitled to see
+ * without a flag that says "skip the permission test". The admin's own detail schema extends this
+ * projection rather than restating it, so the two views of one order cannot disagree about what was
+ * bought or what it cost.
+ */
+export async function projectOrder(db: Database, row: OrderRow): Promise<OrderView> {
   const [items, addressRows, paymentRows] = await Promise.all([
     db.select().from(orderItems).where(eq(orderItems.orderId, row.id)).orderBy(orderItems.id),
     db.select().from(addresses).where(eq(addresses.orderId, row.id)),

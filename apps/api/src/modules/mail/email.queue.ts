@@ -7,7 +7,7 @@ import type { Env } from '../../env';
 import { getOrderByNumber } from '../orders/orders.service';
 
 import type { Mailer } from './mailer';
-import { orderConfirmation } from './templates';
+import { orderConfirmation, shippingNotice } from './templates';
 
 /**
  * Outgoing mail, through a queue rather than inline.
@@ -25,6 +25,12 @@ export const EMAIL_QUEUE = 'email';
 export const EmailJob = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('order_confirmation'),
+    orderNumber: z.string(),
+    email: z.string(),
+  }),
+  /** Enqueued when an operator marks an order shipped, from the admin panel. */
+  z.object({
+    type: z.literal('order_shipped'),
     orderNumber: z.string(),
     email: z.string(),
   }),
@@ -80,11 +86,15 @@ export function createEmailWorker(connection: Redis, deps: EmailWorkerDeps): Wor
         email: payload.email,
       });
 
-      const rendered = orderConfirmation(order, {
+      const store = {
         name: deps.env.MAIL_FROM_NAME,
         webUrl: deps.env.PUBLIC_WEB_URL,
         supportEmail: deps.env.MAIL_REPLY_TO || deps.env.MAIL_FROM_ADDRESS,
-      });
+      };
+      const rendered =
+        payload.type === 'order_shipped'
+          ? shippingNotice(order, store)
+          : orderConfirmation(order, store);
 
       await deps.mailer.send({ to: order.email, ...rendered });
     },

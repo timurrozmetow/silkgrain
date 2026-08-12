@@ -45,6 +45,55 @@ export interface StoreDetails {
   supportEmail: string;
 }
 
+/**
+ * The chrome every message shares: sand background, the wordmark, the support footer.
+ *
+ * Extracted so a second template does not mean a second copy of sixty lines of table markup that
+ * would then have to be kept in step. Only the middle of the letter differs between messages.
+ */
+function shell(inner: string, store: StoreDetails): string {
+  return `<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:${SAND};font-family:Georgia,'Times New Roman',serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SAND};padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FCFAF4;border:1px solid ${RULE};">
+            <tr>
+              <td style="background:${GREEN_DEEP};padding:28px 32px;">
+                <span style="color:#FCFAF4;font-size:26px;letter-spacing:0.5px;">silk</span><span style="color:#D3A73B;font-size:26px;letter-spacing:0.5px;">grain</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                ${inner}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px;border-top:1px solid ${RULE};color:${MUTED};font-size:13px;font-family:Helvetica,Arial,sans-serif;">
+                Questions? Reply to this email or write to
+                <a href="mailto:${escape(store.supportEmail)}" style="color:${GREEN};">${escape(
+                  store.supportEmail,
+                )}</a>.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+/** The green call-to-action button, the one interactive thing these letters have. */
+function button(label: string, href: string): string {
+  return `<p style="margin:32px 0 0;">
+                  <a href="${escape(href)}" style="display:inline-block;background:${GREEN};color:#FCFAF4;padding:14px 28px;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-size:15px;">
+                    ${escape(label)}
+                  </a>
+                </p>`;
+}
+
 export function orderConfirmation(order: OrderView, store: StoreDetails): RenderedEmail {
   const trackUrl = `${store.webUrl}/order/${order.orderNumber}`;
 
@@ -86,21 +135,8 @@ export function orderConfirmation(order: OrderView, store: StoreDetails): Render
     `${address.city}, ${address.state} ${address.zip}`,
   ].filter((line): line is string => line !== null && line.length > 0);
 
-  const html = `<!doctype html>
-<html lang="en">
-  <body style="margin:0;padding:0;background:${SAND};font-family:Georgia,'Times New Roman',serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${SAND};padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FCFAF4;border:1px solid ${RULE};">
-            <tr>
-              <td style="background:${GREEN_DEEP};padding:28px 32px;">
-                <span style="color:#FCFAF4;font-size:26px;letter-spacing:0.5px;">silk</span><span style="color:#D3A73B;font-size:26px;letter-spacing:0.5px;">grain</span>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:32px;">
-                <h1 style="margin:0 0 8px;color:${GREEN};font-size:28px;font-weight:normal;">Thank you for your order</h1>
+  const html = shell(
+    `<h1 style="margin:0 0 8px;color:${GREEN};font-size:28px;font-weight:normal;">Thank you for your order</h1>
                 <p style="margin:0 0 24px;color:${MUTED};font-size:15px;font-family:Helvetica,Arial,sans-serif;">
                   Order <strong style="color:${INK};">${escape(order.orderNumber)}</strong> is paid and being prepared.
                 </p>
@@ -128,27 +164,9 @@ export function orderConfirmation(order: OrderView, store: StoreDetails): Render
                   ${addressLines.map(escape).join('<br />')}
                 </p>
 
-                <p style="margin:32px 0 0;">
-                  <a href="${escape(trackUrl)}" style="display:inline-block;background:${GREEN};color:#FCFAF4;padding:14px 28px;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-size:15px;">
-                    View your order
-                  </a>
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:20px 32px;border-top:1px solid ${RULE};color:${MUTED};font-size:13px;font-family:Helvetica,Arial,sans-serif;">
-                Questions? Reply to this email or write to
-                <a href="mailto:${escape(store.supportEmail)}" style="color:${GREEN};">${escape(
-                  store.supportEmail,
-                )}</a>.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+                ${button('View your order', trackUrl)}`,
+    store,
+  );
 
   // Sent alongside the HTML, not instead of it. Some clients prefer it, some people insist on
   // it, and a spam filter that sees no text alternative scores the message worse.
@@ -178,6 +196,110 @@ export function orderConfirmation(order: OrderView, store: StoreDetails): Render
 
   return {
     subject: `${store.name} order ${order.orderNumber} confirmed`,
+    html,
+    text,
+  };
+}
+
+/**
+ * The letter that goes out when an order is marked shipped.
+ *
+ * Short on purpose: somebody who gets this wants the tracking number and nothing else. The totals
+ * were in the confirmation and repeating them invites a second reading of a bill already paid.
+ *
+ * The tracking block is omitted rather than filled with a placeholder when there is no number - a
+ * hand-delivered local order has none, and "Tracking: N/A" reads as a system that lost it.
+ */
+export function shippingNotice(order: OrderView, store: StoreDetails): RenderedEmail {
+  const orderUrl = `${store.webUrl}/order/${order.orderNumber}`;
+  const address = order.shippingAddress;
+  const addressLines = [
+    `${address.firstName} ${address.lastName}`,
+    address.line1,
+    address.line2,
+    `${address.city}, ${address.state} ${address.zip}`,
+  ].filter((line): line is string => line !== null && line.length > 0);
+
+  const itemLines = order.items
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid ${RULE};color:${INK};font-size:15px;">
+          ${escape(item.name)}
+          <span style="color:${MUTED};font-size:13px;"> &middot; ${escape(item.weightLabel)}</span>
+        </td>
+        <td style="padding:10px 0;border-bottom:1px solid ${RULE};color:${MUTED};font-size:14px;text-align:right;">
+          &times;${String(item.qty)}
+        </td>
+      </tr>`,
+    )
+    .join('');
+
+  const trackingHtml =
+    order.tracking === null
+      ? ''
+      : `<p style="margin:26px 0 6px;color:${INK};font-size:13px;font-family:Helvetica,Arial,sans-serif;text-transform:uppercase;letter-spacing:1.5px;">
+                  Tracking
+                </p>
+                <p style="margin:0;color:${MUTED};font-size:15px;line-height:1.6;font-family:Helvetica,Arial,sans-serif;">
+                  ${escape(order.tracking.carrier)}<br />
+                  ${
+                    order.tracking.url === null
+                      ? `<strong style="color:${INK};">${escape(order.tracking.number)}</strong>`
+                      : `<a href="${escape(order.tracking.url)}" style="color:${GREEN};font-weight:600;">${escape(
+                          order.tracking.number,
+                        )}</a>`
+                  }
+                </p>`;
+
+  const html = shell(
+    `<h1 style="margin:0 0 8px;color:${GREEN};font-size:28px;font-weight:normal;">Your order is on its way</h1>
+                <p style="margin:0 0 24px;color:${MUTED};font-size:15px;font-family:Helvetica,Arial,sans-serif;">
+                  Order <strong style="color:${INK};">${escape(order.orderNumber)}</strong> has left our warehouse in Houston.
+                </p>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:Helvetica,Arial,sans-serif;">
+                  ${itemLines}
+                </table>
+
+                ${trackingHtml}
+
+                <p style="margin:26px 0 6px;color:${INK};font-size:13px;font-family:Helvetica,Arial,sans-serif;text-transform:uppercase;letter-spacing:1.5px;">
+                  Shipping to
+                </p>
+                <p style="margin:0;color:${MUTED};font-size:15px;line-height:1.6;font-family:Helvetica,Arial,sans-serif;">
+                  ${addressLines.map(escape).join('<br />')}
+                </p>
+
+                ${button('Track your order', orderUrl)}`,
+    store,
+  );
+
+  const text = [
+    `Your order is on its way`,
+    ``,
+    `Order ${order.orderNumber} has left our warehouse in Houston.`,
+    ``,
+    ...order.items.map((item) => `  ${item.name} (${item.weightLabel}) x${String(item.qty)}`),
+    ``,
+    ...(order.tracking === null
+      ? []
+      : [
+          `Tracking:`,
+          `  ${order.tracking.carrier} ${order.tracking.number}`,
+          ...(order.tracking.url === null ? [] : [`  ${order.tracking.url}`]),
+          ``,
+        ]),
+    `Shipping to:`,
+    ...addressLines.map((line) => `  ${line}`),
+    ``,
+    `Track your order: ${orderUrl}`,
+    ``,
+    `Questions? Write to ${store.supportEmail}.`,
+  ].join('\n');
+
+  return {
+    subject: `${store.name} order ${order.orderNumber} has shipped`,
     html,
     text,
   };

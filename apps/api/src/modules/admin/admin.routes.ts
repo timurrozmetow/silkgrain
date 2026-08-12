@@ -3,12 +3,19 @@ import {
   AdminDashboard,
   AdminImageAltInput,
   AdminImageArrangement,
+  AdminOrderDetail,
+  AdminOrderListQuery,
+  AdminOrderListResponse,
+  AdminOrderNoteInput,
+  AdminOrderStatusInput,
   AdminProductDetail,
   AdminProductImage,
   AdminProductInput,
   AdminProductListQuery,
   AdminProductListResponse,
+  AdminTrackingInput,
   ApiError,
+  OrderNumberParams,
   PathId,
 } from '@silkgrain/contracts';
 import type { FastifyInstance } from 'fastify';
@@ -19,6 +26,13 @@ import { AppError } from '../../lib/errors';
 
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
+import {
+  changeOrderStatus,
+  getAdminOrder,
+  listAdminOrders,
+  setAdminNote,
+  setTracking,
+} from './orders.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
 
@@ -249,5 +263,129 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     async (request) => ({
       images: await removeImage(app.db, app.storage, request.params.id, request.params.imageId),
     }),
+  );
+
+  // ---------------------------------------------------------------------------------- orders
+
+  routes.get(
+    '/orders',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'The order list',
+        description:
+          '`q` matches an order number or an email, which is what a customer quotes when they ' +
+          'write in. `needsFulfilment` is the shipping desk’s queue - paid and processing ' +
+          'together - which a single status filter cannot express.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminOrderListQuery,
+        response: { 200: AdminOrderListResponse, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listAdminOrders(app.db, request.query),
+  );
+
+  routes.get(
+    '/orders/:orderNumber',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'One order, with the transitions it may make',
+        description:
+          'Addressed by number rather than id: an operator always has the number in front of ' +
+          'them, from the customer’s own email. `allowedTransitions` is computed on the server ' +
+          'from the transition map, so the buttons a panel draws cannot disagree with what the ' +
+          'API will accept.',
+        security: [{ bearerAuth: [] }],
+        params: OrderNumberParams,
+        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => getAdminOrder(app.db, request.params.orderNumber),
+  );
+
+  routes.patch(
+    '/orders/:orderNumber/status',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Move an order along, with the tracking details that come with shipping it',
+        description:
+          'Refused with 409 when the order cannot reach that status from where it is. `refunded` ' +
+          'is never accepted here: a refund is recorded when the provider reports it, and a ' +
+          'button that wrote it locally would tell a customer they had been paid back when ' +
+          'nothing had left the account. Cancelling an order whose stock was already committed ' +
+          'returns it to the shelf with an `cancellation` ledger entry.',
+        security: [{ bearerAuth: [] }],
+        params: OrderNumberParams,
+        body: AdminOrderStatusInput,
+        response: {
+          200: AdminOrderDetail,
+          401: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request) => {
+      const { detail, nowShipped } = await changeOrderStatus(
+        app.db,
+        request.params.orderNumber,
+        request.body,
+      );
+      // After the transaction, never inside it: a mail server having a slow morning must not roll
+      // back a shipment that has already left the building. `enqueueEmail` never throws into a
+      // request, and the job id makes a second attempt at the same notice a no-op.
+      if (nowShipped) {
+        await app.enqueueEmail({
+          type: 'order_shipped',
+          orderNumber: detail.orderNumber,
+          email: detail.email,
+        });
+      }
+      return detail;
+    },
+  );
+
+  routes.put(
+    '/orders/:orderNumber/tracking',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Correct the tracking details without touching the status',
+        description:
+          'Separate from the status change because the common use is fixing a mistyped number on ' +
+          'an order that already shipped, and re-shipping it to do so would send a second notice.',
+        security: [{ bearerAuth: [] }],
+        params: OrderNumberParams,
+        body: AdminTrackingInput,
+        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => setTracking(app.db, request.params.orderNumber, request.body),
+  );
+
+  routes.put(
+    '/orders/:orderNumber/note',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'The internal note',
+        description:
+          'Never serialised to a storefront response - `OrderView` has no field for it. This is ' +
+          'where staff write things a customer must not read.',
+        security: [{ bearerAuth: [] }],
+        params: OrderNumberParams,
+        body: AdminOrderNoteInput,
+        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => setAdminNote(app.db, request.params.orderNumber, request.body.adminNote),
   );
 }

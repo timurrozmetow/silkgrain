@@ -352,7 +352,46 @@ exists, the bucket is a cache of pixels, and an orphaned blob is cheaper than a 
 line, because 9.x wants Fastify 5 and this is Fastify 4. The image tests need MinIO running, the
 same way the email tests need Mailpit - `pnpm setup:services` covers both.
 
-Still to come: orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
+**Task 7.5 is done**: the order list, the order detail, and the four things a person does to an
+order - move it along, record what was sent, write down what happened, read what was bought.
+16 tests.
+
+The action buttons come from `allowedTransitions`, which the server computes from
+`ORDER_STATUS_TRANSITIONS`, so the panel cannot offer a move the API would refuse and adding a
+state to the map does not mean editing a list in the UI as well. **`refunded` is deliberately not
+reachable from this contour** - not in the buttons, and refused with 409 in the service. A refund
+is money leaving the account; it is recorded when the provider reports it, in the
+`charge.refunded` webhook that is already built and tested. A button that wrote `refunded` locally
+would tell a customer they had been paid back when nothing had left the account, which is the same
+class of lie as a client-supplied price. Recorded as D-28.
+
+A status change is one transaction with everything the change implies, and the row is locked for
+it: two operators on the same order would otherwise both read `paid`, both find the transition
+legal, and both write. Cancelling an order whose stock was already committed returns it to the
+shelf with a `cancellation` ledger entry - not `restock`, which is a pallet arriving, and not
+`return`, which is a parcel coming back; the goods never left. `sold_count` is reversed too, or
+the bestseller sort would keep counting an order nobody received. Cancelling a `pending` order
+credits nothing, because nothing was ever decremented.
+
+Carrier and tracking ride along with the status change rather than being a second request: the
+moment an operator marks an order shipped is the moment they have the number in hand, and splitting
+it would send a customer a shipping notice with nothing to follow. `PUT .../tracking` exists
+separately for the ordinary case of fixing a typo on an order that already shipped, which must not
+send a second notice.
+
+The shipping notice is a new email job and template. `templates.ts` grew a shared `shell()` so the
+second letter is not a second copy of sixty lines of table markup. The notice is short on purpose -
+somebody who gets it wants the tracking number, not a second reading of a bill already paid - and
+the tracking block is omitted rather than filled with a placeholder when there is no number.
+
+Verified in the browser against the seeded database: opened a processing order, saw exactly
+`Mark shipped` and `Cancel order` offered, shipped it with a carrier and number, watched the
+timeline stamp and the actions narrow to `Mark delivered`, and read the resulting letter in Mailpit
+with the right tracking number and no totals. One defect found and fixed in the doing: the Tracking
+panel kept the values it mounted with, so after shipping it showed empty fields - the panels are now
+keyed on what they start from. The order was restored to `processing` afterwards.
+
+Still to come: wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
 audit log (7.8), the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
@@ -592,6 +631,11 @@ POST   /api/admin/products/:id/images            upload one image; re-encoded to
 PUT    /api/admin/products/:id/images            reorder and choose the primary
 PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
+GET    /api/admin/orders                         list; q matches number or email
+GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+PATCH  /api/admin/orders/:orderNumber/status     move it along; 409 on an illegal move
+PUT    /api/admin/orders/:orderNumber/tracking   correct the tracking, send nothing
+PUT    /api/admin/orders/:orderNumber/note       the internal note
 ```
 
 `apps/admin` now carries the dashboard, the product list and the product form — router, query

@@ -5,6 +5,7 @@ import {
   NutritionSource,
   OrderStatus,
   Origin,
+  PaymentStatus,
   ProductBadge,
   ProductStatus,
   WeightUnit,
@@ -13,6 +14,7 @@ import { paginated } from '../pagination';
 import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
 
 import { QueryBoolean } from './catalog';
+import { OrderView } from './order';
 
 /**
  * The back office's read models.
@@ -74,6 +76,99 @@ export const AdminOrderRow = z.object({
   createdAt: IsoDate,
 });
 export type AdminOrderRow = z.infer<typeof AdminOrderRow>;
+
+/**
+ * The order list's filters.
+ *
+ * `q` matches an order number or an email, which is what an operator has in front of them when a
+ * customer writes in. `needsFulfilment` is the working queue - paid and processing together, the
+ * orders somebody has to do something about - because that is the view a shipping desk lives in and
+ * it is two statuses, not one, so a plain status filter cannot express it.
+ */
+export const AdminOrderListQuery = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    status: z.union([OrderStatus, z.literal('all')]).default('all'),
+    needsFulfilment: QueryBoolean.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type AdminOrderListQuery = z.infer<typeof AdminOrderListQuery>;
+
+export const AdminOrderListResponse = paginated(AdminOrderRow);
+export type AdminOrderListResponse = z.infer<typeof AdminOrderListResponse>;
+
+/**
+ * One order, everything the back office acts on.
+ *
+ * Built by extending the storefront's `OrderView` rather than restating it, so the two cannot
+ * describe the same order differently. What the admin adds is what a customer must never see: the
+ * internal note, the payment's provider id, and `allowedTransitions` - the statuses this order may
+ * move to next, computed on the server from `ORDER_STATUS_TRANSITIONS`.
+ *
+ * `refunded` never appears in `allowedTransitions`, even though the transition map allows it. A
+ * refund is money leaving the account, and it is recorded when the provider says it happened
+ * (the `charge.refunded` webhook, already built). An admin button that wrote `refunded` locally
+ * would state that a customer had been paid back when nothing had left the account.
+ */
+export const AdminOrderDetail = OrderView.extend({
+  id: Id,
+  customerId: Id.nullable(),
+  customerName: z.string().nullable(),
+  adminNote: z.string().nullable(),
+  /** What a person may move this order to now. Empty for a finished order. */
+  allowedTransitions: z.array(OrderStatus),
+  payment: OrderView.shape.payment
+    .unwrap()
+    .extend({
+      status: PaymentStatus,
+      /** The provider's own id, which is what a support conversation with them starts from. */
+      providerPaymentId: z.string(),
+      amountCents: Cents,
+      refundedCents: Cents,
+    })
+    .nullable(),
+  cancelledAt: IsoDate.nullable(),
+  refundedAt: IsoDate.nullable(),
+  updatedAt: IsoDate,
+});
+export type AdminOrderDetail = z.infer<typeof AdminOrderDetail>;
+
+/**
+ * A status change, with the tracking details that usually accompany one.
+ *
+ * Carrier and tracking ride along because the moment an operator marks an order shipped is the
+ * moment they have the tracking number in hand; making it a second request would mean a customer
+ * receiving a "your order shipped" email with nothing to follow. They are optional rather than
+ * required - a local hand-delivery has no tracking number, and inventing one to satisfy a form is
+ * worse than an order without.
+ */
+export const AdminOrderStatusInput = z
+  .object({
+    status: OrderStatus,
+    carrier: z.string().trim().min(1).max(60).optional(),
+    trackingNumber: z.string().trim().min(1).max(120).optional(),
+    trackingUrl: z.string().url().max(500).optional(),
+    /** Appended to the internal note, so why an order was cancelled survives the person. */
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict();
+export type AdminOrderStatusInput = z.infer<typeof AdminOrderStatusInput>;
+
+/** Tracking details on their own, for the common case of correcting a typo in a number. */
+export const AdminTrackingInput = z
+  .object({
+    carrier: z.string().trim().min(1).max(60).nullable(),
+    trackingNumber: z.string().trim().min(1).max(120).nullable(),
+    trackingUrl: z.string().url().max(500).nullable(),
+  })
+  .strict();
+export type AdminTrackingInput = z.infer<typeof AdminTrackingInput>;
+
+/** The internal note, replaced wholesale. Never serialised to a storefront response. */
+export const AdminOrderNoteInput = z.object({ adminNote: z.string().max(4000) }).strict();
+export type AdminOrderNoteInput = z.infer<typeof AdminOrderNoteInput>;
 
 // --------------------------------------------------------------------------------------
 // Products

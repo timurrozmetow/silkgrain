@@ -25,6 +25,8 @@ export const ErrorCode = z.enum([
   'PAYMENT_AMOUNT_MISMATCH',
   'WEBHOOK_SIGNATURE_INVALID',
 
+  'ORDER_STATUS_INVALID',
+
   'INTERNAL',
 ]);
 
@@ -67,6 +69,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PAYMENT_FAILED: 402,
   PAYMENT_AMOUNT_MISMATCH: 409,
   WEBHOOK_SIGNATURE_INVALID: 400,
+
+  /**
+   * 409: the requested status is a real status, but not one this order can reach from where it is.
+   * Two operators on one order is the ordinary cause - the second reads a state that has moved.
+   */
+  ORDER_STATUS_INVALID: 409,
 
   INTERNAL: 500,
 };
