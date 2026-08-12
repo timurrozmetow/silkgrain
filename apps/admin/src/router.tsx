@@ -1,6 +1,7 @@
 import { createRouter } from '@tanstack/react-router';
 
 import { dashboardRoute } from './routes/dashboard';
+import { productsRoute } from './routes/products';
 import { rootRoute } from './routes/root';
 
 /**
@@ -10,7 +11,7 @@ import { rootRoute } from './routes/root';
  * that `/admin/orders` is the `/orders` route rather than a 404. Vite's `base` handles the assets;
  * this handles the paths.
  */
-const routeTree = rootRoute.addChildren([dashboardRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, productsRoute]);
 
 export const router = createRouter({
   routeTree,

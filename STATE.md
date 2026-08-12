@@ -259,9 +259,30 @@ button, all three of which the mockup draws. None has anywhere to go yet. A dead
 office is worse than a missing one: an operator clicks it, nothing happens, and they stop trusting
 the rest of the screen.
 
-Still to come: products and the nutrition panel (7.3), image upload (7.4), orders (7.5), wholesale
-(7.6), customers, promos, pricing and settings (7.7), RBAC and the audit log (7.8), the end-to-end
-scenario (7.9).
+**Task 7.3 is half done**: the migration and the product list, with `GET /api/admin/products`
+behind them and 11 tests. The form is next.
+
+The list is a **separate service from the storefront's**, not the same query with a flag. That one
+starts from `PUBLISHED_PRODUCT` and exists to hide what a customer must not see; this one starts
+from every product and exists to show an editor everything. A flag that turns the storefront's
+safety off is a flag somebody eventually passes by mistake. A test asserts both directions: the
+draft is in the admin list and absent from `/api/products`.
+
+Search covers the SKU as well as the name and slug, which the storefront's does not — an editor
+looking for a product usually has the SKU in front of them, off a packing slip. The `lowStock`
+filter shares the dashboard's definition rather than restating it. `QueryBoolean` is now exported
+from contracts and used here: `?lowStock=no` is a 422 rather than a silent `true`, which is the
+whole reason that helper exists.
+
+**The nutrition migration is applied** (`0001_free_wraith.sql`): `product_nutrition.source` is
+`reference` or `entered`, defaulting to `reference`, so every row the seed wrote is correctly
+labelled as a category-level average rather than something read off a packet. Decision D-20 asked
+for exactly this, and the list shows it per product — an editor deciding what to verify next can
+see which panels are still the seed's.
+
+Still to come: the product form with the full Nutrition Facts panel (the rest of 7.3), image upload
+(7.4), orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
+audit log (7.8), the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -492,6 +513,7 @@ Added in Phase 7:
 
 ```
 GET  /api/admin/dashboard     KPIs, a 30-day revenue series, low stock, recent orders
+GET  /api/admin/products      every product, drafts included; search covers the SKU
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,

@@ -1,8 +1,14 @@
-import { AdminDashboard, ApiError } from '@silkgrain/contracts';
+import {
+  AdminDashboard,
+  AdminProductListQuery,
+  AdminProductListResponse,
+  ApiError,
+} from '@silkgrain/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import { loadDashboard } from './dashboard.service';
+import { listAdminProducts } from './products.service';
 
 /**
  * The back office's endpoints.
@@ -34,5 +40,24 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     () => loadDashboard(app.db),
+  );
+
+  routes.get(
+    '/products',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'The product list, drafts and archived rows included',
+        description:
+          'Not the storefront’s query with a flag: this one starts from every product rather ' +
+          'than from what a customer may see, which is why it is a separate service. Search ' +
+          'covers the SKU as well as the name, because an editor usually has the SKU in hand.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminProductListQuery,
+        response: { 200: AdminProductListResponse, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listAdminProducts(app.db, request.query),
   );
 }

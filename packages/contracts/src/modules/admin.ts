@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-import { OrderStatus } from '../enums';
+import { NutritionSource, OrderStatus, ProductStatus } from '../enums';
+import { paginated } from '../pagination';
 import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
+
+import { QueryBoolean } from './catalog';
 
 /**
  * The back office's read models.
@@ -63,6 +66,58 @@ export const AdminOrderRow = z.object({
   createdAt: IsoDate,
 });
 export type AdminOrderRow = z.infer<typeof AdminOrderRow>;
+
+// --------------------------------------------------------------------------------------
+// Products
+// --------------------------------------------------------------------------------------
+
+/**
+ * A row in the admin's product list.
+ *
+ * Carries what an editor scans for and nothing they would have to open the product to see:
+ * whether it is live, how many variants it has, what the cheapest one costs, how much stock is
+ * left across all of them, and whether its nutrition panel is real or the seed's reference values.
+ */
+export const AdminProductRow = z.object({
+  id: Id,
+  slug: Slug,
+  name: z.string(),
+  status: ProductStatus,
+  categoryName: z.string(),
+  imageUrl: z.string().url().nullable(),
+  variantCount: z.number().int().nonnegative(),
+  /** Null when the product has no active variant, which is how a draft usually starts. */
+  priceFromCents: Cents.nullable(),
+  stockTotal: z.number().int().nonnegative(),
+  isFeatured: z.boolean(),
+  /** Absent means no panel at all; otherwise where the figures came from. See decision D-20. */
+  nutritionSource: NutritionSource.nullable(),
+  updatedAt: IsoDate,
+});
+export type AdminProductRow = z.infer<typeof AdminProductRow>;
+
+/**
+ * The list's filters.
+ *
+ * `status` accepts `all` rather than being omitted for it, because the default here is not "every
+ * status" - an editor opening the list wants the live catalogue first, and a filter that has to be
+ * cleared to see drafts is one an editor will forget is on.
+ */
+export const AdminProductListQuery = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    status: z.union([ProductStatus, z.literal('all')]).default('all'),
+    category: Slug.optional(),
+    /** Products whose stock is at or under a variant's threshold, the dashboard's definition. */
+    lowStock: QueryBoolean.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type AdminProductListQuery = z.infer<typeof AdminProductListQuery>;
+
+export const AdminProductListResponse = paginated(AdminProductRow);
+export type AdminProductListResponse = z.infer<typeof AdminProductListResponse>;
 
 export const AdminDashboard = z.object({
   /** The window every metric is measured over, so the client states it rather than assuming. */

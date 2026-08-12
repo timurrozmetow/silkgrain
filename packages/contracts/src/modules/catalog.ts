@@ -44,8 +44,12 @@ function repeatable<Schema extends z.ZodTypeAny>(schema: Schema) {
  * Not `z.coerce.boolean()`: that is `Boolean(value)`, so `?inStock=false` arrives as the string
  * `"false"`, which is truthy, and the filter turns itself on. Only the two words mean anything
  * here; everything else is a malformed request and is rejected as one.
+ *
+ * Exported because every query-string boolean in the platform has to use it - the admin's
+ * `lowStock` filter is the second - and a second hand-rolled coercion is a second chance to make
+ * the same mistake.
  */
-const QueryBoolean = z.preprocess((value) => {
+export const QueryBoolean = z.preprocess((value) => {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return value;

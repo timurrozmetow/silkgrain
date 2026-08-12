@@ -1,5 +1,5 @@
 import { Button, EmptyState, Icon, type IconName } from '@silkgrain/ui';
-import { Link, Outlet, createRootRoute, useRouter } from '@tanstack/react-router';
+import { Link, Outlet, createRootRoute, useMatches, useRouter } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { SignIn } from '../components/SignIn';
@@ -18,6 +18,7 @@ import { useAuth } from '../store/auth';
  */
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Dashboard', icon: 'chart-pie-slice' },
+  { to: '/products', label: 'Products', icon: 'package' },
 ];
 
 function AdminLayout() {
@@ -142,9 +143,17 @@ function initialsOf(name: string): string {
  * one: an operator clicks it, nothing happens, and they stop trusting the rest.
  */
 function TopBar() {
-  const router = useRouter();
-  const path = router.state.location.pathname;
-  const current = NAV.find((item) => item.to === path) ?? NAV[0];
+  /**
+   * The matched route's id, not the address bar's path.
+   *
+   * Two reasons, both of which bit: `router.state` read directly does not subscribe, so the title
+   * stayed on whatever it said when the panel mounted; and the pathname carries the `/admin`
+   * basepath while `NAV` does not, so every comparison missed and fell back to the first entry.
+   * A route id is `/products` on both counts.
+   */
+  const matches = useMatches();
+  const routeId = matches[matches.length - 1]?.routeId;
+  const current = NAV.find((item) => item.to === routeId) ?? NAV[0];
 
   return (
     <header className="flex items-center justify-between gap-6 border-b border-admin-border bg-white px-8 py-5 tablet:px-6 mobile:px-4">

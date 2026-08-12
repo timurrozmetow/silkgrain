@@ -36,6 +36,17 @@ export const Certification = z.enum(CERTIFICATION);
 export type Certification = z.infer<typeof Certification>;
 
 /**
+ * Where a product's nutrition figures came from (decision D-20).
+ *
+ * `reference` is the seed's category-level average - honest about a lentil in general, silent
+ * about this bag in particular. `entered` means somebody read the packaging. The storefront draws
+ * the panel either way; the difference matters to whoever is answerable for the numbers.
+ */
+export const NUTRITION_SOURCE = ['reference', 'entered'] as const;
+export const NutritionSource = z.enum(NUTRITION_SOURCE);
+export type NutritionSource = z.infer<typeof NutritionSource>;
+
+/**
  * Badges an editor sets by hand. `sale` and `organic` are deliberately absent: `sale` is
  * true exactly when a variant has a `compare_at_price_cents`, and `organic` is true exactly
  * when the product carries the organic certification. Storing either as a badge would give

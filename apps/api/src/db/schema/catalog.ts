@@ -1,6 +1,7 @@
 import {
   CERTIFICATION,
   INVENTORY_REASON,
+  NUTRITION_SOURCE,
   ORIGIN,
   PRODUCT_BADGE,
   PRODUCT_STATUS,
@@ -194,6 +195,19 @@ export const productNutrition = mysqlTable('product_nutrition', {
   sodiumMg: int('sodium_mg').notNull(),
   ingredientsText: text('ingredients_text').notNull(),
   allergensText: varchar('allergens_text', { length: 400 }),
+  /**
+   * Where these figures came from (decision D-20, question Q-43).
+   *
+   * The seed fills every product with category-level reference values so the storefront's panel
+   * has something to draw. Those are honest averages and dishonest specifics: nobody has read
+   * this particular bag's label. `reference` says so, `entered` means a person typed it from the
+   * packaging, and the admin form is the only writer of the second.
+   *
+   * The storefront shows the panel either way - a customer needs the numbers - but whoever is
+   * legally answerable for them deserves to know which is which, and so does the editor deciding
+   * what to check next.
+   */
+  source: mysqlEnum('source', NUTRITION_SOURCE).notNull().default('reference'),
   updatedAt: updatedAt(),
 });
 
