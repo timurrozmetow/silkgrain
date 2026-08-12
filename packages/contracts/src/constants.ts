@@ -34,6 +34,18 @@ export const PRODUCT_SORT = [
   'rating',
 ] as const;
 
+/**
+ * Product enum values the admin form's selects need Zod-free.
+ *
+ * The single source is still here: `enums.ts` imports these arrays and wraps each in `z.enum`, so
+ * the tuple and the schema cannot drift. Only the arrays live here; the schemas stay in `enums.ts`.
+ */
+export const ORIGIN = ['UZ', 'KZ', 'TM', 'KG', 'TJ', 'MIXED'] as const;
+export const WEIGHT_UNIT = ['lb', 'oz', 'g', 'kit'] as const;
+export const CERTIFICATION = ['organic', 'non_gmo', 'halal', 'kosher', 'gluten_free'] as const;
+export const PRODUCT_BADGE = ['bestseller', 'new', 'premium'] as const;
+export const PRODUCT_STATUS = ['draft', 'active', 'archived'] as const;
+
 /** The wholesale form's two selects. Both orders are the order the options are listed in. */
 export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit', 'other'] as const;
 

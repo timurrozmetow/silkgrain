@@ -307,7 +307,26 @@ labelled as a category-level average rather than something read off a packet. De
 for exactly this, and the list shows it per product — an editor deciding what to verify next can
 see which panels are still the seed's.
 
-Still to come: the product form itself (the rest of 7.3), image upload
+**Task 7.3 is done**, form and all. `/products/new` and `/products/$id/edit` share one
+`ProductForm`: product fields, a variant editor, certification and badge chips, the Nutrition
+Facts panel and the SEO block. The client edits dollars and grams; `form-values.ts` is the one
+place those become cents and milligrams, so a rounding decision cannot drift into a component.
+1.5 g of fat is sent as 1500, exactly. The client validates only what saves an obviously doomed
+round trip and surfaces the server's 422/409 messages for the rest — the write path already holds
+every real rule and is tested to.
+
+Two things it leans on: the slug auto-fills from the name until an editor edits it by hand (a
+published slug is a public address nobody wants silently moved), and the default variant is a
+radio group, because "choose exactly one" is what a radio means to a keyboard and a screen reader
+both. `PathId` — a coercing sibling of `Id`, since a path segment is always text — is what makes
+`/products/:id` validate; `Id` alone rejected every one.
+
+Verified end to end in the browser against the dev database: created a product with a variant and
+an entered nutrition panel, confirmed the row stored 690 cents, 1500 mg of fat and `source =
+entered`, saw it appear in the storefront once active, edited the price and confirmed the variant
+kept its id (750 cents on row 80, not a new row). The test product was deleted afterwards.
+
+Still to come: image upload
 (7.4), orders (7.5), wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
 audit log (7.8), the end-to-end scenario (7.9).
 
@@ -544,6 +563,13 @@ GET  /api/admin/products      every product, drafts included; search covers the 
 GET  /api/admin/products/:id  everything the form edits, cost price and panel source included
 POST /api/admin/products      create, one transaction
 PUT  /api/admin/products/:id  replace and reconcile variants; an omitted variant is deleted
+```
+
+`apps/admin` now carries the dashboard, the product list and the product form — router, query
+client, session store and its own transport, all added in Phase 7.
+
+```
+
 ```
 
 Registration order in `buildApp` is load-bearing and commented there: error handler first,

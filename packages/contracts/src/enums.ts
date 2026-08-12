@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-import { BUSINESS_TYPE, VOLUME_BAND } from './constants';
+import {
+  BUSINESS_TYPE,
+  CERTIFICATION,
+  ORIGIN,
+  PRODUCT_BADGE,
+  PRODUCT_STATUS,
+  VOLUME_BAND,
+  WEIGHT_UNIT,
+} from './constants';
 
 /**
  * Every closed value set in the platform, declared exactly once.
@@ -19,7 +27,6 @@ import { BUSINESS_TYPE, VOLUME_BAND } from './constants';
  * plus `MIXED` for blends such as the plov spice mix, which the mockup labels
  * "Mixed Origin". The region is a free-text column next to it ("Fergana Valley").
  */
-export const ORIGIN = ['UZ', 'KZ', 'TM', 'KG', 'TJ', 'MIXED'] as const;
 export const Origin = z.enum(ORIGIN);
 export type Origin = z.infer<typeof Origin>;
 
@@ -27,11 +34,9 @@ export type Origin = z.infer<typeof Origin>;
  * Units a variant can be sold in. `kit` is a countable unit, not a weight — the Lagman
  * Noodle Kit is sold as "1 kit" and has no meaningful gram equivalent.
  */
-export const WEIGHT_UNIT = ['lb', 'oz', 'g', 'kit'] as const;
 export const WeightUnit = z.enum(WEIGHT_UNIT);
 export type WeightUnit = z.infer<typeof WeightUnit>;
 
-export const CERTIFICATION = ['organic', 'non_gmo', 'halal', 'kosher', 'gluten_free'] as const;
 export const Certification = z.enum(CERTIFICATION);
 export type Certification = z.infer<typeof Certification>;
 
@@ -52,7 +57,6 @@ export type NutritionSource = z.infer<typeof NutritionSource>;
  * when the product carries the organic certification. Storing either as a badge would give
  * the same fact two sources of truth that can disagree.
  */
-export const PRODUCT_BADGE = ['bestseller', 'new', 'premium'] as const;
 export const ProductBadge = z.enum(PRODUCT_BADGE);
 export type ProductBadge = z.infer<typeof ProductBadge>;
 
@@ -61,7 +65,6 @@ export const BADGE = [...PRODUCT_BADGE, 'sale', 'organic'] as const;
 export const Badge = z.enum(BADGE);
 export type Badge = z.infer<typeof Badge>;
 
-export const PRODUCT_STATUS = ['draft', 'active', 'archived'] as const;
 export const ProductStatus = z.enum(PRODUCT_STATUS);
 export type ProductStatus = z.infer<typeof ProductStatus>;
 

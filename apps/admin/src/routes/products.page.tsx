@@ -14,10 +14,11 @@ import {
   Select,
   Skeleton,
   StatusChip,
+  buttonClasses,
   type ChipTone,
 } from '@silkgrain/ui';
 import { useQuery } from '@tanstack/react-query';
-import { getRouteApi, useNavigate } from '@tanstack/react-router';
+import { Link, getRouteApi, useNavigate } from '@tanstack/react-router';
 
 import { apiGet } from '../lib/api';
 
@@ -86,6 +87,13 @@ function Products() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex justify-end">
+        <Link to="/products/new" className={buttonClasses({ className: 'gap-2' })}>
+          <Icon name="plus" size={16} />
+          Add product
+        </Link>
+      </div>
+
       <div className="flex flex-wrap items-end gap-4 rounded-lg border border-admin-border bg-white p-5">
         <Field label="Search" className="min-w-[240px] flex-1">
           <Input
@@ -229,7 +237,11 @@ function ProductRow({ row }: { row: AdminProductRow }) {
             />
           )}
           <div className="min-w-0">
-            <p className="truncate text-bodySm font-medium text-ink">
+            <Link
+              to="/products/$id/edit"
+              params={{ id: row.id }}
+              className="truncate text-bodySm font-medium text-ink hover:text-green"
+            >
               {row.name}
               {row.isFeatured && (
                 <Icon
@@ -240,7 +252,7 @@ function ProductRow({ row }: { row: AdminProductRow }) {
                   label="Featured"
                 />
               )}
-            </p>
+            </Link>
             <p className="truncate font-mono text-[11px] text-admin-muted">{row.slug}</p>
           </div>
         </div>

@@ -118,3 +118,11 @@ export function apiPost<Result>(path: string, body: unknown): Promise<Result> {
     body: JSON.stringify(body),
   });
 }
+
+export function apiPut<Result>(path: string, body: unknown): Promise<Result> {
+  return request<Result>(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
