@@ -46,6 +46,9 @@ export const CERTIFICATION = ['organic', 'non_gmo', 'halal', 'kosher', 'gluten_f
 export const PRODUCT_BADGE = ['bestseller', 'new', 'premium'] as const;
 export const PRODUCT_STATUS = ['draft', 'active', 'archived'] as const;
 
+/** The states a wholesale enquiry moves through, in the order the desk works them. */
+export const WHOLESALE_STATUS = ['new', 'contacted', 'quoted', 'converted', 'declined'] as const;
+
 /** The wholesale form's two selects. Both orders are the order the options are listed in. */
 export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit', 'other'] as const;
 

@@ -45,6 +45,11 @@ describe('admin orders', () => {
 
   beforeEach(async () => {
     await truncateAll(databaseUrl);
+    // Order numbers are a per-year sequence, so truncating the database hands the next test the
+    // same numbers - and therefore the same email job ids, which BullMQ refuses as duplicates.
+    // Emptying the queue between tests is what keeps "exactly one notice" an assertion about this
+    // test rather than about which tests ran before it.
+    await app.emailQueue.obliterate({ force: true });
     fixture = await seedCatalogFixture(app.db);
 
     await app.db.insert(adminUsers).values({

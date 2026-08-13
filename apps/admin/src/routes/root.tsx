@@ -20,6 +20,7 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Dashboard', icon: 'chart-pie-slice' },
   { to: '/products', label: 'Products', icon: 'package' },
   { to: '/orders', label: 'Orders', icon: 'receipt' },
+  { to: '/wholesale', label: 'Wholesale', icon: 'handshake' },
 ];
 
 function AdminLayout() {

@@ -391,8 +391,27 @@ with the right tracking number and no totals. One defect found and fixed in the 
 panel kept the values it mounted with, so after shipping it showed empty fields - the panels are now
 keyed on what they start from. The order was restored to `processing` afterwards.
 
-Still to come: wholesale (7.6), customers, promos, pricing and settings (7.7), RBAC and the
-audit log (7.8), the end-to-end scenario (7.9).
+**Task 7.6 is done**: wholesale enquiries, 13 tests. The list carries the queue that actually
+matters - the ones nobody has taken - because the difference between an enquiry handled slowly and
+one handled never is whether it has an owner. The detail puts status and owner in one row of
+controls, since taking an enquiry and marking it contacted is one action to the person doing it,
+and `assignedToId: null` hands it back to the pool. Any status may follow any other: unlike an
+order there is no money or stock behind it, and an enquiry marked `declined` in error that then
+revives is an ordinary Tuesday.
+
+The note thread is append-only - it is a record of a conversation, not a document being drafted -
+and each note carries its author's name copied into the row rather than joined, so it still says
+who wrote it after that account is deleted. `submitted_ip` is written by the public form and
+returned by nothing: it exists for investigating a flood of junk, which is a database question,
+not something to print beside somebody's business name. A test asserts it appears in neither the
+list nor the detail.
+
+Verified against the seeded five enquiries: filtered to the unassigned pair, opened one, gave it
+to Alina Petrova, moved it to `contacted`, added a note and saw it stamped with the author and the
+time. The enquiry was restored to `new` and unassigned afterwards.
+
+Still to come: customers, promos, pricing and settings (7.7), RBAC and the audit log (7.8), the
+end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -633,6 +652,11 @@ PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 GET    /api/admin/orders                         list; q matches number or email
 GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+GET    /api/admin/wholesale/requests             enquiries; `unassigned` is the real queue
+GET    /api/admin/wholesale/requests/:id         one enquiry with its note thread
+PATCH  /api/admin/wholesale/requests/:id         status, owner, or both
+POST   /api/admin/wholesale/requests/:id/notes   append a note, stamped with its author
+GET    /api/admin/users                          the team, for the assignee picker
 PATCH  /api/admin/orders/:orderNumber/status     move it along; 409 on an illegal move
 PUT    /api/admin/orders/:orderNumber/tracking   correct the tracking, send nothing
 PUT    /api/admin/orders/:orderNumber/note       the internal note

@@ -7,6 +7,8 @@ import { productEditRoute } from './routes/product-edit';
 import { productNewRoute } from './routes/product-new';
 import { productsRoute } from './routes/products';
 import { rootRoute } from './routes/root';
+import { wholesaleRoute } from './routes/wholesale';
+import { wholesaleDetailRoute } from './routes/wholesale-detail';
 
 /**
  * The panel's route tree, written out as the storefront's is.
@@ -22,6 +24,8 @@ const routeTree = rootRoute.addChildren([
   productEditRoute,
   ordersRoute,
   orderDetailRoute,
+  wholesaleRoute,
+  wholesaleDetailRoute,
 ]);
 
 export const router = createRouter({

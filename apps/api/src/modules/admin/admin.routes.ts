@@ -14,6 +14,12 @@ import {
   AdminProductListQuery,
   AdminProductListResponse,
   AdminTrackingInput,
+  AdminUserOption,
+  AdminWholesaleDetail,
+  AdminWholesaleListQuery,
+  AdminWholesaleListResponse,
+  AdminWholesaleNoteInput,
+  AdminWholesaleTriageInput,
   ApiError,
   OrderNumberParams,
   PathId,
@@ -35,6 +41,13 @@ import {
 } from './orders.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
+import {
+  addWholesaleNote,
+  getWholesaleRequest,
+  listAdminUsers,
+  listWholesaleRequests,
+  triageWholesaleRequest,
+} from './wholesale.service';
 
 /**
  * The back office's endpoints.
@@ -387,5 +400,109 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) => setAdminNote(app.db, request.params.orderNumber, request.body.adminNote),
+  );
+
+  // ------------------------------------------------------------------------------- wholesale
+
+  routes.get(
+    '/wholesale/requests',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Wholesale enquiries',
+        description:
+          '`unassigned` is the queue that actually needs somebody: enquiries nobody has taken. ' +
+          '`submittedIp` is stored by the public form and never returned here - it exists for ' +
+          'investigating a flood of junk, not for printing beside a business name.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminWholesaleListQuery,
+        response: { 200: AdminWholesaleListResponse, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listWholesaleRequests(app.db, request.query),
+  );
+
+  routes.get(
+    '/wholesale/requests/:id',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'One enquiry, with its note thread',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: { 200: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => getWholesaleRequest(app.db, request.params.id),
+  );
+
+  routes.patch(
+    '/wholesale/requests/:id',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Set the status, the assignee, or both',
+        description:
+          'One call, because taking an enquiry and marking it contacted is one action to the ' +
+          'person doing it. Any status may follow any other: unlike an order there is no money ' +
+          'or stock behind it, and an enquiry marked declined in error that then revives is an ' +
+          'ordinary Tuesday. `assignedToId: null` hands it back to the pool.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminWholesaleTriageInput,
+        response: { 200: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => triageWholesaleRequest(app.db, request.params.id, request.body),
+  );
+
+  routes.post(
+    '/wholesale/requests/:id/notes',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Append a note to the thread',
+        description:
+          'Append-only, and stamped with the author’s name copied into the row: a note has to ' +
+          'keep saying who wrote it after that account is removed.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminWholesaleNoteInput,
+        response: { 201: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    async (request, reply) => {
+      // `requireAdmin` has run, so `auth` is present and its `sub` is the administrator's id.
+      const adminUserId = request.auth?.sub;
+      if (adminUserId === undefined) throw new AppError('UNAUTHORIZED', 'No administrator');
+
+      const detail = await addWholesaleNote(
+        app.db,
+        request.params.id,
+        adminUserId,
+        request.body.body,
+      );
+      return reply.status(201).send(detail);
+    },
+  );
+
+  routes.get(
+    '/users',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'The team, for the assignee picker',
+        description:
+          'Names and roles only. Inactive accounts are left out: they cannot be given work.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: z.array(AdminUserOption), 401: ApiError },
+      },
+    },
+    () => listAdminUsers(app.db),
   );
 }

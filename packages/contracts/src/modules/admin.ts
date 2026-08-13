@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import {
+  AdminRole,
+  BusinessType,
   Certification,
   NutritionSource,
   OrderStatus,
@@ -8,7 +10,9 @@ import {
   PaymentStatus,
   ProductBadge,
   ProductStatus,
+  VolumeBand,
   WeightUnit,
+  WholesaleStatus,
 } from '../enums';
 import { paginated } from '../pagination';
 import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
@@ -169,6 +173,111 @@ export type AdminTrackingInput = z.infer<typeof AdminTrackingInput>;
 /** The internal note, replaced wholesale. Never serialised to a storefront response. */
 export const AdminOrderNoteInput = z.object({ adminNote: z.string().max(4000) }).strict();
 export type AdminOrderNoteInput = z.infer<typeof AdminOrderNoteInput>;
+
+// --------------------------------------------------------------------------------------
+// Wholesale enquiries
+// --------------------------------------------------------------------------------------
+
+/** A row in the enquiry list: enough to triage without opening it. */
+export const AdminWholesaleRow = z.object({
+  id: Id,
+  businessName: z.string(),
+  businessType: BusinessType,
+  contactName: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+  monthlyVolumeBand: VolumeBand,
+  status: WholesaleStatus,
+  /** Who is dealing with it, or null while nobody has taken it. */
+  assignedToName: z.string().nullable(),
+  noteCount: z.number().int().nonnegative(),
+  createdAt: IsoDate,
+});
+export type AdminWholesaleRow = z.infer<typeof AdminWholesaleRow>;
+
+export const AdminWholesaleListQuery = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    status: z.union([WholesaleStatus, z.literal('all')]).default('all'),
+    /** Only the ones nobody has taken - the queue that actually needs a person. */
+    unassigned: QueryBoolean.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type AdminWholesaleListQuery = z.infer<typeof AdminWholesaleListQuery>;
+
+export const AdminWholesaleListResponse = paginated(AdminWholesaleRow);
+export type AdminWholesaleListResponse = z.infer<typeof AdminWholesaleListResponse>;
+
+/**
+ * One note on an enquiry.
+ *
+ * `authorName` is a copy rather than a join, as the column is: a note has to keep saying who wrote
+ * it after that person's account is removed, and `admin_user_id` going null must not erase the
+ * record of who said what.
+ */
+export const AdminWholesaleNote = z.object({
+  id: Id,
+  authorName: z.string(),
+  body: z.string(),
+  createdAt: IsoDate,
+});
+export type AdminWholesaleNote = z.infer<typeof AdminWholesaleNote>;
+
+/**
+ * One enquiry in full.
+ *
+ * `submittedIp` is stored and deliberately absent here. It exists for investigating a flood of
+ * junk submissions, which is a database question, not something a panel should print next to
+ * somebody's business name.
+ */
+export const AdminWholesaleDetail = AdminWholesaleRow.extend({
+  addressLine1: z.string().nullable(),
+  addressLine2: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  zip: z.string().nullable(),
+  categoriesOfInterest: z.array(z.string()),
+  notes: z.string().nullable(),
+  assignedToId: Id.nullable(),
+  thread: z.array(AdminWholesaleNote),
+  updatedAt: IsoDate,
+});
+export type AdminWholesaleDetail = z.infer<typeof AdminWholesaleDetail>;
+
+/**
+ * Triage: the status, and who owns it.
+ *
+ * Both optional and both in one call, because they change together - taking an enquiry and marking
+ * it contacted is one action to the person doing it. `assignedToId: null` explicitly hands it back
+ * to the pool, which is why the field is nullable rather than merely absent.
+ */
+export const AdminWholesaleTriageInput = z
+  .object({
+    status: WholesaleStatus.optional(),
+    assignedToId: Id.nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.status !== undefined || value.assignedToId !== undefined,
+    'Nothing to change',
+  );
+export type AdminWholesaleTriageInput = z.infer<typeof AdminWholesaleTriageInput>;
+
+/** A note added to the thread. Notes are appended and never edited: it is a record, not a draft. */
+export const AdminWholesaleNoteInput = z
+  .object({ body: z.string().trim().min(1).max(4000) })
+  .strict();
+export type AdminWholesaleNoteInput = z.infer<typeof AdminWholesaleNoteInput>;
+
+/** The team, for the assignee picker. Nothing here is sensitive; it is a staff list. */
+export const AdminUserOption = z.object({
+  id: Id,
+  name: z.string(),
+  role: AdminRole,
+});
+export type AdminUserOption = z.infer<typeof AdminUserOption>;
 
 // --------------------------------------------------------------------------------------
 // Products

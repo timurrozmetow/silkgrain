@@ -8,6 +8,7 @@ import {
   PRODUCT_STATUS,
   VOLUME_BAND,
   WEIGHT_UNIT,
+  WHOLESALE_STATUS,
 } from './constants';
 
 /**
@@ -162,7 +163,6 @@ export type BusinessType = z.infer<typeof BusinessType>;
 export const VolumeBand = z.enum(VOLUME_BAND);
 export type VolumeBand = z.infer<typeof VolumeBand>;
 
-export const WHOLESALE_STATUS = ['new', 'contacted', 'quoted', 'converted', 'declined'] as const;
 export const WholesaleStatus = z.enum(WHOLESALE_STATUS);
 export type WholesaleStatus = z.infer<typeof WholesaleStatus>;
 
