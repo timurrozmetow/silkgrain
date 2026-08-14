@@ -6,10 +6,13 @@ import {
   RecipeDetail,
   RecipeListResponse,
   Slug,
+  PublicSettings,
 } from '@silkgrain/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+
+import { loadPublicSettings } from '../admin/settings.service';
 
 import { listFaqs, submitContactMessage } from './content.service';
 import { getRecipeBySlug, listRecipes } from './recipes.service';
@@ -26,6 +29,25 @@ const CONTACT_LIMIT = { rateLimit: { max: 5, timeWindow: '1 hour' } };
 // eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugins are async by contract
 export async function contentRoutes(app: FastifyInstance): Promise<void> {
   const routes = app.withTypeProvider<ZodTypeProvider>();
+
+  routes.get(
+    '/settings',
+    {
+      schema: {
+        tags: ['content'],
+        summary: 'The handful of settings the storefront renders',
+        description:
+          '`freeShippingFromCents` is computed from the active shipping rates - the lowest live ' +
+          'threshold, the same rule the cart’s own progress bar applies. It is here so the ' +
+          'announcement bar, the header and the product page read the figure the checkout ' +
+          'charges from rather than each hard-coding "$75", which is what decision D-22 asks ' +
+          'for. Every field is nullable: a missing or malformed row renders nothing rather than ' +
+          'taking a page load down.',
+        response: { 200: PublicSettings },
+      },
+    },
+    () => loadPublicSettings(app.db),
+  );
 
   routes.get(
     '/faqs',

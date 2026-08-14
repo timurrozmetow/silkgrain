@@ -436,8 +436,33 @@ literals in two services that the dashboard's own description claimed agreed; it
 And the order and wholesale lists built their `LIKE` patterns raw, so a search for `50%` matched
 every row - the catalogue's `likePattern` escape existed already and they now use it.
 
-Still to come in 7.7: promo codes, settings and shipping rates, bulk pricing. Then RBAC and the
-audit log (7.8) and the end-to-end scenario (7.9).
+**Settings is done**, 24 tests. A typed registry in `packages/contracts` decides what each key may
+hold - `settings.value` stays JSON so a key can change shape without a migration, but nothing is
+read or written unparsed. A generic editor over that column is a way to take the shop down: type
+`"8.25%"` into the tax rate and every cart quote silently falls back to the default while the panel
+shows the value it "saved".
+
+Four keys are registered, not the seven the seed writes. `store.name` and `ops.notification_email`
+have no consumer, and `commerce.free_shipping_threshold_cents` is decision D-22 - the checkout
+charges from `shipping_rates.free_above_cents`, so the panel offers exactly one editable
+free-shipping figure and it is the one in the rate row. An unregistered key is still shown, marked
+"no editor", because the row exists and hiding it would be its own kind of lie; a registered key
+whose stored value fails its schema is shown as broken with an empty control, so it can be repaired
+here rather than only in MySQL.
+
+That is also how D-22 finally got answered rather than restated. `GET /api/settings` computes
+`freeShippingFromCents` from the active rates - the lowest live threshold, the same rule the cart's
+own progress bar uses - and the storefront reads it. Three components hard-coded "$75": the
+announcement bar, the header's mobile drawer and the product page's trust row. All three now read
+the figure the checkout charges from, and the seed's duplicate key is gone.
+
+Rates can be edited and retired, never created or deleted: `SHIPPING_METHOD` is a closed enum and
+`orders.shipping_method` holds a snapshot of the code, so a deleted rate leaves past orders naming
+something that no longer exists. Retiring the last active one is a 409, because a checkout with
+nothing to select cannot take an order.
+
+Still to come in 7.7: promo codes and bulk pricing. Then RBAC and the audit log (7.8) and the
+end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -678,6 +703,10 @@ PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 GET    /api/admin/orders                         list; q matches number or email
 GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+GET    /api/settings                             public: announcement, contact, free-ship figure
+GET    /api/admin/settings                       settings and shipping rates, one read
+PUT    /api/admin/settings                       a partial batch; all keys land or none
+PUT    /api/admin/shipping-rates/:id             edit or retire; 409 on the last active one
 GET    /api/admin/customers                      account holders; guests have no row
 GET    /api/admin/customers/:id                  one customer and their ten latest orders
 PATCH  /api/admin/customers/:id/status           suspend or restore; revokes the sessions

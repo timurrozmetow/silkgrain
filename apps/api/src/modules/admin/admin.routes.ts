@@ -17,6 +17,9 @@ import {
   AdminProductInput,
   AdminProductListQuery,
   AdminProductListResponse,
+  AdminSettings,
+  AdminSettingsInput,
+  AdminShippingRateInput,
   AdminTrackingInput,
   AdminUserOption,
   AdminWholesaleDetail,
@@ -46,6 +49,7 @@ import {
 } from './orders.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
+import { loadSettings, saveSettings, saveShippingRate } from './settings.service';
 import {
   addWholesaleNote,
   getWholesaleRequest,
@@ -566,6 +570,84 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) => setCustomerStatus(app.db, request.params.id, request.body.status),
+  );
+
+  // -------------------------------------------------------------------------------- settings
+
+  routes.get(
+    '/settings',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Settings and shipping rates, in one read',
+        description:
+          'One payload, and that is decision D-22 rather than a convenience: the announcement ' +
+          'copy is edited beside the rate row the checkout actually charges from, and both ' +
+          'figures have to come from the same read. A key the registry has never heard of is ' +
+          'returned as `unregistered` and a key whose stored JSON fails its schema as ' +
+          '`malformed`, because a serialiser that refused either would 500 on the one screen ' +
+          'that can fix them.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminSettings, 401: ApiError },
+      },
+    },
+    () => loadSettings(app.db),
+  );
+
+  routes.put(
+    '/settings',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Write the settings a card owns',
+        description:
+          'A partial batch: the body carries only the keys being saved, and they all land or ' +
+          'none do. Not `/settings/:key`, because a Fastify body schema is static and cannot ' +
+          'depend on a path parameter - a per-key route would need a permissive body and would ' +
+          'move the validation out of the contract. A key with no row is a 404, never an insert.',
+        security: [{ bearerAuth: [] }],
+        body: AdminSettingsInput,
+        response: {
+          200: AdminSettings,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => saveSettings(app.db, request.body),
+  );
+
+  routes.put(
+    '/shipping-rates/:id',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Edit one shipping rate',
+        description:
+          'Edited and retired, never created or deleted: `SHIPPING_METHOD` is a closed enum and ' +
+          '`orders.shipping_method` holds a snapshot of the code, so a deleted rate leaves past ' +
+          'orders naming something that no longer exists. `free_above_cents` here is the ' +
+          'authority on free shipping (D-22). Refused with 409 when the change would leave no ' +
+          'active method, because a checkout with nothing to select cannot take an order.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminShippingRateInput,
+        response: {
+          200: AdminSettings,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => saveShippingRate(app.db, request.params.id, request.body),
   );
 
   routes.get(

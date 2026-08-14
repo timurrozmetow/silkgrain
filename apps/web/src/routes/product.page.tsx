@@ -23,6 +23,7 @@ import { ReviewsPanel } from '../components/product/ReviewsPanel';
 import { ProductGrid } from '../components/ProductGrid';
 import { apiGet } from '../lib/api';
 import { breadcrumbJsonLd, Seo } from '../lib/seo';
+import { freeShippingLabel, usePublicSettings } from '../lib/use-public-settings';
 import { useCart } from '../store/cart';
 
 /**
@@ -80,6 +81,8 @@ function Product() {
 function ProductDetail({ data }: { data: ProductDetailResponse }) {
   const { product, related } = data;
   const add = useCart((state) => state.add);
+  const { data: siteSettings } = usePublicSettings();
+  const freeShipping = freeShippingLabel(siteSettings?.freeShippingFromCents);
 
   const [variantId, setVariantId] = useState(product.defaultVariantId);
   const [qty, setQty] = useState(1);
@@ -290,9 +293,13 @@ function ProductDetail({ data }: { data: ProductDetailResponse }) {
             {(
               [
                 ['lock-simple', 'Secure checkout'],
-                ['truck', 'Free shipping $75+'],
+                // The threshold comes from the shipping rates the checkout charges from (D-22).
+                // With none set, the row is two items rather than a promise nobody honours.
+                ...(freeShipping === null
+                  ? []
+                  : ([['truck', `Free shipping ${freeShipping}+`]] as const)),
                 ['arrow-counter-clockwise', '30-day returns'],
-              ] as const
+              ] as [Parameters<typeof Icon>[0]['name'], string][]
             ).map(([icon, label]) => (
               <li key={label} className="flex items-center gap-2 text-[12px] text-muted">
                 <Icon name={icon} size={15} className="text-green" />

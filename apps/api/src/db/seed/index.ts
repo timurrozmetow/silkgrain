@@ -724,14 +724,10 @@ export async function seed(db: Database): Promise<void> {
       label: 'Warehouse address',
       isPublic: true,
     },
-    {
-      key: 'commerce.free_shipping_threshold_cents',
-      value: 7500,
-      group: 'commerce',
-      label: 'Free shipping threshold',
-      description: 'Standard shipping is free at or above this subtotal.',
-      isPublic: true,
-    },
+    // `commerce.free_shipping_threshold_cents` used to be here and is deliberately gone. Decision
+    // D-22 makes `shipping_rates.free_above_cents` the authority - the checkout charges from it -
+    // and the storefront now reads the figure from `GET /api/settings`, which computes it from the
+    // rates. A second copy of the number was a second thing to forget to change.
     {
       key: 'commerce.default_tax_basis_points',
       value: TAX_BASIS_POINTS,

@@ -2,6 +2,7 @@ import { Icon, panelVisibility, useFocusTrap } from '@silkgrain/ui';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
+import { freeShippingLabel, usePublicSettings } from '../../lib/use-public-settings';
 import { useCartCount } from '../../store/cart';
 import { useWishlistCount } from '../../store/wishlist';
 import { ButtonLink } from '../ButtonLink';
@@ -218,6 +219,8 @@ export function SiteHeader() {
  */
 function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const { data: siteSettings } = usePublicSettings();
+  const freeShipping = freeShippingLabel(siteSettings?.freeShippingFromCents);
   useFocusTrap(panelRef, { active: open, onEscape: onClose });
 
   useEffect(() => {
@@ -283,7 +286,13 @@ function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
           <ButtonLink to="/shop" fullWidth onClick={onClose}>
             Shop the pantry
           </ButtonLink>
-          <p className="mt-3 text-center text-[12px] text-muted">Complimentary shipping over $75</p>
+          {/* From the shipping rates, not a hard-coded figure (D-22): omitted entirely when no
+              active rate offers free shipping, rather than promising a threshold nobody set. */}
+          {freeShipping !== null && (
+            <p className="mt-3 text-center text-[12px] text-muted">
+              Complimentary shipping over {freeShipping}
+            </p>
+          )}
         </div>
       </div>
     </>
