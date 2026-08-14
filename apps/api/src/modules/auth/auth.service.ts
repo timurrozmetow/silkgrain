@@ -71,6 +71,14 @@ export async function registerCustomer(
     if (existing.passwordHash !== null) {
       throw conflict('An account with this email already exists');
     }
+    // A guest row can be suspended before anybody ever set a password on it. Claiming it issues a
+    // session immediately, so without this the block would be undone by the person it was aimed at
+    // simply registering. The message matches the one `login` gives a blocked account, because
+    // saying "this address is suspended" and "this address is taken" differently would tell a
+    // stranger which addresses the shop has blocked.
+    if (existing.status === 'blocked') {
+      throw new AppError('FORBIDDEN', 'This account has been suspended');
+    }
     await deps.db
       .update(customers)
       .set({

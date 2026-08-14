@@ -14,6 +14,7 @@ import { and, asc, count, desc, eq, inArray, isNull, like, or } from 'drizzle-or
 import type { Database } from '../../db/client';
 import { adminUsers, wholesaleRequestNotes, wholesaleRequests } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
+import { likePattern } from '../catalog/catalog.query';
 
 /**
  * Wholesale enquiries, from the desk that answers them.
@@ -37,7 +38,7 @@ export async function listWholesaleRequests(
   const filters = [];
 
   if (query.q !== undefined && query.q !== '') {
-    const pattern = `%${query.q}%`;
+    const pattern = likePattern(query.q);
     filters.push(
       or(like(wholesaleRequests.businessName, pattern), like(wholesaleRequests.email, pattern)),
     );

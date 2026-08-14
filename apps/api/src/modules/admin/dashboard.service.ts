@@ -1,4 +1,4 @@
-import type { AdminDashboard, AdminMetric } from '@silkgrain/contracts';
+import { type AdminDashboard, type AdminMetric, EARNED_ORDER_STATUS } from '@silkgrain/contracts';
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/client';
@@ -28,14 +28,6 @@ const WINDOW_DAYS = 30;
 const RECENT_ORDERS = 8;
 const LOW_STOCK_ROWS = 6;
 
-/** The statuses that mean money arrived and stayed. */
-const EARNED: ['paid', 'processing', 'shipped', 'delivered'] = [
-  'paid',
-  'processing',
-  'shipped',
-  'delivered',
-];
-
 /**
  * Percentage change in basis points, or null when there is nothing to compare against.
  *
@@ -54,7 +46,7 @@ export async function loadDashboard(db: Database, now = new Date()): Promise<Adm
   const windowStart = new Date(now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const previousStart = new Date(now.getTime() - 2 * WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-  const earned = inArray(orders.status, EARNED);
+  const earned = inArray(orders.status, [...EARNED_ORDER_STATUS]);
 
   const [current, previous, series, lowStock, recentOrders, newCustomers, previousCustomers] =
     await Promise.all([

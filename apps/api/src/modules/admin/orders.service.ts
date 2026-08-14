@@ -23,6 +23,7 @@ import {
   products,
 } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
+import { likePattern } from '../catalog/catalog.query';
 import { type OrderRow, projectOrder } from '../orders/orders.service';
 
 /**
@@ -57,7 +58,7 @@ export async function listAdminOrders(
   const filters = [];
 
   if (query.q !== undefined && query.q !== '') {
-    const pattern = `%${query.q}%`;
+    const pattern = likePattern(query.q);
     // Number or email: the two things a customer quotes when they write in.
     filters.push(or(like(orders.orderNumber, pattern), like(orders.email, pattern)));
   }

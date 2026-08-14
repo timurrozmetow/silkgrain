@@ -410,8 +410,34 @@ Verified against the seeded five enquiries: filtered to the unassigned pair, ope
 to Alina Petrova, moved it to `contacted`, added a note and saw it stamped with the author and the
 time. The enquiry was restored to `new` and unassigned afterwards.
 
-Still to come: customers, promos, pricing and settings (7.7), RBAC and the audit log (7.8), the
-end-to-end scenario (7.9).
+**Task 7.7 is in progress.** It was specified first, by four parallel design passes over the
+schema and the existing services, then attacked from three angles - no-stubs, money and rounding,
+what happens when things go wrong - and reconciled into one build plan. That pass is what found
+the three holes below and what moved wholesale price tiers out of the task entirely.
+
+**Customers is done**, 17 tests. A read-mostly surface where `status` is the only writable field:
+everything else an admin panel usually grows here - reset the password, change the email, toggle
+marketing consent - either manufactures a fact only the customer can create or opens a way into
+their account, and each is in `BACKLOG.md` by name. Guests are absent because there is no row for
+them, and the empty state says where their orders actually are rather than pretending otherwise.
+
+The Block button required fixing three things first, or it would have been a claim the system does
+not honour (decision D-29). `POST /api/auth/refresh` never re-read `customers.status`, so a
+suspended account would have kept minting fifteen-minute access tokens for the thirty-day life of
+its refresh family - the admin contour already re-read its own account there, with a comment saying
+why, and the customer contour never had to because nothing could write that column. Blocking now
+also revokes every refresh family in the same transaction, so the suspension is immediate rather
+than "within fifteen minutes", and registering refuses a blocked guest row, or the block would be
+undone by the person it was aimed at simply signing up.
+
+Two smaller repairs came with it. The definition of "money taken and kept" existed as two array
+literals in two services that the dashboard's own description claimed agreed; it is now
+`EARNED_ORDER_STATUS` in contracts and both copies are gone, so the claim is true by construction.
+And the order and wholesale lists built their `LIKE` patterns raw, so a search for `50%` matched
+every row - the catalogue's `likePattern` escape existed already and they now use it.
+
+Still to come in 7.7: promo codes, settings and shipping rates, bulk pricing. Then RBAC and the
+audit log (7.8) and the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -652,6 +678,9 @@ PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 GET    /api/admin/orders                         list; q matches number or email
 GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+GET    /api/admin/customers                      account holders; guests have no row
+GET    /api/admin/customers/:id                  one customer and their ten latest orders
+PATCH  /api/admin/customers/:id/status           suspend or restore; revokes the sessions
 GET    /api/admin/wholesale/requests             enquiries; `unassigned` is the real queue
 GET    /api/admin/wholesale/requests/:id         one enquiry with its note thread
 PATCH  /api/admin/wholesale/requests/:id         status, owner, or both

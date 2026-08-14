@@ -4,6 +4,7 @@ import {
   AdminRole,
   BusinessType,
   Certification,
+  CustomerStatus,
   NutritionSource,
   OrderStatus,
   Origin,
@@ -173,6 +174,80 @@ export type AdminTrackingInput = z.infer<typeof AdminTrackingInput>;
 /** The internal note, replaced wholesale. Never serialised to a storefront response. */
 export const AdminOrderNoteInput = z.object({ adminNote: z.string().max(4000) }).strict();
 export type AdminOrderNoteInput = z.infer<typeof AdminOrderNoteInput>;
+
+// --------------------------------------------------------------------------------------
+// Customers
+// --------------------------------------------------------------------------------------
+
+/**
+ * A row in the customer list.
+ *
+ * `name` is joined on the server, as `AdminWholesaleRow.contactName` is, so two screens cannot
+ * print one person's name two ways. `orderCount` counts every order and `lifetimeSpentCents` only
+ * the `EARNED_ORDER_STATUS` four - the same deliberate asymmetry the customer's own account page
+ * uses, so the panel and the account card agree to the cent.
+ *
+ * People who only ever checked out as a guest are absent, because there is no row to show. A guest
+ * order carries an email and no `customer_id`, and grouping orders by email to manufacture a
+ * customer would assert exactly the identity the checkout declines to assert.
+ */
+export const AdminCustomerRow = z.object({
+  id: Id,
+  email: z.string(),
+  name: z.string(),
+  status: CustomerStatus,
+  orderCount: z.number().int().nonnegative(),
+  lifetimeSpentCents: Cents,
+  currency: Currency,
+  lastOrderAt: IsoDate.nullable(),
+  createdAt: IsoDate,
+});
+export type AdminCustomerRow = z.infer<typeof AdminCustomerRow>;
+
+export const AdminCustomerListQuery = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    status: z.union([CustomerStatus, z.literal('all')]).default('all'),
+    /** "Who are my best customers" is the one question no other screen answers. */
+    sort: z.enum(['newest', 'spend']).default('newest'),
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type AdminCustomerListQuery = z.infer<typeof AdminCustomerListQuery>;
+
+export const AdminCustomerListResponse = paginated(AdminCustomerRow);
+export type AdminCustomerListResponse = z.infer<typeof AdminCustomerListResponse>;
+
+/**
+ * One customer.
+ *
+ * `recentOrders` reuses `AdminOrderRow`, so the customer's orders and the order list cannot
+ * describe one order two ways.
+ *
+ * What is deliberately absent: the password hash, obviously; the saved addresses, because an
+ * address is the customer's own and reading one answers no operational question the order's own
+ * shipping address does not; and the session list, because a refresh token is a credential.
+ */
+export const AdminCustomerDetail = AdminCustomerRow.extend({
+  phone: z.string().nullable(),
+  /** Read-only: consent is the customer's to give, and there is no system that acts on it yet. */
+  marketingOptIn: z.boolean(),
+  lastLoginAt: IsoDate.nullable(),
+  recentOrders: z.array(AdminOrderRow),
+  updatedAt: IsoDate,
+});
+export type AdminCustomerDetail = z.infer<typeof AdminCustomerDetail>;
+
+/**
+ * The one thing an administrator may change about a customer.
+ *
+ * Everything an admin panel usually grows here - change the email, reset the password, edit the
+ * name, toggle marketing consent - either manufactures a fact only the customer can create or
+ * opens an account-takeover path. They are in `BACKLOG.md` with the reason.
+ */
+export const AdminCustomerStatusInput = z.object({ status: CustomerStatus }).strict();
+export type AdminCustomerStatusInput = z.infer<typeof AdminCustomerStatusInput>;
 
 // --------------------------------------------------------------------------------------
 // Wholesale enquiries

@@ -1,5 +1,6 @@
 import {
   type AccountSummary,
+  EARNED_ORDER_STATUS,
   type AddressView,
   type OrderSummary,
   type OrderView,
@@ -153,8 +154,6 @@ function toAddressView(row: AddressRow): AddressView {
  * restricted to the four statuses that mean money was taken and kept; the count is deliberately
  * not, so it agrees with the history list, which shows every order regardless of status.
  */
-const SPENT_STATUSES = ['paid', 'processing', 'shipped', 'delivered'] as const;
-
 export async function getAccountSummary(db: Database, customerId: number): Promise<AccountSummary> {
   const [row] = await db
     .select({
@@ -162,9 +161,7 @@ export async function getAccountSummary(db: Database, customerId: number): Promi
       // Typed as string, not number: MySQL returns a SUM over BIGINT as a decimal string, and
       // claiming it is a number would make the `Number()` below look redundant when it is the
       // one thing making the value safe to use.
-      lifetimeSpentCents: sql<string>`COALESCE(SUM(CASE WHEN ${inArray(orders.status, [
-        ...SPENT_STATUSES,
-      ])} THEN ${orders.totalCents} ELSE 0 END), 0)`,
+      lifetimeSpentCents: sql<string>`COALESCE(SUM(CASE WHEN ${inArray(orders.status, [...EARNED_ORDER_STATUS])} THEN ${orders.totalCents} ELSE 0 END), 0)`,
     })
     .from(orders)
     .where(eq(orders.customerId, customerId));

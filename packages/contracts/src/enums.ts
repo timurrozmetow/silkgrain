@@ -108,6 +108,24 @@ export const ORDER_STATUS_TRANSITIONS: Readonly<Record<OrderStatus, readonly Ord
   refunded: [],
 };
 
+/**
+ * The statuses that mean money arrived and stayed.
+ *
+ * One definition, because three screens claim to agree about it: the dashboard's revenue, the
+ * customer's own lifetime-spend card, and the admin's customer list. Each held its own array
+ * literal until this existed, and the only thing keeping them equal was that nobody had edited
+ * one of them yet.
+ *
+ * Not to be conflated with "stock has left the shelf", which lists the same four today and is a
+ * different idea: a cancelled-after-shipping order would move one and not the other.
+ */
+export const EARNED_ORDER_STATUS = [
+  'paid',
+  'processing',
+  'shipped',
+  'delivered',
+] as const satisfies readonly OrderStatus[];
+
 export const PAYMENT_PROVIDER = ['stripe', 'paypal'] as const;
 export const PaymentProvider = z.enum(PAYMENT_PROVIDER);
 export type PaymentProvider = z.infer<typeof PaymentProvider>;

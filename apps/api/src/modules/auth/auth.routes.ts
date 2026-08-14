@@ -128,6 +128,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const rotated = await rotateRefreshToken(deps, presented, clientContext(request));
       if (rotated.subjectType !== 'customer') throw unauthorized('No session');
 
+      // The account is re-read rather than trusted, exactly as `/admin/refresh` re-reads the
+      // administrator: `findCustomerById` filters on `status = 'active'`, so a suspension takes
+      // effect at the next refresh instead of thirty days later when the family finally expires.
+      // Until the back office grew a Block button nothing could write that column, which is why
+      // this check was not here before - and why the button could not have been honest without it.
+      const customer = await findCustomerById(deps, rotated.subjectId);
+      if (!customer) throw unauthorized('This account is no longer active');
+
       app.setRefreshCookie(reply, 'customer', rotated.issued.token);
       return {
         accessToken: app.signAccessToken(

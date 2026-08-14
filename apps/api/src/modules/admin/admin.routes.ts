@@ -1,5 +1,9 @@
 import multipart from '@fastify/multipart';
 import {
+  AdminCustomerDetail,
+  AdminCustomerListQuery,
+  AdminCustomerListResponse,
+  AdminCustomerStatusInput,
   AdminDashboard,
   AdminImageAltInput,
   AdminImageArrangement,
@@ -30,6 +34,7 @@ import { z } from 'zod';
 
 import { AppError } from '../../lib/errors';
 
+import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
 import {
@@ -488,6 +493,79 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       );
       return reply.status(201).send(detail);
     },
+  );
+
+  // ------------------------------------------------------------------------------- customers
+
+  routes.get(
+    '/customers',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'The people who hold accounts',
+        description:
+          'A guest checkout writes an order with no customer row, so guests are not here - ' +
+          'grouping orders by email to invent one would assert an identity the checkout ' +
+          'deliberately declines to assert. Every order at an address, guest or not, is at ' +
+          '/admin/orders?q=<email>. Lifetime spend counts only the statuses that mean money was ' +
+          'taken and kept, so it agrees with the customer’s own account card to the cent.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminCustomerListQuery,
+        response: { 200: AdminCustomerListResponse, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listCustomers(app.db, request.query),
+  );
+
+  routes.get(
+    '/customers/:id',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'One customer, with their ten most recent orders',
+        description:
+          'The saved addresses and the session list are deliberately absent: an address is the ' +
+          'customer’s own and the order already carries the one it shipped to, and a ' +
+          'refresh token is a credential.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: { 200: AdminCustomerDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => getCustomer(app.db, request.params.id),
+  );
+
+  routes.patch(
+    '/customers/:id/status',
+    {
+      // The first route in the panel to need more than a session. Suspending somebody is the kind
+      // of thing a support account should not be able to do alone.
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Suspend or restore an account',
+        description:
+          'A sub-path, so PATCH on the customer itself stays unclaimed and nothing implies the ' +
+          'rest of the record is editable. Blocking revokes every refresh family the account ' +
+          'holds, and POST /api/auth/refresh re-reads the status before it rotates - without ' +
+          'both, a suspended account would keep minting access tokens for thirty days. ' +
+          'Unblocking revokes too, so a restored account starts a session rather than resuming ' +
+          'one from before the suspension.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminCustomerStatusInput,
+        response: {
+          200: AdminCustomerDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => setCustomerStatus(app.db, request.params.id, request.body.status),
   );
 
   routes.get(
