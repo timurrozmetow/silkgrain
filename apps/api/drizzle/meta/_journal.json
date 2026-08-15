@@ -15,6 +15,13 @@
       "when": 1786511741647,
       "tag": "0001_free_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786687907677,
+      "tag": "0002_lame_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

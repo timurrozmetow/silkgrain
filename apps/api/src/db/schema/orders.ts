@@ -87,6 +87,43 @@ export const promoCodes = mysqlTable(
       'promo_codes_window_ordered',
       sql`${table.endsAt} IS NULL OR ${table.startsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`,
     ),
+
+    /**
+     * `value` is one column with three meanings, so one range cannot describe it.
+     *
+     * `promo_codes_value_nonneg` alone permits 50000 on a percent code - five hundred per cent -
+     * which `discountFor` then clamps to the subtotal while the panel prints "500% off". These two
+     * give each type its own bound. `fixed` stops at the signed INT's own capacity rather than at
+     * an invented ceiling: past it, MySQL raises `ER_WARN_DATA_OUT_OF_RANGE`, which reaches the
+     * error handler as a 500 with no field named.
+     */
+    check(
+      'promo_codes_percent_range',
+      sql`${table.type} <> 'percent' OR ${table.value} BETWEEN 1 AND 10000`,
+    ),
+    check(
+      'promo_codes_fixed_range',
+      sql`${table.type} <> 'fixed' OR ${table.value} BETWEEN 1 AND 2147483647`,
+    ),
+
+    /** Zero is storable today and means "switched off, obscurely". `is_active` says it plainly. */
+    check(
+      'promo_codes_limits_positive',
+      sql`(${table.usageLimit} IS NULL OR ${table.usageLimit} > 0)
+        AND (${table.usageLimitPerCustomer} IS NULL OR ${table.usageLimitPerCustomer} > 0)`,
+    ),
+
+    /**
+     * The cap belongs to percentages only.
+     *
+     * `discountFor` applies `max_discount_cents` to whatever `raw` produced, fixed codes included,
+     * so a $20 fixed code capped at $5 has the panel printing $20 and the cart taking off $5 -
+     * the same class of divergence as a client-supplied price.
+     */
+    check(
+      'promo_codes_cap_percent_only',
+      sql`${table.type} = 'percent' OR ${table.maxDiscountCents} IS NULL`,
+    ),
   ],
 );
 
@@ -133,6 +170,13 @@ export const orders = mysqlTable(
     index('orders_email_idx').on(table.email),
     index('orders_customer_idx').on(table.customerId),
     index('orders_status_idx').on(table.status, table.createdAt),
+    /**
+     * Renaming a promo code asks "has any order ever named this string", at any status.
+     *
+     * Without the index that is a full scan of every order the shop has ever taken, run on a
+     * keystroke's worth of impatience in the admin form.
+     */
+    index('orders_promo_code_idx').on(table.promoCode),
     check('orders_totals_nonneg', sql`${table.subtotalCents} >= 0 AND ${table.totalCents} >= 0`),
   ],
 );

@@ -133,6 +133,52 @@ Lighthouse on mobile as well as desktop.
 
 ---
 
+## Promo codes, beyond the core
+
+Each is a real feature that needs a column or a join table the schema does not have, and a
+change to `discountFor`, which takes a subtotal and knows nothing about lines. Cut from task 7.7
+so the core — create, edit, the kill switch, and honest state — could ship clean.
+
+### What a free-shipping campaign gave away
+
+`discountFor` returns zero for a `free_shipping` code, so `orders.promo_discount_cents` and the
+redemption row both record zero. A campaign that has waived four hundred lots of postage reports
+nothing. It cannot be reconstructed after the fact — today's shipping rate is not the rate the
+order shipped under — so the waived amount has to be captured at order time, in a new column, or
+the figure is never claimed. The admin promo detail already prints a dash and a note where that
+number would go. **Estimate 4–6 h.**
+
+### Scoped, stacked and generated codes
+
+Codes limited to a product, a variant or a category; two codes on one cart; first-order-only
+codes; free shipping scoped to a single method; bulk generation of unique single-use codes; a
+paginated, exportable redemption history past the latest twenty. Each is its own feature with its
+own schema. **Estimate 24–40 h across all of them.**
+
+### Scheduled price changes and CSV price import
+
+A price change queued for a future time, and a spreadsheet round-trip for bulk edits. Both were
+cut from Pricing for the same reason: a scheduled write with no audit log behind it is the worst
+first use of BullMQ, and a spreadsheet becomes an unversioned source of truth for prices — the one
+property the pricing design exists to prevent. Revisit once the audit log (7.8) exists.
+**Estimate 12–20 h.**
+
+### Undo a bulk price operation
+
+Needs a persisted before-image, and `audit_log.before` is its natural home — but nothing writes
+that table until 7.8. An inverse percentage is not an inverse (1299 up 10 % is 1429; 1429 down
+10 % is 1286), so "apply the opposite" silently loses money. Real undo restores the snapshot.
+**Estimate 6–10 h, after 7.8.**
+
+### Wholesale price tiers, and the channel they price for
+
+`wholesale_price_tiers` has no reader and no writer anywhere in the repo, and nothing to price
+against: no account marker on `customers`, no `converted` enquiry that mints a wholesale account,
+no tier lookup in `POST /api/cart/validate` or the order writer, no tier table on the product
+page. An editor for the table alone would be a form whose output no checkout can apply — the stub
+D-18 refused when it declined to create a `carts` table nothing writes. The whole wholesale
+purchasing channel is one feature. **Estimate 30–50 h.**
+
 ## Operational integrations
 
 ### Carrier integration (Shippo / EasyPost)

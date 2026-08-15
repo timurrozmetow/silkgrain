@@ -22,6 +22,7 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/orders', label: 'Orders', icon: 'receipt' },
   { to: '/wholesale', label: 'Wholesale', icon: 'handshake' },
   { to: '/customers', label: 'Customers', icon: 'users' },
+  { to: '/promos', label: 'Promo codes', icon: 'tag' },
   { to: '/settings', label: 'Settings', icon: 'gear' },
 ];
 

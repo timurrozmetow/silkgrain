@@ -54,3 +54,48 @@ export function toInt(input: string): number | null {
   const value = Number(trimmed);
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
+
+/**
+ * A percentage a person types, to the basis points a promo code stores.
+ *
+ * `10` and `12.5` both round-trip exactly - one column of basis points is precisely why the store
+ * carries no decimal. Anything finer than a hundredth of a per cent is null, the same way
+ * `dollarsToCents` refuses a third decimal place: it is a value the column cannot hold.
+ */
+export function percentToBasisPoints(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const points = value * 100;
+  return Number.isInteger(points) ? points : null;
+}
+
+/** And back, trailing zeroes trimmed: 1000 bp reads as "10", 1250 as "12.5". */
+export function basisPointsToPercent(points: number | null): string {
+  if (points === null) return '';
+  return String(points / 100);
+}
+
+/**
+ * A datetime-local input's value to an ISO instant, and back.
+ *
+ * The `<input type="datetime-local">` speaks a `YYYY-MM-DDTHH:mm` string in the browser's own zone
+ * and carries no offset. `new Date(local)` reads it in that zone, and `toISOString` stamps the UTC
+ * the API stores - so a code scheduled for "9am" starts at 9am where the operator sits.
+ */
+export function localToIso(input: string): string | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export function isoToLocal(iso: string | null): string {
+  if (iso === null) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  // Shift by the local offset so `toISOString().slice` prints local wall-clock, not UTC.
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}

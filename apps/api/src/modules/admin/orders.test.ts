@@ -354,8 +354,23 @@ describe('admin orders', () => {
     expect(detail.tracking?.number).toBe('772233445566');
     // Still shipped, and still exactly one notice - correcting a number must not send another.
     expect(detail.status).toBe('shipped');
-    const jobs = await app.emailQueue.getJobs(['waiting', 'completed', 'failed', 'active']);
-    expect(jobs.filter((job) => job.data.type === 'order_shipped')).toHaveLength(1);
+
+    // The one notice, found by its deterministic id so a job mid-backoff-retry (state `delayed`,
+    // which a fixed status list would miss) still counts. The id doubles as the guarantee: BullMQ
+    // dedupes on it, so a second `order_shipped` for this order could not exist even if the route
+    // tried. This test therefore proves the tracking PUT did not enqueue a *different* notice.
+    const shipped = await app.emailQueue.getJob(`order_shipped.${order.number}`);
+    expect(shipped?.data).toMatchObject({ type: 'order_shipped', orderNumber: order.number });
+
+    const all = await app.emailQueue.getJobs([
+      'waiting',
+      'active',
+      'completed',
+      'failed',
+      'delayed',
+      'prioritized',
+    ]);
+    expect(all.filter((job) => job.data.type === 'order_shipped')).toHaveLength(1);
   });
 
   it('stores the internal note where no storefront response can reach it', async () => {

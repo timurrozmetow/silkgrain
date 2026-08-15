@@ -12,6 +12,12 @@ import {
   AdminOrderListResponse,
   AdminOrderNoteInput,
   AdminOrderStatusInput,
+  AdminPromoActiveInput,
+  AdminPromoDetail,
+  AdminPromoInput,
+  AdminPromoListQuery,
+  AdminPromoListResponse,
+  AdminPromoUpdateInput,
   AdminProductDetail,
   AdminProductImage,
   AdminProductInput,
@@ -49,6 +55,7 @@ import {
 } from './orders.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
+import { createPromo, getPromo, listPromos, setPromoActive, updatePromo } from './promos.service';
 import { loadSettings, saveSettings, saveShippingRate } from './settings.service';
 import {
   addWholesaleNote,
@@ -570,6 +577,129 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) => setCustomerStatus(app.db, request.params.id, request.body.status),
+  );
+
+  // ---------------------------------------------------------------------------- promo codes
+
+  routes.get(
+    '/promos',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Promo codes, with the state each one is in',
+        description:
+          '`state` is derived on every read, never stored, in the same order the cart’s own ' +
+          'evaluator checks its branches - disabled, scheduled, expired, exhausted, live - so the ' +
+          'chip names the condition a customer is actually being told about. The `state` filter is ' +
+          'the same rule expressed in SQL, fed the same clock.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminPromoListQuery,
+        response: { 200: AdminPromoListResponse, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listPromos(app.db, request.query),
+  );
+
+  routes.get(
+    '/promos/:id',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'One code, with its latest redemptions',
+        description:
+          '`recordedDiscountCents` is what the order wrote down, which is zero for every ' +
+          'free-shipping redemption: the waived postage is not stored anywhere, and today’s ' +
+          'rate is not the rate it shipped under.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: { 200: AdminPromoDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+      },
+    },
+    (request) => getPromo(app.db, request.params.id),
+  );
+
+  routes.post(
+    '/promos',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Create a promo code',
+        description:
+          'The discount is a union on its type, so the wrong unit is unrepresentable rather than ' +
+          'merely refused - a percentage carries basis points and a cap, a fixed code carries ' +
+          'cents and no cap, because `discountFor` applies the cap to both and a $20 code capped ' +
+          'at $5 would have the panel and the cart disagreeing. `usedCount` is absent from every ' +
+          'input: it is an accounting fact the paid transaction writes.',
+        security: [{ bearerAuth: [] }],
+        body: AdminPromoInput,
+        response: {
+          201: AdminPromoDetail,
+          401: ApiError,
+          403: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request, reply) => reply.status(201).send(await createPromo(app.db, request.body)),
+  );
+
+  routes.put(
+    '/promos/:id',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Replace a code’s fields',
+        description:
+          'Renaming is refused with 409 once any order has ever named the code, at any status: ' +
+          '`orders.promo_code` is a snapshot the paid transaction looks the code up by, so a ' +
+          'rename reattributes history and leaves a pending order’s redemption unrecorded. ' +
+          '`isActive` is not in this body - a stale form would otherwise revert a kill switch ' +
+          'somebody threw while it was open.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminPromoUpdateInput,
+        response: {
+          200: AdminPromoDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => updatePromo(app.db, request.params.id, request.body),
+  );
+
+  routes.patch(
+    '/promos/:id/active',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Switch a code on or off',
+        description:
+          'The terminal action. There is no DELETE: `promo_redemptions` cascades from this row, ' +
+          'so deleting a used code destroys the rows a per-customer limit is counted from, and a ' +
+          'delete-then-recreate resets every such limit without anybody deciding to.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminPromoActiveInput,
+        response: {
+          200: AdminPromoDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => setPromoActive(app.db, request.params.id, request.body.isActive),
   );
 
   // -------------------------------------------------------------------------------- settings

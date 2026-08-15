@@ -461,8 +461,38 @@ Rates can be edited and retired, never created or deleted: `SHIPPING_METHOD` is 
 something that no longer exists. Retiring the last active one is a 409, because a checkout with
 nothing to select cannot take an order.
 
-Still to come in 7.7: promo codes and bulk pricing. Then RBAC and the audit log (7.8) and the
-end-to-end scenario (7.9).
+**Promo codes are done**, 24 tests, and they carry the task's only migration - four CHECKs on
+`promo_codes` and an index on `orders.promo_code`.
+
+`promo_codes.value` is one integer with three meanings, so the contract never transports it as a
+bare `value`: `AdminPromoDiscount` is a discriminated union on type, which makes "a percentage of
+1299 cents" unrepresentable rather than merely refused, and is why changing a live code's type is
+safe - the payload cannot restate the type without restating the amount in the right unit. The cap
+lives inside the `percent` member alone, because `discountFor` applies `max_discount_cents` to
+whatever produced the raw figure, fixed codes included - a $20 fixed code capped at $5 would have
+the panel printing $20 and the cart taking off $5. That divergence is the fourth CHECK, the one
+the spec did not expect: `type = 'percent' OR max_discount_cents IS NULL`.
+
+Nothing here deletes anything a customer has touched. `promo_redemptions.promo_code_id` is
+`ON DELETE CASCADE`, so deleting a used code destroys the rows a per-customer limit is counted
+from, and a delete-then-recreate resets every such limit without anybody deciding to. There is no
+DELETE route; the terminal action is `is_active = false`, which the cart's evaluator already
+honours. Renaming is free only while no order has ever named the code, at any status - between
+checkout writing `orders.promo_code` and the webhook arriving, `used_count` and the redemption
+rows both read zero, so guarding on either would let a rename slip through and leave a pending
+order's redemption unrecorded. The check and the write share the paid transaction's own `FOR
+UPDATE` lock.
+
+Each code's state is derived on every read, never stored, in the cart evaluator's own branch order
+
+- disabled, scheduled, expired, exhausted, live - so the chip names the same condition a customer
+  is being told about. The SQL state filter is the same rule, fed the same clock, and two tests hold
+  them together: one asserts every row a filter returns carries that filter's chip, and one asks the
+  cart's own `evaluatePromo` whether it agrees about which codes are usable. `used_count` is an
+  accounting fact the paid transaction writes and is in no input schema; `.strict()` turns an attempt
+  to send it into a 422.
+
+That finishes task 7.7. Then RBAC and the audit log (7.8) and the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -703,6 +733,11 @@ PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 GET    /api/admin/orders                         list; q matches number or email
 GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+GET    /api/admin/promos                         promo codes, each with its derived state
+GET    /api/admin/promos/:id                     one code with its latest redemptions
+POST   /api/admin/promos                         create
+PUT    /api/admin/promos/:id                     replace; 409 on renaming a used code
+PATCH  /api/admin/promos/:id/active              the kill switch; there is no DELETE
 GET    /api/settings                             public: announcement, contact, free-ship figure
 GET    /api/admin/settings                       settings and shipping rates, one read
 PUT    /api/admin/settings                       a partial batch; all keys land or none

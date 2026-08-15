@@ -8,6 +8,9 @@ import { ordersRoute } from './routes/orders';
 import { productEditRoute } from './routes/product-edit';
 import { productNewRoute } from './routes/product-new';
 import { productsRoute } from './routes/products';
+import { promoDetailRoute } from './routes/promo-detail';
+import { promoNewRoute } from './routes/promo-new';
+import { promosRoute } from './routes/promos';
 import { rootRoute } from './routes/root';
 import { settingsRoute } from './routes/settings';
 import { wholesaleRoute } from './routes/wholesale';
@@ -31,6 +34,9 @@ const routeTree = rootRoute.addChildren([
   wholesaleDetailRoute,
   customersRoute,
   customerDetailRoute,
+  promosRoute,
+  promoNewRoute,
+  promoDetailRoute,
   settingsRoute,
 ]);
 

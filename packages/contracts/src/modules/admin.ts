@@ -176,6 +176,206 @@ export const AdminOrderNoteInput = z.object({ adminNote: z.string().max(4000) })
 export type AdminOrderNoteInput = z.infer<typeof AdminOrderNoteInput>;
 
 // --------------------------------------------------------------------------------------
+// Promo codes
+// --------------------------------------------------------------------------------------
+
+/**
+ * What a promo code takes off, as a shape the wrong pairing cannot express.
+ *
+ * `promo_codes.value` is one integer column with three meanings - basis points for `percent`, cents
+ * for `fixed`, read by nothing for `free_shipping` - so the contract never transports it as a bare
+ * `value`. A discriminated union makes "a percentage of 1299 cents" unrepresentable rather than
+ * merely refused, and it is why changing a live code's type is safe: the payload cannot restate the
+ * type without restating the amount in the right unit.
+ *
+ * `maxDiscountCents` lives inside the `percent` member alone. `discountFor` applies the cap to
+ * whatever produced the raw figure, fixed codes included, so a $20 fixed code capped at $5 would
+ * have the panel printing $20 and the cart taking off $5.
+ */
+export const AdminPromoDiscount = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('percent'),
+      /** Basis points: 1000 is ten per cent. A whole column of them beats a decimal. */
+      basisPoints: z.number().int().min(1).max(10_000),
+      /** Blank is uncapped. A cap of nothing is not a cap - it takes nothing off. */
+      maxDiscountCents: Cents.refine((value) => value > 0, 'A cap of nothing is no cap').nullable(),
+    })
+    .strict(),
+  // `.strict()` on every member, so a `maxDiscountCents` sent alongside a `fixed` code is a 422
+  // rather than a silent strip: `discountFor` applies the cap to fixed codes too, so a stripped
+  // one would have the panel and the cart disagreeing about the discount.
+  z
+    .object({
+      type: z.literal('fixed'),
+      // The signed INT's own capacity, which invents no business rule: past it MySQL raises
+      // ER_WARN_DATA_OUT_OF_RANGE, which the error handler has no case for and returns as a 500.
+      // `.max` before `.refine`: a refine returns ZodEffects, which has no numeric methods left.
+      amountCents: Cents.max(2_147_483_647).refine(
+        (value) => value > 0,
+        'A code that takes off nothing',
+      ),
+    })
+    .strict(),
+  z.object({ type: z.literal('free_shipping') }).strict(),
+]);
+export type AdminPromoDiscount = z.infer<typeof AdminPromoDiscount>;
+
+/**
+ * Where a code stands, derived on every read and never stored.
+ *
+ * The precedence mirrors `applyPromo`'s branch order exactly - disabled, scheduled, expired,
+ * exhausted, live - because the chip has to name the same blocking condition the customer is being
+ * told about. A third rule, however sensible on its own, would be a third answer to one question.
+ */
+export const PROMO_STATE = ['disabled', 'scheduled', 'expired', 'exhausted', 'live'] as const;
+export const PromoState = z.enum(PROMO_STATE);
+export type PromoState = z.infer<typeof PromoState>;
+
+export const AdminPromoRow = z.object({
+  id: Id,
+  code: z.string(),
+  description: z.string().nullable(),
+  discount: AdminPromoDiscount,
+  minOrderCents: Cents,
+  usageLimit: z.number().int().positive().nullable(),
+  usageLimitPerCustomer: z.number().int().positive().nullable(),
+  /** An accounting fact, incremented by the paid transaction. Never writable, at any endpoint. */
+  usedCount: z.number().int().nonnegative(),
+  startsAt: IsoDate.nullable(),
+  endsAt: IsoDate.nullable(),
+  isActive: z.boolean(),
+  state: PromoState,
+  createdAt: IsoDate,
+});
+export type AdminPromoRow = z.infer<typeof AdminPromoRow>;
+
+export const AdminPromoListQuery = z
+  .object({
+    q: z.string().trim().max(120).optional(),
+    state: z.union([PromoState, z.literal('all')]).default('all'),
+    page: z.coerce.number().int().min(1).default(1),
+    perPage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type AdminPromoListQuery = z.infer<typeof AdminPromoListQuery>;
+
+export const AdminPromoListResponse = paginated(AdminPromoRow);
+export type AdminPromoListResponse = z.infer<typeof AdminPromoListResponse>;
+
+/** One redemption, as the detail page lists them. */
+export const AdminPromoRedemption = z.object({
+  orderNumber: z.string(),
+  email: z.string(),
+  /**
+   * What the order actually recorded. Zero for every `free_shipping` redemption, because
+   * `discountFor` returns zero for that type and the order copies it - the waived postage is not
+   * written down anywhere. The panel prints a dash rather than "$0.00", and BACKLOG.md holds the
+   * item that would make the figure real.
+   */
+  recordedDiscountCents: Cents,
+  createdAt: IsoDate,
+});
+export type AdminPromoRedemption = z.infer<typeof AdminPromoRedemption>;
+
+export const AdminPromoDetail = AdminPromoRow.extend({
+  /**
+   * False once any order has ever named this code, at any status.
+   *
+   * `orders.promo_code` is a varchar snapshot and the paid transaction looks the code up by that
+   * string. Renaming a used code reattributes history, and worse: a pending order priced under the
+   * old name reaches the webhook, finds no row, and takes the "no such promo" branch - the payment
+   * succeeds and the redemption is never recorded, so a per-customer limit stops binding.
+   */
+  canRenameCode: z.boolean(),
+  /** How many rows exist, so "the latest twenty of a hundred and thirty-seven" can be honest. */
+  redemptionCount: z.number().int().nonnegative(),
+  redemptions: z.array(AdminPromoRedemption),
+  updatedAt: IsoDate,
+});
+export type AdminPromoDetail = z.infer<typeof AdminPromoDetail>;
+
+/**
+ * The editable fields, declared once.
+ *
+ * `usedCount` is absent and `.strict()` turns an attempt to send it into a 422 rather than a
+ * discard. It is not an editorial field: making it writable is a way to make the usage limit lie in
+ * both directions with no record - set it to zero and a hundred-use campaign gives away two
+ * hundred. The honest lever is `usageLimit`, which means exactly one thing.
+ */
+export const AdminPromoFields = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .min(3)
+      .max(32)
+      .regex(/^[A-Z0-9][A-Z0-9-]*$/, 'Letters, digits and hyphens only'),
+    description: z.string().trim().max(200).nullable(),
+    discount: AdminPromoDiscount,
+    minOrderCents: Cents,
+    usageLimit: z.number().int().positive().max(2_147_483_647).nullable(),
+    usageLimitPerCustomer: z.number().int().positive().max(2_147_483_647).nullable(),
+    startsAt: IsoDate.nullable(),
+    endsAt: IsoDate.nullable(),
+    isActive: z.boolean(),
+  })
+  .strict();
+
+/**
+ * The two cross-field rules, declared once and applied to both input schemas.
+ *
+ * Predicates rather than a generic wrapper: a helper taking `z.ZodTypeAny` widens the object it is
+ * handed to an index signature, and the inferred payload stops naming its own fields.
+ */
+interface PromoWindow {
+  startsAt: string | null;
+  endsAt: string | null;
+  usageLimit: number | null;
+  usageLimitPerCustomer: number | null;
+}
+
+const windowIsOrdered = (value: PromoWindow): boolean =>
+  value.startsAt === null || value.endsAt === null || value.endsAt > value.startsAt;
+
+const WINDOW_MESSAGE = { message: 'The window ends before it starts', path: ['endsAt'] };
+
+/**
+ * "Each person may use this ten times" on a code usable five times in total is a limit that can
+ * never bind - not an error the cart would ever hit, which is exactly why nobody would find it.
+ */
+const limitsAgree = (value: PromoWindow): boolean =>
+  value.usageLimit === null ||
+  value.usageLimitPerCustomer === null ||
+  value.usageLimitPerCustomer <= value.usageLimit;
+
+const LIMITS_MESSAGE = {
+  message: 'A per-customer limit above the total limit can never bind',
+  path: ['usageLimitPerCustomer'],
+};
+
+export const AdminPromoInput = AdminPromoFields.refine(windowIsOrdered, WINDOW_MESSAGE).refine(
+  limitsAgree,
+  LIMITS_MESSAGE,
+);
+export type AdminPromoInput = z.infer<typeof AdminPromoInput>;
+
+/**
+ * The same fields without `isActive`, for a full-replace update.
+ *
+ * A PUT carrying it would let a stale edit form silently revert the kill switch somebody threw
+ * while the form was open. Turning a code on and off is its own small endpoint.
+ */
+export const AdminPromoUpdateInput = AdminPromoFields.omit({ isActive: true })
+  .refine(windowIsOrdered, WINDOW_MESSAGE)
+  .refine(limitsAgree, LIMITS_MESSAGE);
+export type AdminPromoUpdateInput = z.infer<typeof AdminPromoUpdateInput>;
+
+export const AdminPromoActiveInput = z.object({ isActive: z.boolean() }).strict();
+export type AdminPromoActiveInput = z.infer<typeof AdminPromoActiveInput>;
+
+// --------------------------------------------------------------------------------------
 // Customers
 // --------------------------------------------------------------------------------------
 
