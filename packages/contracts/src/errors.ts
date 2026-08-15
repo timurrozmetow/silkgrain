@@ -27,6 +27,10 @@ export const ErrorCode = z.enum([
 
   'ORDER_STATUS_INVALID',
 
+  'PRICE_BATCH_TOO_LARGE',
+  'PRICE_ROW_BLOCKED',
+  'PRICE_BELOW_COST',
+
   'INTERNAL',
 ]);
 
@@ -75,6 +79,16 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
    * Two operators on one order is the ordinary cause - the second reads a state that has moved.
    */
   ORDER_STATUS_INVALID: 409,
+
+  /** The scope matched more variants than one batch may hold; narrow it rather than truncate. */
+  PRICE_BATCH_TOO_LARGE: 422,
+  /**
+   * 409: a row the apply was asked to commit is blocked or has drifted since the preview. The
+   * same class as `CART_PRICE_MISMATCH` - the request was well formed, the server's own rows moved.
+   */
+  PRICE_ROW_BLOCKED: 409,
+  /** A selected row would sell under cost and `allowBelowCost` was not set. Confirm and retry. */
+  PRICE_BELOW_COST: 422,
 
   INTERNAL: 500,
 };

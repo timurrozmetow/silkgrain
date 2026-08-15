@@ -171,7 +171,7 @@ function purchasableVariant() {
 }
 
 /** Resolves category slugs to ids, folding in the children of any parent that was named. */
-async function resolveCategoryIds(db: Database, slugs: string[]): Promise<number[]> {
+export async function resolveCategoryIds(db: Database, slugs: string[]): Promise<number[]> {
   const named = await db
     .select({ id: categories.id })
     .from(categories)

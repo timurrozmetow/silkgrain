@@ -54,3 +54,18 @@ export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit'
 
 /** Monthly volume in pounds, as offered by the mockup's select. */
 export const VOLUME_BAND = ['50-200', '200-500', '500-2000', '2000+'] as const;
+
+/**
+ * Bounds for the back office's bulk price operations.
+ *
+ * A batch is capped so an operator does not apply to a subset believing it is the whole category,
+ * and so the transaction and its row locks stay bounded. The adjustment range refuses a raise past
+ * doubling or a cut past half - not a business rule so much as a guard against a typo'd basis-point
+ * figure moving a whole category by an order of magnitude. The sale range is a plausible discount:
+ * below one per cent is a rounding artefact, above seventy is almost always a slipped decimal.
+ */
+export const PRICE_BATCH_MAX = 500;
+export const PRICE_ADJUST_MIN_BASIS_POINTS = -5_000; // -50%
+export const PRICE_ADJUST_MAX_BASIS_POINTS = 10_000; // +100%
+export const SALE_DISCOUNT_MIN_BASIS_POINTS = 100; // 1%
+export const SALE_DISCOUNT_MAX_BASIS_POINTS = 7_000; // 70%

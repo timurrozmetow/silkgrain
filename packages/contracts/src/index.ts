@@ -15,5 +15,6 @@ export * from './modules/catalog';
 export * from './modules/checkout';
 export * from './modules/content';
 export * from './modules/order';
+export * from './modules/pricing';
 export * from './modules/settings';
 export * from './modules/wholesale';

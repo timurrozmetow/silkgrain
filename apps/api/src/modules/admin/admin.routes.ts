@@ -12,6 +12,10 @@ import {
   AdminOrderListResponse,
   AdminOrderNoteInput,
   AdminOrderStatusInput,
+  AdminPriceApplyInput,
+  AdminPriceApplyResult,
+  AdminPricePreview,
+  AdminPricePreviewInput,
   AdminPromoActiveInput,
   AdminPromoDetail,
   AdminPromoInput,
@@ -53,6 +57,7 @@ import {
   setAdminNote,
   setTracking,
 } from './orders.service';
+import { applyPricing, previewPricing } from './pricing.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
 import { createPromo, getPromo, listPromos, setPromoActive, updatePromo } from './promos.service';
@@ -577,6 +582,57 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) => setCustomerStatus(app.db, request.params.id, request.body.status),
+  );
+
+  // --------------------------------------------------------------------------------- pricing
+
+  routes.post(
+    '/pricing/preview',
+    {
+      onRequest: app.requireAdmin,
+      schema: {
+        tags: ['admin'],
+        summary: 'Compute every row a bulk price operation would touch, and write nothing',
+        description:
+          'The read half of the two-step machine. Each row carries a verdict - change, unchanged ' +
+          'or blocked - and a blocked row names why (a price at or below zero, a compare-at no ' +
+          'longer above the price, a sale on a variant already on sale) so it can be deselected ' +
+          'rather than surfacing as a 500 mid-batch. A scope matching more than the batch ceiling ' +
+          'is a 422, not a truncated list.',
+        security: [{ bearerAuth: [] }],
+        body: AdminPricePreviewInput,
+        response: { 200: AdminPricePreview, 401: ApiError, 422: ApiError },
+      },
+    },
+    (request) => previewPricing(app.db, request.body),
+  );
+
+  routes.post(
+    '/pricing/apply',
+    {
+      onRequest: app.requireRole('owner', 'manager'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Apply a bulk price operation to the confirmed rows',
+        description:
+          'All rows or none, in one transaction with the affected rows locked in id order. Each ' +
+          'row carries the price the operator saw as a precondition; the server recomputes from ' +
+          'its own locked row and never writes a figure the client sent. A row that drifted since ' +
+          'the preview, one that recomputes to blocked, or one that would sell under cost without ' +
+          '`allowBelowCost`, refuses the whole batch - there is no audit log yet, so a partial ' +
+          'apply would be unrecoverable.',
+        security: [{ bearerAuth: [] }],
+        body: AdminPriceApplyInput,
+        response: {
+          200: AdminPriceApplyResult,
+          401: ApiError,
+          403: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => applyPricing(app.db, request.body),
   );
 
   // ---------------------------------------------------------------------------- promo codes

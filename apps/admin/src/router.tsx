@@ -5,6 +5,7 @@ import { customersRoute } from './routes/customers';
 import { dashboardRoute } from './routes/dashboard';
 import { orderDetailRoute } from './routes/order-detail';
 import { ordersRoute } from './routes/orders';
+import { pricingRoute } from './routes/pricing';
 import { productEditRoute } from './routes/product-edit';
 import { productNewRoute } from './routes/product-new';
 import { productsRoute } from './routes/products';
@@ -37,6 +38,7 @@ const routeTree = rootRoute.addChildren([
   promosRoute,
   promoNewRoute,
   promoDetailRoute,
+  pricingRoute,
   settingsRoute,
 ]);
 

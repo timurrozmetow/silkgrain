@@ -492,7 +492,35 @@ Each code's state is derived on every read, never stored, in the cart evaluator'
   accounting fact the paid transaction writes and is in no input schema; `.strict()` turns an attempt
   to send it into a 422.
 
-That finishes task 7.7. Then RBAC and the audit log (7.8) and the end-to-end scenario (7.9).
+**Bulk pricing is done**, 19 tests, and finishes task 7.7. A two-step machine: a preview that
+computes every affected row and writes nothing, then an apply that re-derives the same figures from
+locked rows and refuses if anything moved underneath. The client echoes back what it saw as a
+precondition, never as an instruction - the server writes only figures it recomputes from its own
+rows, which is the admin-side reading of "a stale total is a 409, never a silent charge".
+
+`computeChange` is the whole of the arithmetic and is pure, so most of the rounding proof is a
+plain unit test with no database. Rounding is one step, half to even, through
+`Money.basisPoints(10_000 + delta)` - the codebase's only percentage rounding, and one step rather
+than two because rounding an intermediate the operator never sees can flip the parity half-even
+tests: 1005 +10% is 1106 in one step and 1105 in two. The worked example a test pins: +2.5% turns
+2500 into 2562 (2562 is even) and 9900 into 10148 (10147 is odd) - two ties rounding opposite ways,
+which is exactly what half-up would get wrong, gaining the shop half a cent on every tie forever.
+
+A result that breaks a database rule is `blocked`, not clamped: a price at or below zero, a
+compare-at no longer above the price, a `start_sale` on a variant already on sale (the one
+irreversible mistake - the true list price would be gone). A blocked row becomes one an operator
+deselects rather than a 500 mid-transaction. compare-at moves with the price under every operation,
+or a raise silently shrinks the advertised discount until the Sale badge - which by D-12 _is_ the
+compare-at - quietly stops being true. Selling under cost is possible but never silent: a below-cost
+row needs `allowBelowCost`. The whole apply is one transaction with the rows locked in id order (the
+product form writes the same columns), all rows or none, because there is no audit log yet and a
+partial apply would be unrecoverable.
+
+Verified in the browser against the dev catalogue: previewed +2.5% across the lentils category and
+read the half-even figures ($8.99→$9.21, $9.99→$10.24, $5.50→$5.64), confirmed the preview wrote
+nothing, applied to one SKU and saw the row store 564 exactly, then restored it to 550.
+
+Then RBAC and the audit log (7.8) and the end-to-end scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
@@ -733,6 +761,8 @@ PATCH  /api/admin/products/:id/images/:imageId   set alt text
 DELETE /api/admin/products/:id/images/:imageId   delete; primary passes on
 GET    /api/admin/orders                         list; q matches number or email
 GET    /api/admin/orders/:orderNumber            detail, with allowedTransitions
+POST   /api/admin/pricing/preview               compute a bulk price change; writes nothing
+POST   /api/admin/pricing/apply                 apply it, all rows or none, on locked rows
 GET    /api/admin/promos                         promo codes, each with its derived state
 GET    /api/admin/promos/:id                     one code with its latest redemptions
 POST   /api/admin/promos                         create
