@@ -16,8 +16,9 @@ import {
   WholesaleStatus,
 } from '../enums';
 import { paginated } from '../pagination';
-import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
+import { Cents, Currency, Email, Id, IsoDate, Slug } from '../primitives';
 
+import { AdminProfile, Password } from './auth';
 import { QueryBoolean } from './catalog';
 import { OrderView } from './order';
 
@@ -448,6 +449,85 @@ export type AdminCustomerDetail = z.infer<typeof AdminCustomerDetail>;
  */
 export const AdminCustomerStatusInput = z.object({ status: CustomerStatus }).strict();
 export type AdminCustomerStatusInput = z.infer<typeof AdminCustomerStatusInput>;
+
+// --------------------------------------------------------------------------------------
+// The team
+// --------------------------------------------------------------------------------------
+
+/**
+ * One administrator, as the owner's Team screen reads them.
+ *
+ * Extends `AdminProfile` - the shape the signed-in admin already receives about themselves - rather
+ * than restating it, so one account cannot be described two ways. What it adds is what only this
+ * screen needs: whether the account is still active, and when it was created.
+ *
+ * There is no `passwordHash` field, so the serialiser cannot emit one even if the service hands it
+ * a whole row. That is the same reason `AdminCustomerDetail` has no session list.
+ */
+export const AdminTeamMember = AdminProfile.extend({
+  isActive: z.boolean(),
+  createdAt: IsoDate,
+});
+export type AdminTeamMember = z.infer<typeof AdminTeamMember>;
+
+/**
+ * The whole team, deactivated accounts included.
+ *
+ * Unlike `AdminUserOption` - the assignee picker, which lists only accounts that can be given work
+ * - this screen exists to manage the ones that cannot. A wrapped object rather than a bare array,
+ * so the response can grow a field without becoming a different shape.
+ */
+export const AdminTeamList = z.object({ members: z.array(AdminTeamMember) });
+export type AdminTeamList = z.infer<typeof AdminTeamList>;
+
+/**
+ * A new administrator.
+ *
+ * The owner sets the initial password. There is no email invite: that needs a token table, an
+ * expiry, a public accept page and mail delivery - a feature, not a guard - and without an owner
+ * who can set one, a forgotten password is unrecoverable without SQL, because the email is unique
+ * and the account cannot simply be recreated. Reset-by-email is in `BACKLOG.md`.
+ *
+ * `Password` is the same policy customers get, stated once. `.strict()` turns an attempt to post
+ * `isActive: false` or a `passwordHash` into a 422 at the type provider rather than something the
+ * service has to think about.
+ */
+export const AdminTeamCreateInput = z
+  .object({
+    email: Email,
+    name: z.string().trim().min(1).max(120),
+    role: AdminRole,
+    password: Password,
+  })
+  .strict();
+export type AdminTeamCreateInput = z.infer<typeof AdminTeamCreateInput>;
+
+/**
+ * What may be changed about an existing account.
+ *
+ * Email is deliberately absent: it is the login identity and the unique key, and changing it moves
+ * an account somebody may be trying to sign in to. Password is absent too - it is a credential, and
+ * it must not ride along in a form that also renames somebody.
+ */
+export const AdminTeamUpdateInput = z
+  .object({
+    name: AdminTeamCreateInput.shape.name.optional(),
+    role: AdminRole.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+export type AdminTeamUpdateInput = z.infer<typeof AdminTeamUpdateInput>;
+
+/**
+ * An owner resetting somebody else's password.
+ *
+ * Derived by `.pick()` so the policy cannot drift between creating an account and resetting it. No
+ * `currentPassword`: this is the owner resetting a password they do not know, which is the entire
+ * point of it existing.
+ */
+export const AdminTeamPasswordInput = AdminTeamCreateInput.pick({ password: true });
+export type AdminTeamPasswordInput = z.infer<typeof AdminTeamPasswordInput>;
 
 // --------------------------------------------------------------------------------------
 // Wholesale enquiries

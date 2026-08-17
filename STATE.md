@@ -555,7 +555,26 @@ customer owed money this panel cannot move (D-28), and `cancelled: []` means the
 `adminActor(request)` replaced the inline narrow the wholesale-notes route was carrying; it is the
 one place the actor's id and role are read, and the audit log will hang off it.
 
-Still to come in 7.8: the Team screen (nothing can write
+**The Team surface is done**, 18 tests. It exists because the matrix needed somewhere to be
+administered from: nothing could write `admin_users.role` before it, so the only way to make
+somebody a manager was an UPDATE in Studio — D-29's situation exactly, applied to authority rather
+than to a customer's account.
+
+Its four routes are the only ones behind `requireFreshPermission`, which re-reads `admin_users` on
+every request. Every other permission merely delays inside the fifteen-minute token window;
+`team:manage` breaks that bargain, because inside the window a demoted owner could create a second
+owner account and undo their demotion permanently (D-32). Reducing authority revokes the target's
+refresh families; promoting does not, because their next refresh re-reads the row anyway.
+
+Three guards, all against the same failure — an owner locking the shop out of its own back office.
+No changing your own role, no deactivating yourself, and no change that leaves zero active owners,
+the last checked under `FOR UPDATE` so two owners cannot demote each other at once. All three are
+409: the request is well-formed and authorised, and what is refused is the state it would produce.
+There is no DELETE at any role (D-33). Accounts are created with a password the owner sets, because
+an email invite needs a token table, an expiry, a public accept page and mail delivery — a feature,
+not a guard — and without it a forgotten password is unrecoverable without SQL.
+
+Still to come in 7.8: (nothing can write
 `admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
 the audit writer and its screen, and the panel's own permission gating. Then the end-to-end
 scenario (7.9).

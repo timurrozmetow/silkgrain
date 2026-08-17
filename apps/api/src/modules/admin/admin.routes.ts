@@ -31,6 +31,11 @@ import {
   AdminSettingsInput,
   AdminShippingRate,
   AdminShippingRateInput,
+  AdminTeamCreateInput,
+  AdminTeamList,
+  AdminTeamMember,
+  AdminTeamPasswordInput,
+  AdminTeamUpdateInput,
   AdminTrackingInput,
   AdminUserOption,
   AdminWholesaleDetail,
@@ -69,6 +74,7 @@ import {
   saveSettings,
   saveShippingRate,
 } from './settings.service';
+import { createTeamMember, listTeam, resetTeamPassword, updateTeamMember } from './team.service';
 import {
   addWholesaleNote,
   getWholesaleRequest,
@@ -494,6 +500,129 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         request.body.adminNote,
         adminActor(request).role,
       ),
+  );
+
+  // ------------------------------------------------------------------------------------ team
+
+  /**
+   * `requireFreshPermission`, not `requirePermission`.
+   *
+   * Every other permission merely delays inside the fifteen-minute token window - a demoted manager
+   * keeps manager powers until the token expires, which is the bargain a short-lived stateless
+   * token exists to make. `team:manage` breaks that bargain: inside the window a demoted owner
+   * could create a second owner account and undo their own demotion permanently. So these four
+   * re-read `admin_users` on every request and the window is zero (D-32).
+   */
+  routes.get(
+    '/team',
+    {
+      onRequest: app.requireFreshPermission('team:manage'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Every administrator, deactivated ones included',
+        description:
+          'Unlike `GET /users` - the assignee picker, which lists only accounts that can be given ' +
+          'work - this screen exists to manage the ones that cannot. No response here carries a ' +
+          'password hash: `AdminTeamMember` has no field for one.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminTeamList, 401: ApiError, 403: ApiError },
+      },
+    },
+    () => listTeam(app.db),
+  );
+
+  routes.post(
+    '/team',
+    {
+      onRequest: app.requireFreshPermission('team:manage'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Add an administrator',
+        description:
+          'The owner sets the initial password. There is no email invite: that needs a token ' +
+          'table, an expiry, a public accept page and mail delivery - a feature, not a guard - ' +
+          'and without an owner who can set one, a forgotten password is unrecoverable without ' +
+          'SQL, because the email is unique and the account cannot simply be recreated.',
+        security: [{ bearerAuth: [] }],
+        body: AdminTeamCreateInput,
+        response: {
+          201: AdminTeamMember,
+          401: ApiError,
+          403: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request, reply) => {
+      const created = await createTeamMember(app.db, request.body);
+      return reply.status(201).send(created);
+    },
+  );
+
+  routes.patch(
+    '/team/:id',
+    {
+      onRequest: app.requireFreshPermission('team:manage'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Rename, re-role or retire an administrator',
+        description:
+          'Three 409s guard the same failure - an owner locking the shop out of its own back ' +
+          'office. An owner may not change their own role, may not deactivate themselves, and no ' +
+          'change may leave zero active owners. There is no DELETE at any role: deleting an ' +
+          'account nulls its audit entries, orphans the wholesale notes it wrote and empties the ' +
+          'enquiries it was assigned. Reducing somebody’s authority revokes their sessions; ' +
+          'promoting them does not.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminTeamUpdateInput,
+        response: {
+          200: AdminTeamMember,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => updateTeamMember(app.db, request.params.id, request.body, adminActor(request)),
+  );
+
+  routes.patch(
+    '/team/:id/password',
+    {
+      onRequest: app.requireFreshPermission('team:manage'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Reset an administrator’s password',
+        description:
+          'Somebody else’s, never your own - that goes through the account, which asks for the ' +
+          'current password. Always revokes the target’s sessions, so a password changed because ' +
+          'it may have leaked also ends every session it may have leaked into.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminTeamPasswordInput,
+        response: {
+          204: z.null(),
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request, reply) => {
+      await resetTeamPassword(
+        app.db,
+        request.params.id,
+        request.body.password,
+        adminActor(request),
+      );
+      return reply.status(204).send();
+    },
   );
 
   // ------------------------------------------------------------------------------- wholesale
