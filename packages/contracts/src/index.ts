@@ -6,6 +6,7 @@ export * from './errors';
 export * from './enums';
 export * from './money';
 export * from './pagination';
+export * from './rbac';
 
 export * from './modules/account';
 export * from './modules/admin';

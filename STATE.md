@@ -520,7 +520,33 @@ Verified in the browser against the dev catalogue: previewed +2.5% across the le
 read the half-even figures ($8.99→$9.21, $9.99→$10.24, $5.50→$5.64), confirmed the preview wrote
 nothing, applied to one SKU and saw the row store 564 exactly, then restored it to 550.
 
-Then RBAC and the audit log (7.8) and the end-to-end scenario (7.9).
+**Task 7.8 is under way. The permission matrix is done**, 12 tests.
+
+`ADMIN_PERMISSIONS` in `packages/contracts/src/rbac.ts` is one table with two consumers — the
+Fastify guards and, next, the panel (D-30). Nineteen named permissions; every one of the 32 admin
+routes now carries exactly one `requirePermission`, and bare `requireAdmin` is gone from
+`admin.routes.ts`. `AccessTokenClaims` became a discriminated union on `typ`, so an admin token
+without a role is unrepresentable rather than merely unusual — the guard used to carry
+`if (!role || ...)`, a branch for a token that should not have been able to exist.
+
+Two gates the earlier phases built were reversed, and both reversals were of the built code rather
+than of Q-29's proposal (D-31). `GET /api/admin/settings` is owner and manager, because it is an
+unfiltered read of a table whose schema comment says a non-public row is where an API key would
+live; support keeps the half it is asked about through a new `GET /api/admin/shipping-rates`.
+`POST /api/admin/pricing/preview` joins the apply at owner and manager, because a preview is step
+one of a two-step write, not a report. Products gained a gate they never had: a support account
+could create, edit and archive the catalogue.
+
+The test that matters is the sweep. It reads the routing table through an `onRoute` hook rather
+than a list written beside it — a list would be the second copy this task exists to remove — walks
+every registered admin route unauthenticated and asserts 401 on each, then walks every read for
+all three roles and asserts the status the table predicts, in one assertion so a failure names
+every disagreement at once.
+
+Still to come in 7.8: order cancellation above support, the Team screen (nothing can write
+`admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
+the audit writer and its screen, and the panel's own permission gating. Then the end-to-end
+scenario (7.9).
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

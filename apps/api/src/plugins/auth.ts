@@ -1,6 +1,13 @@
 import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
-import { AccessTokenClaims, type AdminRole, type SubjectType } from '@silkgrain/contracts';
+import {
+  AccessTokenClaims,
+  type AdminPermission,
+  type AdminRole,
+  type SubjectType,
+  can,
+} from '@silkgrain/contracts';
+import { and, eq } from 'drizzle-orm';
 import type {
   FastifyInstance,
   FastifyReply,
@@ -9,6 +16,7 @@ import type {
 } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { adminUsers } from '../db/schema';
 import type { Env } from '../env';
 import { parseDuration } from '../env';
 import { forbidden, unauthorized } from '../lib/errors';
@@ -33,8 +41,22 @@ declare module 'fastify' {
     optionalCustomer: onRequestAsyncHookHandler;
     /** Rejects anything that is not a signed-in administrator. */
     requireAdmin: onRequestAsyncHookHandler;
-    /** Rejects an administrator whose role is not in the list. */
-    requireRole: (...roles: AdminRole[]) => onRequestAsyncHookHandler;
+    /**
+     * Rejects an administrator whose role does not carry the named permission.
+     *
+     * The role comes from the JWT and no database is read, which is the bargain a short-lived
+     * stateless token exists to make: a demotion takes effect when the fifteen-minute access
+     * token next refreshes, and `/auth/admin/refresh` re-reads the row to make sure it does.
+     */
+    requirePermission: (permission: AdminPermission) => onRequestAsyncHookHandler;
+    /**
+     * The same, but re-reading `admin_users` so the window is zero.
+     *
+     * Only for `team:manage`. Every other permission merely delays inside that window;
+     * `team:manage` can mint a permanent replacement in it - a demoted owner creates a second
+     * owner account and the demotion is undone. Decision D-32.
+     */
+    requireFreshPermission: (permission: AdminPermission) => onRequestAsyncHookHandler;
     signAccessToken: (claims: AccessTokenClaims) => string;
     accessTokenTtl: number;
     refreshTokenTtl: number;
@@ -159,12 +181,46 @@ export const authPlugin = fp<AuthOptions>(
       },
     );
 
-    app.decorate('requireRole', (...roles: AdminRole[]) => {
+    /**
+     * The role on the request, or a 401.
+     *
+     * `AccessTokenClaims` is a discriminated union, so an admin token always carries a role and
+     * this narrow is total. The `typ` check is what `verifyFor('admin')` already guarantees; it is
+     * repeated here only to satisfy the compiler at the narrow.
+     */
+    function adminRole(request: FastifyRequest): AdminRole {
+      const auth = request.auth;
+      if (auth?.typ !== 'admin') throw unauthorized('No administrator');
+      return auth.role;
+    }
+
+    app.decorate('requirePermission', (permission: AdminPermission) => {
       const requireAdmin = verifyFor('admin');
       return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         await requireAdmin(request, reply);
-        const role = request.auth?.role;
-        if (!role || !roles.includes(role)) {
+        if (!can(adminRole(request), permission)) {
+          throw forbidden('Your role does not allow this action');
+        }
+      };
+    });
+
+    app.decorate('requireFreshPermission', (permission: AdminPermission) => {
+      const requireAdmin = verifyFor('admin');
+      return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        await requireAdmin(request, reply);
+
+        // The token's role is checked first, so an account with no business here never reaches
+        // the database at all.
+        const claimed = adminRole(request);
+        if (!can(claimed, permission)) throw forbidden('Your role does not allow this action');
+
+        const [row] = await app.db
+          .select({ role: adminUsers.role })
+          .from(adminUsers)
+          .where(and(eq(adminUsers.id, request.auth?.sub ?? 0), eq(adminUsers.isActive, true)));
+        // Deactivated between minting and now, or demoted: the token says one thing and the row
+        // says another, and for this permission the row wins immediately.
+        if (!row || !can(row.role, permission)) {
           throw forbidden('Your role does not allow this action');
         }
       };

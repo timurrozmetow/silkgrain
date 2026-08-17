@@ -120,11 +120,30 @@ export type RefreshResult = z.infer<typeof RefreshResult>;
  * a customer token presented to an admin route fails on `typ`, not on a role lookup, so the
  * two contours cannot be crossed even if a role is ever misconfigured.
  */
-export const AccessTokenClaims = z.object({
-  sub: Id,
-  typ: z.enum(['customer', 'admin']),
-  role: AdminRole.optional(),
-  /** Session identity, so a single refresh-token family can be revoked wholesale. */
-  sid: z.string(),
-});
+export const AccessTokenClaims = z.discriminatedUnion('typ', [
+  z.object({
+    sub: Id,
+    typ: z.literal('customer'),
+    /** Session identity, so a single refresh-token family can be revoked wholesale. */
+    sid: z.string(),
+  }),
+  /**
+   * An admin token always carries a role.
+   *
+   * It used to be `role: AdminRole.optional()` on one flat object, and the symptom was visible in
+   * the guard: `if (!role || !roles.includes(role))` had a branch for a token that should not have
+   * been able to exist. Now that every admin route resolves a named permission from the role, an
+   * admin token without one is not "unauthorised", it is malformed - and the union says so at the
+   * only place that can still produce it, which is `jwt.verify`.
+   */
+  z.object({
+    sub: Id,
+    typ: z.literal('admin'),
+    role: AdminRole,
+    sid: z.string(),
+  }),
+]);
 export type AccessTokenClaims = z.infer<typeof AccessTokenClaims>;
+
+/** The admin half, for the places that have already narrowed on `typ`. */
+export type AdminTokenClaims = Extract<AccessTokenClaims, { typ: 'admin' }>;

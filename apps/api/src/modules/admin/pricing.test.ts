@@ -358,16 +358,19 @@ describe('bulk pricing', () => {
       expect(response.json<AdminPricePreview>().rows.length).toBeLessThanOrEqual(500);
     });
 
-    it('lets a support account preview but not apply', async () => {
+    it('keeps support out of the preview as well as the apply', async () => {
       const supportToken = await signIn('support@silkgrain.test');
       const headers = { authorization: `Bearer ${supportToken}` };
       const target = await devzira();
 
+      // A preview is not a report - it is step one of a two-step write, and no support ticket is
+      // answered by "what would a ten per cent markup do". Leaving it open would put a screen in
+      // reach whose only button is refused.
       const previewed = await preview(
         { scope: { status: 'active' }, operation: { kind: 'adjust_cents', deltaCents: 100 } },
         headers,
       );
-      expect(previewed.statusCode).toBe(200);
+      expect(previewed.statusCode).toBe(403);
 
       const applied = await apply(
         {

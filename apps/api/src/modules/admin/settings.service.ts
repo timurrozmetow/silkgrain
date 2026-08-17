@@ -72,6 +72,23 @@ function toRateView(row: typeof shippingRates.$inferSelect): AdminShippingRate {
   };
 }
 
+/**
+ * The shipping rates alone.
+ *
+ * Split out because `loadSettings` is an unfiltered read of a table whose own schema comment says a
+ * non-public row is where an API key would live - the seed already carries an internal ops address
+ * - so the whole payload is owner and manager only (D-31). This is the half a support agent
+ * genuinely needs: it answers "why was I charged postage" and "when will it arrive", and it
+ * contains nothing but prices and delivery estimates the storefront already prints.
+ */
+export async function loadShippingRates(db: Database): Promise<AdminShippingRate[]> {
+  const rates = await db
+    .select()
+    .from(shippingRates)
+    .orderBy(asc(shippingRates.position), asc(shippingRates.id));
+  return rates.map(toRateView);
+}
+
 export async function loadSettings(db: Database): Promise<AdminSettings> {
   const [rows, rates] = await Promise.all([
     db.select().from(settings),

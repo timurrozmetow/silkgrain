@@ -149,10 +149,14 @@ export function accessClaims(
   familyId: string,
   role?: AdminRole,
 ): AccessTokenClaims {
-  return {
-    sub: subjectId,
-    typ: subjectType,
-    sid: familyId,
-    ...(role === undefined ? {} : { role }),
-  };
+  if (subjectType === 'admin') {
+    // The union makes a role-less admin token unrepresentable, so the one caller that could still
+    // produce one - a future contour that forgets to pass it - fails here rather than minting a
+    // token every permission check then has to defend against.
+    if (role === undefined) {
+      throw new Error('An admin access token cannot be minted without a role');
+    }
+    return { sub: subjectId, typ: 'admin', role, sid: familyId };
+  }
+  return { sub: subjectId, typ: 'customer', sid: familyId };
 }

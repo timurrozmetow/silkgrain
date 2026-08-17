@@ -29,6 +29,7 @@ import {
   AdminProductListResponse,
   AdminSettings,
   AdminSettingsInput,
+  AdminShippingRate,
   AdminShippingRateInput,
   AdminTrackingInput,
   AdminUserOption,
@@ -61,7 +62,12 @@ import { applyPricing, previewPricing } from './pricing.service';
 import { createProduct, getAdminProduct, updateProduct } from './product-writer.service';
 import { listAdminProducts } from './products.service';
 import { createPromo, getPromo, listPromos, setPromoActive, updatePromo } from './promos.service';
-import { loadSettings, saveSettings, saveShippingRate } from './settings.service';
+import {
+  loadSettings,
+  loadShippingRates,
+  saveSettings,
+  saveShippingRate,
+} from './settings.service';
 import {
   addWholesaleNote,
   getWholesaleRequest,
@@ -73,15 +79,39 @@ import {
 /**
  * The back office's endpoints.
  *
- * Every route here is behind `requireAdmin`, which checks the token's `typ` as well as its
- * signature - a customer token presented to an admin route fails on the contour, not on a role
- * lookup, so the two cannot be crossed even if a role is ever misconfigured.
+ * Every route here carries exactly one named permission, resolved from `ADMIN_PERMISSIONS` in
+ * `packages/contracts` - the same table the panel reads to decide what to draw, so a control the
+ * API would refuse cannot appear (D-30). The guard checks the token's `typ` as well as its
+ * signature, so a customer token presented here fails on the contour rather than on a role lookup
+ * and the two cannot be crossed even if a role is ever misconfigured.
  *
- * The dashboard is readable by every role. Role-specific gates arrive with the routes that need
- * them (task 7.8); a read of figures the whole team works from is not one of them.
+ * The role comes from the fifteen-minute access token and no database is read, which is the bargain
+ * a short-lived stateless token exists to make: a demotion takes effect when the token next
+ * refreshes, and `/auth/admin/refresh` re-reads the row to make sure it does. The one exception is
+ * `team:manage`, which re-reads on every request because it is the permission that could mint a
+ * permanent replacement inside that window (D-32).
  */
+/**
+ * Every admin route and the permission its guard resolves, recorded as the routes register.
+ *
+ * The completeness test reads this rather than a list written beside it: a hand-kept list would be
+ * exactly the second copy this task exists to remove, and a route added without a guard would be
+ * missing from the list rather than failing the test. Fastify's own `printRoutes` cannot serve -
+ * it renders a tree and compresses shared prefixes, so a nested path is not printed in full.
+ */
+export const ADMIN_ROUTE_TABLE: { method: string; url: string }[] = [];
+
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   const routes = app.withTypeProvider<ZodTypeProvider>();
+
+  app.addHook('onRoute', (route) => {
+    if (!route.url.startsWith('/api/admin')) return;
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) {
+      if (method === 'HEAD') continue;
+      ADMIN_ROUTE_TABLE.push({ method, url: route.url });
+    }
+  });
 
   // Scoped to the admin routes, so the multipart content-type parser never touches the JSON
   // contours. One file, capped: a product photo over 12 MB is a phone dump nobody needs stored.
@@ -93,7 +123,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/dashboard',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('dashboard:read'),
       schema: {
         tags: ['admin'],
         summary: 'Dashboard figures for the last thirty days',
@@ -102,7 +132,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'shipped, delivered - the same definition the customer’s lifetime-spend card uses. A ' +
           'delta against an empty previous window is null rather than zero.',
         security: [{ bearerAuth: [] }],
-        response: { 200: AdminDashboard, 401: ApiError },
+        response: { 200: AdminDashboard, 401: ApiError, 403: ApiError },
       },
     },
     () => loadDashboard(app.db),
@@ -111,7 +141,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/products',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:read'),
       schema: {
         tags: ['admin'],
         summary: 'The product list, drafts and archived rows included',
@@ -121,7 +151,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'covers the SKU as well as the name, because an editor usually has the SKU in hand.',
         security: [{ bearerAuth: [] }],
         querystring: AdminProductListQuery,
-        response: { 200: AdminProductListResponse, 401: ApiError, 422: ApiError },
+        response: { 200: AdminProductListResponse, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => listAdminProducts(app.db, request.query),
@@ -133,7 +163,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/products/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:read'),
       schema: {
         tags: ['admin'],
         summary: 'One product, everything the form edits',
@@ -143,7 +173,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'the nutrition figures came from. Two audiences, two projections.',
         security: [{ bearerAuth: [] }],
         params: IdParams,
-        response: { 200: AdminProductDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminProductDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => getAdminProduct(app.db, request.params.id),
@@ -152,7 +188,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/products',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Create a product with its variants, certifications and panel',
@@ -165,6 +201,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         response: {
           201: AdminProductDetail,
           401: ApiError,
+          403: ApiError,
           409: ApiError,
           422: ApiError,
         },
@@ -179,7 +216,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/products/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Replace a product and reconcile its variants',
@@ -193,6 +230,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: AdminProductDetail,
           401: ApiError,
+          403: ApiError,
           404: ApiError,
           409: ApiError,
           422: ApiError,
@@ -210,7 +248,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/products/:id/images',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Upload one product image',
@@ -220,7 +258,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: IdParams,
         // The body is multipart, not JSON, so no body schema; the parser reads the file below.
-        response: { 201: ImageList, 401: ApiError, 404: ApiError, 413: ApiError, 422: ApiError },
+        response: {
+          201: ImageList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          413: ApiError,
+          422: ApiError,
+        },
       },
     },
     async (request, reply) => {
@@ -243,7 +288,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/products/:id/images',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Reorder images and choose the primary',
@@ -253,7 +298,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: IdParams,
         body: AdminImageArrangement,
-        response: { 200: ImageList, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: { 200: ImageList, 401: ApiError, 403: ApiError, 404: ApiError, 422: ApiError },
       },
     },
     async (request) => ({ images: await arrangeImages(app.db, request.params.id, request.body) }),
@@ -262,14 +307,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.patch(
     '/products/:id/images/:imageId',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Set an image’s alt text',
         security: [{ bearerAuth: [] }],
         params: ImageParams,
         body: AdminImageAltInput,
-        response: { 200: ImageList, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: { 200: ImageList, 401: ApiError, 403: ApiError, 404: ApiError, 422: ApiError },
       },
     },
     async (request) => ({
@@ -285,13 +330,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.delete(
     '/products/:id/images/:imageId',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('products:write'),
       schema: {
         tags: ['admin'],
         summary: 'Delete an image; the primary passes on if it was primary',
         security: [{ bearerAuth: [] }],
         params: ImageParams,
-        response: { 200: ImageList, 401: ApiError, 404: ApiError },
+        response: { 200: ImageList, 401: ApiError, 403: ApiError, 404: ApiError },
       },
     },
     async (request) => ({
@@ -304,7 +349,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/orders',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('orders:read'),
       schema: {
         tags: ['admin'],
         summary: 'The order list',
@@ -314,7 +359,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'together - which a single status filter cannot express.',
         security: [{ bearerAuth: [] }],
         querystring: AdminOrderListQuery,
-        response: { 200: AdminOrderListResponse, 401: ApiError, 422: ApiError },
+        response: { 200: AdminOrderListResponse, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => listAdminOrders(app.db, request.query),
@@ -323,7 +368,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/orders/:orderNumber',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('orders:read'),
       schema: {
         tags: ['admin'],
         summary: 'One order, with the transitions it may make',
@@ -334,7 +379,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'API will accept.',
         security: [{ bearerAuth: [] }],
         params: OrderNumberParams,
-        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminOrderDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => getAdminOrder(app.db, request.params.orderNumber),
@@ -343,7 +394,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.patch(
     '/orders/:orderNumber/status',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('orders:write'),
       schema: {
         tags: ['admin'],
         summary: 'Move an order along, with the tracking details that come with shipping it',
@@ -359,6 +410,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         response: {
           200: AdminOrderDetail,
           401: ApiError,
+          403: ApiError,
           404: ApiError,
           409: ApiError,
           422: ApiError,
@@ -388,7 +440,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/orders/:orderNumber/tracking',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('orders:write'),
       schema: {
         tags: ['admin'],
         summary: 'Correct the tracking details without touching the status',
@@ -398,7 +450,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: OrderNumberParams,
         body: AdminTrackingInput,
-        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminOrderDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => setTracking(app.db, request.params.orderNumber, request.body),
@@ -407,7 +465,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/orders/:orderNumber/note',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('orders:write'),
       schema: {
         tags: ['admin'],
         summary: 'The internal note',
@@ -417,7 +475,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: OrderNumberParams,
         body: AdminOrderNoteInput,
-        response: { 200: AdminOrderDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminOrderDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => setAdminNote(app.db, request.params.orderNumber, request.body.adminNote),
@@ -428,7 +492,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/wholesale/requests',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('wholesale:read'),
       schema: {
         tags: ['admin'],
         summary: 'Wholesale enquiries',
@@ -438,7 +502,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'investigating a flood of junk, not for printing beside a business name.',
         security: [{ bearerAuth: [] }],
         querystring: AdminWholesaleListQuery,
-        response: { 200: AdminWholesaleListResponse, 401: ApiError, 422: ApiError },
+        response: { 200: AdminWholesaleListResponse, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => listWholesaleRequests(app.db, request.query),
@@ -447,13 +511,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/wholesale/requests/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('wholesale:read'),
       schema: {
         tags: ['admin'],
         summary: 'One enquiry, with its note thread',
         security: [{ bearerAuth: [] }],
         params: IdParams,
-        response: { 200: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminWholesaleDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => getWholesaleRequest(app.db, request.params.id),
@@ -462,7 +532,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.patch(
     '/wholesale/requests/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('wholesale:write'),
       schema: {
         tags: ['admin'],
         summary: 'Set the status, the assignee, or both',
@@ -474,7 +544,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: IdParams,
         body: AdminWholesaleTriageInput,
-        response: { 200: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminWholesaleDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => triageWholesaleRequest(app.db, request.params.id, request.body),
@@ -483,7 +559,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/wholesale/requests/:id/notes',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('wholesale:write'),
       schema: {
         tags: ['admin'],
         summary: 'Append a note to the thread',
@@ -493,7 +569,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: IdParams,
         body: AdminWholesaleNoteInput,
-        response: { 201: AdminWholesaleDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          201: AdminWholesaleDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     async (request, reply) => {
@@ -516,7 +598,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/customers',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('customers:read'),
       schema: {
         tags: ['admin'],
         summary: 'The people who hold accounts',
@@ -528,7 +610,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'taken and kept, so it agrees with the customer’s own account card to the cent.',
         security: [{ bearerAuth: [] }],
         querystring: AdminCustomerListQuery,
-        response: { 200: AdminCustomerListResponse, 401: ApiError, 422: ApiError },
+        response: { 200: AdminCustomerListResponse, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => listCustomers(app.db, request.query),
@@ -537,7 +619,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/customers/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('customers:read'),
       schema: {
         tags: ['admin'],
         summary: 'One customer, with their ten most recent orders',
@@ -547,7 +629,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'refresh token is a credential.',
         security: [{ bearerAuth: [] }],
         params: IdParams,
-        response: { 200: AdminCustomerDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminCustomerDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => getCustomer(app.db, request.params.id),
@@ -558,7 +646,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     {
       // The first route in the panel to need more than a session. Suspending somebody is the kind
       // of thing a support account should not be able to do alone.
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('customers:block'),
       schema: {
         tags: ['admin'],
         summary: 'Suspend or restore an account',
@@ -589,7 +677,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/pricing/preview',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('pricing:bulk'),
       schema: {
         tags: ['admin'],
         summary: 'Compute every row a bulk price operation would touch, and write nothing',
@@ -601,7 +689,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'is a 422, not a truncated list.',
         security: [{ bearerAuth: [] }],
         body: AdminPricePreviewInput,
-        response: { 200: AdminPricePreview, 401: ApiError, 422: ApiError },
+        response: { 200: AdminPricePreview, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => previewPricing(app.db, request.body),
@@ -610,7 +698,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/pricing/apply',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('pricing:bulk'),
       schema: {
         tags: ['admin'],
         summary: 'Apply a bulk price operation to the confirmed rows',
@@ -640,7 +728,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/promos',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('promos:read'),
       schema: {
         tags: ['admin'],
         summary: 'Promo codes, with the state each one is in',
@@ -651,7 +739,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'the same rule expressed in SQL, fed the same clock.',
         security: [{ bearerAuth: [] }],
         querystring: AdminPromoListQuery,
-        response: { 200: AdminPromoListResponse, 401: ApiError, 422: ApiError },
+        response: { 200: AdminPromoListResponse, 401: ApiError, 403: ApiError, 422: ApiError },
       },
     },
     (request) => listPromos(app.db, request.query),
@@ -660,7 +748,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/promos/:id',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('promos:read'),
       schema: {
         tags: ['admin'],
         summary: 'One code, with its latest redemptions',
@@ -670,7 +758,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           'rate is not the rate it shipped under.',
         security: [{ bearerAuth: [] }],
         params: IdParams,
-        response: { 200: AdminPromoDetail, 401: ApiError, 404: ApiError, 422: ApiError },
+        response: {
+          200: AdminPromoDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
       },
     },
     (request) => getPromo(app.db, request.params.id),
@@ -679,7 +773,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.post(
     '/promos',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('promos:write'),
       schema: {
         tags: ['admin'],
         summary: 'Create a promo code',
@@ -706,7 +800,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/promos/:id',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('promos:write'),
       schema: {
         tags: ['admin'],
         summary: 'Replace a code’s fields',
@@ -735,7 +829,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.patch(
     '/promos/:id/active',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('promos:write'),
       schema: {
         tags: ['admin'],
         summary: 'Switch a code on or off',
@@ -763,7 +857,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/settings',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('settings:read'),
       schema: {
         tags: ['admin'],
         summary: 'Settings and shipping rates, in one read',
@@ -775,7 +869,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           '`malformed`, because a serialiser that refused either would 500 on the one screen ' +
           'that can fix them.',
         security: [{ bearerAuth: [] }],
-        response: { 200: AdminSettings, 401: ApiError },
+        response: { 200: AdminSettings, 401: ApiError, 403: ApiError },
       },
     },
     () => loadSettings(app.db),
@@ -784,7 +878,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.put(
     '/settings',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('settings:write'),
       schema: {
         tags: ['admin'],
         summary: 'Write the settings a card owns',
@@ -807,10 +901,29 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     (request) => saveSettings(app.db, request.body),
   );
 
+  routes.get(
+    '/shipping-rates',
+    {
+      onRequest: app.requirePermission('shipping:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'The shipping rates on their own',
+        description:
+          'Split from `GET /settings`, which is owner and manager only: that one is an unfiltered ' +
+          'read of a table whose schema comment says a non-public row is where an API key would ' +
+          'live (D-31). This is the half a support agent needs - it answers "why was I charged ' +
+          'postage" and "when will it arrive", and carries nothing the storefront does not print.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: z.array(AdminShippingRate), 401: ApiError, 403: ApiError },
+      },
+    },
+    () => loadShippingRates(app.db),
+  );
+
   routes.put(
     '/shipping-rates/:id',
     {
-      onRequest: app.requireRole('owner', 'manager'),
+      onRequest: app.requirePermission('settings:write'),
       schema: {
         tags: ['admin'],
         summary: 'Edit one shipping rate',
@@ -839,14 +952,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   routes.get(
     '/users',
     {
-      onRequest: app.requireAdmin,
+      onRequest: app.requirePermission('users:read'),
       schema: {
         tags: ['admin'],
         summary: 'The team, for the assignee picker',
         description:
           'Names and roles only. Inactive accounts are left out: they cannot be given work.',
         security: [{ bearerAuth: [] }],
-        response: { 200: z.array(AdminUserOption), 401: ApiError },
+        response: { 200: z.array(AdminUserOption), 401: ApiError, 403: ApiError },
       },
     },
     () => listAdminUsers(app.db),

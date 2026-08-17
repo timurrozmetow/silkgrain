@@ -1,4 +1,4 @@
-import type { AdminSettings, PublicSettings } from '@silkgrain/contracts';
+import type { AdminSettings, AdminShippingRate, PublicSettings } from '@silkgrain/contracts';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -239,17 +239,20 @@ describe('admin settings', () => {
     expect(row?.value).toBe('Complimentary shipping over $75');
   });
 
-  it('lets a support account read the settings but not write them', async () => {
+  it('keeps the whole settings payload away from support, rates and all', async () => {
     const supportToken = await signIn('support@silkgrain.test');
     const headers = { authorization: `Bearer ${supportToken}` };
 
+    // `loadSettings` is an unfiltered read of a table whose schema comment says a non-public row
+    // is where an API key would live, and the seed already carries an internal ops address. The
+    // payload is owner and manager only (D-31).
     const get = await app.inject({
       method: 'GET',
       url: '/api/admin/settings',
       remoteAddress: freshAddress(),
       headers,
     });
-    expect(get.statusCode).toBe(200);
+    expect(get.statusCode).toBe(403);
 
     const put = await app.inject({
       method: 'PUT',
@@ -259,6 +262,38 @@ describe('admin settings', () => {
       payload: { 'announcement.text': 'Nope' },
     });
     expect(put.statusCode).toBe(403);
+  });
+
+  it('gives support the shipping rates, which is the half it is actually asked about', async () => {
+    const supportToken = await signIn('support@silkgrain.test');
+    const headers = { authorization: `Bearer ${supportToken}` };
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/admin/shipping-rates',
+      remoteAddress: freshAddress(),
+      headers,
+    });
+    expect(response.statusCode).toBe(200);
+
+    const rates = response.json<AdminShippingRate[]>();
+    expect(rates.map((rate) => rate.code)).toContain('standard');
+    // Nothing but prices and estimates - the same figures the storefront prints.
+    expect(response.body).not.toContain('ops.notification_email');
+  });
+
+  it('will not let support edit a rate it can read', async () => {
+    const supportToken = await signIn('support@silkgrain.test');
+    const id = await rateId('standard');
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/admin/shipping-rates/${String(id)}`,
+      remoteAddress: freshAddress(),
+      headers: { authorization: `Bearer ${supportToken}` },
+      payload: validRate(),
+    });
+    expect(response.statusCode).toBe(403);
   });
 
   // -------------------------------------------------------------------------- shipping rates
