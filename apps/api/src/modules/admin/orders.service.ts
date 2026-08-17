@@ -6,7 +6,9 @@ import {
   type AdminOrderStatusInput,
   type AdminTrackingInput,
   ORDER_STATUS_TRANSITIONS,
+  type AdminRole,
   type OrderStatus,
+  can,
   pageBounds,
   pageMeta,
 } from '@silkgrain/contracts';
@@ -49,6 +51,27 @@ const STOCK_COMMITTED: readonly OrderStatus[] = ['paid', 'processing', 'shipped'
  */
 function allowedFor(status: OrderStatus): OrderStatus[] {
   return ORDER_STATUS_TRANSITIONS[status].filter((next) => next !== 'refunded');
+}
+
+/**
+ * The same list, narrowed to what this role may actually press.
+ *
+ * Support advances an order, fixes its tracking and writes its internal note - the work a support
+ * desk exists to do. It does not cancel. Cancelling a paid order returns committed stock, reverses
+ * `sold_count`, and leaves a customer who has paid for nothing until somebody issues a refund in
+ * the provider's own dashboard: money this panel cannot move (D-28). `cancelled: []` in the
+ * transition map means there is no undoing it either.
+ *
+ * A carve-out for `pending` orders - no money taken, no stock committed - was considered and
+ * dropped: nobody telephones support to cancel an abandoned checkout, so it would buy nothing and
+ * add a rule inviting "why this one and not that one".
+ *
+ * Used for the buttons the panel draws and, separately, checked before the write - the two must
+ * agree, and a client that skips the panel gets the same answer.
+ */
+export function allowedForRole(status: OrderStatus, role: AdminRole): OrderStatus[] {
+  const allowed = allowedFor(status);
+  return can(role, 'orders:cancel') ? allowed : allowed.filter((next) => next !== 'cancelled');
 }
 
 export async function listAdminOrders(
@@ -128,7 +151,11 @@ async function loadOrderRow(db: Database, orderNumber: string): Promise<OrderRow
   return row;
 }
 
-export async function getAdminOrder(db: Database, orderNumber: string): Promise<AdminOrderDetail> {
+export async function getAdminOrder(
+  db: Database,
+  orderNumber: string,
+  role: AdminRole,
+): Promise<AdminOrderDetail> {
   const row = await loadOrderRow(db, orderNumber);
   const view = await projectOrder(db, row);
 
@@ -156,7 +183,9 @@ export async function getAdminOrder(db: Database, orderNumber: string): Promise<
     customerName:
       customer[0] === undefined ? null : `${customer[0].firstName} ${customer[0].lastName}`.trim(),
     adminNote: row.adminNote,
-    allowedTransitions: allowedFor(row.status),
+    // Narrowed to what this role may press, so the panel's buttons and the API's answer are
+    // the same list rather than two lists that agree today.
+    allowedTransitions: allowedForRole(row.status, role),
     payment:
       payment === undefined
         ? null
@@ -192,7 +221,14 @@ export async function changeOrderStatus(
   db: Database,
   orderNumber: string,
   input: AdminOrderStatusInput,
+  role: AdminRole,
 ): Promise<StatusChangeOutcome> {
+  // Checked before the transaction opens: a role that may not cancel should not take a row lock
+  // to be told so, and a 403 is a different answer from "that transition is not allowed".
+  if (input.status === 'cancelled' && !can(role, 'orders:cancel')) {
+    throw new AppError('FORBIDDEN', 'Your role does not allow cancelling an order');
+  }
+
   const nowShipped = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -236,7 +272,7 @@ export async function changeOrderStatus(
     return input.status === 'shipped';
   });
 
-  return { detail: await getAdminOrder(db, orderNumber), nowShipped };
+  return { detail: await getAdminOrder(db, orderNumber, role), nowShipped };
 }
 
 /** Only the tracking fields the payload actually carried; `undefined` leaves a column alone. */
@@ -311,6 +347,7 @@ export async function setTracking(
   db: Database,
   orderNumber: string,
   input: AdminTrackingInput,
+  role: AdminRole,
 ): Promise<AdminOrderDetail> {
   const row = await loadOrderRow(db, orderNumber);
   await db
@@ -321,18 +358,19 @@ export async function setTracking(
       trackingUrl: input.trackingUrl,
     })
     .where(eq(orders.id, row.id));
-  return getAdminOrder(db, orderNumber);
+  return getAdminOrder(db, orderNumber, role);
 }
 
 export async function setAdminNote(
   db: Database,
   orderNumber: string,
   adminNote: string,
+  role: AdminRole,
 ): Promise<AdminOrderDetail> {
   const row = await loadOrderRow(db, orderNumber);
   await db
     .update(orders)
     .set({ adminNote: adminNote === '' ? null : adminNote })
     .where(eq(orders.id, row.id));
-  return getAdminOrder(db, orderNumber);
+  return getAdminOrder(db, orderNumber, role);
 }

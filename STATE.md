@@ -543,7 +543,19 @@ every registered admin route unauthenticated and asserts 401 on each, then walks
 all three roles and asserts the status the table predicts, in one assertion so a failure names
 every disagreement at once.
 
-Still to come in 7.8: order cancellation above support, the Team screen (nothing can write
+**Order cancellation is now above support**, 3 more tests. `allowedForRole` narrows the transition
+list by role, so the buttons the panel draws and the write the API accepts are one list rather than
+two that agree today; the check runs before the transaction opens, because a role that may not
+cancel should not take a row lock to be told so, and a 403 is a different answer from "that
+transition is not allowed". Support keeps everything else about an order — advancing it, fixing the
+tracking, writing the internal note — because that is the work a support desk exists to do.
+Cancelling is the one action that returns committed stock, reverses `sold_count` and leaves a paid
+customer owed money this panel cannot move (D-28), and `cancelled: []` means there is no undo.
+
+`adminActor(request)` replaced the inline narrow the wholesale-notes route was carrying; it is the
+one place the actor's id and role are read, and the audit log will hang off it.
+
+Still to come in 7.8: the Team screen (nothing can write
 `admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
 the audit writer and its screen, and the panel's own permission gating. Then the end-to-end
 scenario (7.9).

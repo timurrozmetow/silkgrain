@@ -52,12 +52,11 @@ describe('admin orders', () => {
     await app.emailQueue.obliterate({ force: true });
     fixture = await seedCatalogFixture(app.db);
 
-    await app.db.insert(adminUsers).values({
-      email: 'ops@silkgrain.test',
-      passwordHash: await hashPassword(FIXTURE_PASSWORD),
-      name: 'Dilnoza R.',
-      role: 'manager',
-    });
+    const hash = await hashPassword(FIXTURE_PASSWORD);
+    await app.db.insert(adminUsers).values([
+      { email: 'ops@silkgrain.test', passwordHash: hash, name: 'Dilnoza R.', role: 'manager' },
+      { email: 'desk@silkgrain.test', passwordHash: hash, name: 'Ben C.', role: 'support' },
+    ]);
     const login = await app.inject({
       method: 'POST',
       url: '/api/auth/admin/login',
@@ -394,6 +393,93 @@ describe('admin orders', () => {
     });
     expect(customerView.statusCode).toBe(200);
     expect(customerView.json<Record<string, unknown>>()).not.toHaveProperty('adminNote');
+  });
+
+  it('will not let a support account cancel an order', async () => {
+    const order = await placePaidOrder();
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin/login',
+      remoteAddress: freshAddress(),
+      payload: { email: 'desk@silkgrain.test', password: FIXTURE_PASSWORD },
+    });
+    const supportToken = login.json<{ accessToken: string }>().accessToken;
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/admin/orders/${order.number}/status`,
+      remoteAddress: freshAddress(),
+      headers: { authorization: `Bearer ${supportToken}` },
+      payload: { status: 'cancelled' },
+    });
+    // Cancelling returns committed stock and leaves a paid customer owed money this panel cannot
+    // move. 403, not 409: the transition is legal, the role is not.
+    expect(response.statusCode).toBe(403);
+
+    const [row] = await app.db.select().from(orders).where(eq(orders.id, order.id));
+    expect(row?.status).toBe('paid');
+  });
+
+  it('does not offer support a Cancel button it would be refused', async () => {
+    const order = await placePaidOrder();
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin/login',
+      remoteAddress: freshAddress(),
+      payload: { email: 'desk@silkgrain.test', password: FIXTURE_PASSWORD },
+    });
+    const supportToken = login.json<{ accessToken: string }>().accessToken;
+
+    const asSupport = await app.inject({
+      method: 'GET',
+      url: `/api/admin/orders/${order.number}`,
+      remoteAddress: freshAddress(),
+      headers: { authorization: `Bearer ${supportToken}` },
+    });
+    // The buttons the panel draws come from here, so the list and the write must agree.
+    expect(asSupport.json<AdminOrderDetail>().allowedTransitions).toEqual(['processing']);
+
+    const asManager = await app.inject({
+      method: 'GET',
+      url: `/api/admin/orders/${order.number}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(asManager.json<AdminOrderDetail>().allowedTransitions).toEqual([
+      'processing',
+      'cancelled',
+    ]);
+  });
+
+  it('still lets support advance and annotate the order it cannot cancel', async () => {
+    const order = await placePaidOrder();
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin/login',
+      remoteAddress: freshAddress(),
+      payload: { email: 'desk@silkgrain.test', password: FIXTURE_PASSWORD },
+    });
+    const headers = {
+      authorization: `Bearer ${login.json<{ accessToken: string }>().accessToken}`,
+    };
+
+    const advanced = await app.inject({
+      method: 'PATCH',
+      url: `/api/admin/orders/${order.number}/status`,
+      remoteAddress: freshAddress(),
+      headers,
+      payload: { status: 'processing' },
+    });
+    expect(advanced.statusCode).toBe(200);
+
+    const noted = await app.inject({
+      method: 'PUT',
+      url: `/api/admin/orders/${order.number}/note`,
+      remoteAddress: freshAddress(),
+      headers,
+      payload: { adminNote: 'Customer called about the delivery window' },
+    });
+    expect(noted.statusCode).toBe(200);
   });
 
   it('is a 404 for a number that was never issued', async () => {

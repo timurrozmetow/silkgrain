@@ -48,6 +48,7 @@ import { z } from 'zod';
 
 import { AppError } from '../../lib/errors';
 
+import { adminActor } from './actor';
 import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
@@ -388,7 +389,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => getAdminOrder(app.db, request.params.orderNumber),
+    (request) => getAdminOrder(app.db, request.params.orderNumber, adminActor(request).role),
   );
 
   routes.patch(
@@ -422,6 +423,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         app.db,
         request.params.orderNumber,
         request.body,
+        adminActor(request).role,
       );
       // After the transaction, never inside it: a mail server having a slow morning must not roll
       // back a shipment that has already left the building. `enqueueEmail` never throws into a
@@ -459,7 +461,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => setTracking(app.db, request.params.orderNumber, request.body),
+    (request) =>
+      setTracking(app.db, request.params.orderNumber, request.body, adminActor(request).role),
   );
 
   routes.put(
@@ -484,7 +487,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => setAdminNote(app.db, request.params.orderNumber, request.body.adminNote),
+    (request) =>
+      setAdminNote(
+        app.db,
+        request.params.orderNumber,
+        request.body.adminNote,
+        adminActor(request).role,
+      ),
   );
 
   // ------------------------------------------------------------------------------- wholesale
@@ -579,14 +588,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      // `requireAdmin` has run, so `auth` is present and its `sub` is the administrator's id.
-      const adminUserId = request.auth?.sub;
-      if (adminUserId === undefined) throw new AppError('UNAUTHORIZED', 'No administrator');
-
       const detail = await addWholesaleNote(
         app.db,
         request.params.id,
-        adminUserId,
+        adminActor(request).id,
         request.body.body,
       );
       return reply.status(201).send(detail);
