@@ -18,6 +18,10 @@ import { AppError } from '../../lib/errors';
 import { likePattern } from '../catalog/catalog.query';
 import { resolveCategoryIds } from '../catalog/catalog.service';
 
+import type { AdminActor } from './actor';
+import type { AuditPayload } from './audit.diff';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Bulk price operations, as a two-step machine.
  *
@@ -256,6 +260,8 @@ export async function previewPricing(
 export async function applyPricing(
   db: Database,
   input: AdminPriceApplyInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminPriceApplyResult> {
   return db.transaction(async (tx) => {
     const ids = input.rows.map((row) => row.variantId);
@@ -338,6 +344,38 @@ export async function applyPricing(
         newPriceCents: change.newPriceCents,
         compareAtPriceCents: row.compareAtPriceCents,
         newCompareAtPriceCents: change.newCompareAtPriceCents,
+      });
+    }
+
+    /**
+     * One entry, not one per row.
+     *
+     * The operator performed a single action - "raise the lentils category by 2.5%" - and five
+     * hundred entries would bury every other change in the log, which is the "log nobody reads"
+     * failure. It is also the shape BACKLOG's undo needs: a before-image of the whole batch,
+     * restorable as a unit, in one place rather than scattered across the timeline.
+     *
+     * Keyed by SKU rather than by variant id, so an entry stays legible after a variant is gone.
+     */
+    if (applied.length > 0) {
+      const before: AuditPayload = {};
+      const after: AuditPayload = {};
+      for (const row of applied) {
+        before[`${row.sku}.priceCents`] = row.priceCents;
+        after[`${row.sku}.priceCents`] = row.newPriceCents;
+        if (row.compareAtPriceCents !== row.newCompareAtPriceCents) {
+          before[`${row.sku}.compareAtPriceCents`] = row.compareAtPriceCents;
+          after[`${row.sku}.compareAtPriceCents`] = row.newCompareAtPriceCents;
+        }
+      }
+
+      await recordAudit(tx, actor, context, {
+        action: 'pricing.applied',
+        // A batch is not a row, so there is nothing to point at.
+        entityId: null,
+        entityLabel: `${String(applied.length)} variants`,
+        before,
+        after,
       });
     }
 

@@ -574,6 +574,28 @@ There is no DELETE at any role (D-33). Accounts are created with a password the 
 an email invite needs a token table, an expiry, a public accept page and mail delivery — a feature,
 not a guard — and without it a forgotten password is unrecoverable without SQL.
 
+**The audit log writes**, 10 tests, and it carries the task's one migration — `actor_role`,
+`entity_label` and two indexes on a table that has existed since migration 0000 with no writer at
+all. Seventeen actions over seventeen write routes, one string each.
+
+The entry goes in **inside the caller's transaction** (D-34). A Fastify hook cannot see the
+before-image, and that image is the whole point of `before`/`after`; a write after the commit can
+succeed while the audit fails, leaving a destructive change with no record. A failed audit write
+therefore fails the whole action — no try/catch, no best effort — which is only safe because the
+realistic failure is removed by construction: under `STRICT_TRANS_TABLES` an over-long varchar is
+an error rather than a truncation, so every string is clamped to its column first. Six services
+grew a transaction they did not have, and five moved their before-image read inside one.
+
+Every projector names its columns one at a time, never a spread (D-35). That is the file's whole
+security model: a spread would archive every column a table ever grows, including the next
+credential somebody adds, and `audit_log`'s comment has promised since Phase 2 that a password hash
+cannot end up there by accident. A test asserts no entry body contains `$argon2` or `passwordHash`.
+
+One entry per action the operator performed, not per row touched (D-36). A bulk price change over
+five hundred variants is one entry keyed by SKU; a settings save is one entry for the card. Two
+routes write nothing on purpose: a wholesale note is already an append-only row with its own author
+and time, so it _is_ the audit record, and the auth contour is covered by `refresh_tokens`.
+
 Still to come in 7.8: (nothing can write
 `admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
 the audit writer and its screen, and the panel's own permission gating. Then the end-to-end

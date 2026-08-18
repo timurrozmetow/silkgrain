@@ -16,6 +16,11 @@ import type { Database } from '../../db/client';
 import { settings, shippingRates } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
 
+import type { AdminActor } from './actor';
+import { diffSnapshots } from './audit.diff';
+import { settingsSnapshot, shippingRateSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Settings and shipping rates, read and written from one screen.
  *
@@ -127,6 +132,8 @@ export async function loadSettings(db: Database): Promise<AdminSettings> {
 export async function saveSettings(
   db: Database,
   input: AdminSettingsInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminSettings> {
   const entries = Object.entries(input).filter(([, value]) => value !== undefined) as [
     SettingKey,
@@ -134,9 +141,35 @@ export async function saveSettings(
   ][];
 
   await db.transaction(async (tx) => {
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+
     for (const [key, value] of entries) {
+      const [row] = await tx
+        .select({ value: settings.value })
+        .from(settings)
+        .where(eq(settings.key, key));
+      if (!row) throw notFound(`Setting ${key}`);
+
       const result = await tx.update(settings).set({ value }).where(eq(settings.key, key));
       if (result[0].affectedRows === 0) throw notFound(`Setting ${key}`);
+
+      before[key] = row.value;
+      after[key] = value;
+    }
+
+    // One entry for the card the operator pressed Save on, keyed by setting key - the same rule
+    // the bulk price change follows. Two rules for "when does a batch become N rows" is one too
+    // many, and it matches what the person actually did.
+    const delta = diffSnapshots(settingsSnapshot(before), settingsSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'settings.updated',
+        entityId: null,
+        entityLabel: null,
+        before: delta.before,
+        after: delta.after,
+      });
     }
   });
 
@@ -155,6 +188,8 @@ export async function saveShippingRate(
   db: Database,
   id: number,
   input: AdminShippingRateInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminSettings> {
   await db.transaction(async (tx) => {
     const rows = await tx.select().from(shippingRates).for('update');
@@ -184,6 +219,18 @@ export async function saveShippingRate(
         position: input.position,
       })
       .where(eq(shippingRates.id, id));
+
+    const [after] = await tx.select().from(shippingRates).where(eq(shippingRates.id, id));
+    const delta = after && diffSnapshots(shippingRateSnapshot(target), shippingRateSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'shipping_rate.updated',
+        entityId: id,
+        entityLabel: target.code,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
   });
 
   return loadSettings(db);

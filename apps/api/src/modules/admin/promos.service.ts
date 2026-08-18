@@ -17,6 +17,11 @@ import { orders, promoCodes, promoRedemptions } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
 import { likePattern } from '../catalog/catalog.query';
 
+import type { AdminActor } from './actor';
+import { diffSnapshots } from './audit.diff';
+import { promoSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Promo codes in the back office.
  *
@@ -276,7 +281,12 @@ function columnsFor(input: Omit<PromoFields, 'isActive'>) {
   };
 }
 
-export async function createPromo(db: Database, input: PromoFields): Promise<AdminPromoDetail> {
+export async function createPromo(
+  db: Database,
+  input: PromoFields,
+  actor: AdminActor,
+  context: AuditContext,
+): Promise<AdminPromoDetail> {
   const id = await db.transaction(async (tx) => {
     await assertCodeFree(tx, input.code, null);
     const [row] = await tx
@@ -284,6 +294,16 @@ export async function createPromo(db: Database, input: PromoFields): Promise<Adm
       .values({ ...columnsFor(input), isActive: input.isActive })
       .$returningId();
     if (!row) throw new AppError('INTERNAL', 'The promo code was not inserted');
+
+    const [created] = await tx.select().from(promoCodes).where(eq(promoCodes.id, row.id));
+    await recordAudit(tx, actor, context, {
+      action: 'promo.created',
+      entityId: row.id,
+      entityLabel: input.code,
+      // Nothing existed before, so the whole snapshot is the change.
+      before: null,
+      after: created ? promoSnapshot(created) : null,
+    });
     return row.id;
   });
 
@@ -303,6 +323,8 @@ export async function updatePromo(
   db: Database,
   id: number,
   input: Omit<PromoFields, 'isActive'>,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminPromoDetail> {
   await db.transaction(async (tx) => {
     const [existing] = await tx
@@ -322,6 +344,18 @@ export async function updatePromo(
 
     await assertCodeFree(tx, input.code, id);
     await tx.update(promoCodes).set(columnsFor(input)).where(eq(promoCodes.id, id));
+
+    const [after] = await tx.select().from(promoCodes).where(eq(promoCodes.id, id));
+    const delta = after && diffSnapshots(promoSnapshot(existing), promoSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'promo.updated',
+        entityId: id,
+        entityLabel: after.code,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
   });
 
   return getPromo(db, id);
@@ -332,8 +366,23 @@ export async function setPromoActive(
   db: Database,
   id: number,
   isActive: boolean,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminPromoDetail> {
-  const result = await db.update(promoCodes).set({ isActive }).where(eq(promoCodes.id, id));
-  if (result[0].affectedRows === 0) throw notFound('Promo code');
+  await db.transaction(async (tx) => {
+    const [row] = await tx.select().from(promoCodes).where(eq(promoCodes.id, id)).for('update');
+    if (!row) throw notFound('Promo code');
+    if (row.isActive === isActive) return;
+
+    await tx.update(promoCodes).set({ isActive }).where(eq(promoCodes.id, id));
+    await recordAudit(tx, actor, context, {
+      action: 'promo.active_changed',
+      entityId: id,
+      entityLabel: row.code,
+      before: { isActive: row.isActive },
+      after: { isActive },
+    });
+  });
+
   return getPromo(db, id);
 }

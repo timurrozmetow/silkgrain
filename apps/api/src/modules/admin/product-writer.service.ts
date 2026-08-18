@@ -16,6 +16,10 @@ import {
 } from '../../db/schema';
 import { AppError, notFound } from '../../lib/errors';
 
+import type { AdminActor } from './actor';
+import { diffChildren, diffSnapshots, mergeDiff } from './audit.diff';
+import { productSnapshot, variantSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
 import { listImages } from './images.service';
 
 /**
@@ -118,6 +122,8 @@ export async function getAdminProduct(db: Database, id: number): Promise<AdminPr
 export async function createProduct(
   db: Database,
   input: AdminProductInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<{ id: number }> {
   return db.transaction(async (tx) => {
     await assertCategoryExists(tx, input.categoryId);
@@ -135,6 +141,16 @@ export async function createProduct(
     if (!row) throw new AppError('INTERNAL', 'The product row was not inserted');
 
     await writeChildren(tx, row.id, input);
+
+    const [created] = await tx.select().from(products).where(eq(products.id, row.id));
+    await recordAudit(tx, actor, context, {
+      action: 'product.created',
+      entityId: row.id,
+      entityLabel: input.name,
+      before: null,
+      after: created ? productSnapshot(created) : null,
+    });
+
     return { id: row.id };
   });
 }
@@ -143,13 +159,19 @@ export async function updateProduct(
   db: Database,
   id: number,
   input: AdminProductInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<{ id: number }> {
   return db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select({ id: products.id, status: products.status, publishedAt: products.publishedAt })
-      .from(products)
-      .where(eq(products.id, id));
+    // The whole row, not three columns: the audit entry needs the before-image, and reading it
+    // twice would be two reads that can disagree.
+    const [existing] = await tx.select().from(products).where(eq(products.id, id));
     if (!existing) throw notFound('Product');
+
+    const variantsBefore = await tx
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.productId, id));
 
     await assertCategoryExists(tx, input.categoryId);
     await assertSlugFree(tx, input.slug, id);
@@ -165,6 +187,39 @@ export async function updateProduct(
       .where(eq(products.id, id));
 
     await writeChildren(tx, id, input);
+
+    const [after] = await tx.select().from(products).where(eq(products.id, id));
+    const variantsAfter = await tx
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.productId, id));
+
+    // The parent's own fields and its variants, in one entry. A variant added or removed reads as
+    // a key with null on the other side, which is how the screen renders it.
+    const delta = mergeDiff(
+      after ? diffSnapshots(productSnapshot(existing), productSnapshot(after)) : null,
+      (() => {
+        const children = diffChildren(
+          variantsBefore,
+          variantsAfter,
+          (variant) => variant.sku,
+          variantSnapshot,
+          'variants',
+        );
+        return Object.keys(children.after).length === 0 ? null : children;
+      })(),
+    );
+
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'product.updated',
+        entityId: id,
+        entityLabel: after?.name ?? existing.name,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
+
     return { id };
   });
 }

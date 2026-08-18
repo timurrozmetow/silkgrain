@@ -26,3 +26,20 @@ export function adminActor(request: FastifyRequest): AdminActor {
   if (auth?.typ !== 'admin') throw unauthorized('No administrator');
   return { id: auth.sub, role: auth.role };
 }
+
+/**
+ * Where the request came from, for the two columns `audit_log` already has.
+ *
+ * These are personal data about staff rather than customers, and they are what turns "somebody
+ * cancelled forty orders" into an answerable question. Clamped at the writer, not here, so one
+ * file owns every column width.
+ */
+export function auditContext(request: FastifyRequest): {
+  ip: string | null;
+  userAgent: string | null;
+} {
+  return {
+    ip: request.ip || null,
+    userAgent: request.headers['user-agent'] ?? null,
+  };
+}

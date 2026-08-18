@@ -7,6 +7,9 @@ import { AppError, notFound } from '../../lib/errors';
 import { processImage } from '../media/image.service';
 import type { Storage } from '../media/storage.service';
 
+import type { AdminActor } from './actor';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Managing a product's images.
  *
@@ -15,12 +18,16 @@ import type { Storage } from '../media/storage.service';
  * pixels, which is why a delete removes the row first and the object second, best-effort.
  */
 
-async function assertProduct(db: Database, productId: number): Promise<void> {
+async function assertProduct(
+  db: Database,
+  productId: number,
+): Promise<{ id: number; name: string }> {
   const [row] = await db
-    .select({ id: products.id })
+    .select({ id: products.id, name: products.name })
     .from(products)
     .where(eq(products.id, productId));
   if (!row) throw notFound('Product');
+  return row;
 }
 
 export async function listImages(db: Database, productId: number): Promise<AdminProductImage[]> {
@@ -54,8 +61,10 @@ export async function addImage(
   productId: number,
   file: Buffer,
   alt: string,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminProductImage[]> {
-  await assertProduct(db, productId);
+  const product = await assertProduct(db, productId);
 
   const processed = await processImage(file);
   const url = await storage.put(processed.key, processed.body, processed.contentType);
@@ -70,14 +79,24 @@ export async function addImage(
     .where(eq(productImages.productId, productId))
     .limit(1);
 
-  await db.insert(productImages).values({
-    productId,
-    url,
-    alt: alt.slice(0, 300),
-    width: processed.width,
-    height: processed.height,
-    position: (tail?.maxPosition ?? -1) + 1,
-    isPrimary: existing === undefined,
+  await db.transaction(async (tx) => {
+    await tx.insert(productImages).values({
+      productId,
+      url,
+      alt: alt.slice(0, 300),
+      width: processed.width,
+      height: processed.height,
+      position: (tail?.maxPosition ?? -1) + 1,
+      isPrimary: existing === undefined,
+    });
+
+    await recordAudit(tx, actor, context, {
+      action: 'product.image_added',
+      entityId: productId,
+      entityLabel: product.name,
+      before: null,
+      after: { url, alt: alt.slice(0, 300), isPrimary: existing === undefined },
+    });
   });
 
   return listImages(db, productId);
@@ -94,14 +113,17 @@ export async function arrangeImages(
   db: Database,
   productId: number,
   input: AdminImageArrangement,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminProductImage[]> {
-  await assertProduct(db, productId);
+  const product = await assertProduct(db, productId);
 
   const owned = await db
-    .select({ id: productImages.id })
+    .select({ id: productImages.id, isPrimary: productImages.isPrimary })
     .from(productImages)
     .where(eq(productImages.productId, productId));
   const ownedIds = new Set(owned.map((row) => row.id));
+  const previousPrimary = owned.find((row) => row.isPrimary)?.id ?? null;
 
   const orderedIds = new Set(input.order);
   const sameSize = orderedIds.size === input.order.length && orderedIds.size === ownedIds.size;
@@ -122,6 +144,14 @@ export async function arrangeImages(
         .set({ position, isPrimary: id === input.primaryId })
         .where(and(eq(productImages.id, id), eq(productImages.productId, productId)));
     }
+
+    await recordAudit(tx, actor, context, {
+      action: 'product.images_arranged',
+      entityId: productId,
+      entityLabel: product.name,
+      before: { order: owned.map((row) => row.id).join(','), primaryId: previousPrimary },
+      after: { order: input.order.join(','), primaryId: input.primaryId },
+    });
   });
 
   return listImages(db, productId);
@@ -132,13 +162,31 @@ export async function setImageAlt(
   productId: number,
   imageId: number,
   alt: string,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminProductImage[]> {
-  const result = await db
-    .update(productImages)
-    .set({ alt })
-    .where(and(eq(productImages.id, imageId), eq(productImages.productId, productId)));
-  // `rowsAffected` is 0 when the image is not this product's - a 404 rather than a silent no-op.
-  if (result[0].affectedRows === 0) throw notFound('Image');
+  const product = await assertProduct(db, productId);
+
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(productImages)
+      .where(and(eq(productImages.id, imageId), eq(productImages.productId, productId)))
+      .for('update');
+    // Absent when the image is not this product's - a 404 rather than a silent no-op.
+    if (!row) throw notFound('Image');
+    if (row.alt === alt) return;
+
+    await tx.update(productImages).set({ alt }).where(eq(productImages.id, imageId));
+    await recordAudit(tx, actor, context, {
+      action: 'product.image_updated',
+      entityId: productId,
+      entityLabel: product.name,
+      before: { alt: row.alt },
+      after: { alt },
+    });
+  });
+
   return listImages(db, productId);
 }
 
@@ -154,7 +202,10 @@ export async function removeImage(
   storage: Storage,
   productId: number,
   imageId: number,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminProductImage[]> {
+  const product = await assertProduct(db, productId);
   const [image] = await db
     .select()
     .from(productImages)
@@ -178,6 +229,14 @@ export async function removeImage(
           .where(eq(productImages.id, next.id));
       }
     }
+
+    await recordAudit(tx, actor, context, {
+      action: 'product.image_removed',
+      entityId: productId,
+      entityLabel: product.name,
+      before: { url: image.url, alt: image.alt, isPrimary: image.isPrimary },
+      after: null,
+    });
   });
 
   await storage.remove(image.url);

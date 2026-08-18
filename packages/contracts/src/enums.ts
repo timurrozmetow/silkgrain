@@ -227,3 +227,82 @@ export type RecipeDifficulty = z.infer<typeof RecipeDifficulty>;
 export const FAQ_CATEGORY = ['ordering', 'shipping', 'products', 'wholesale', 'returns'] as const;
 export const FaqCategory = z.enum(FAQ_CATEGORY);
 export type FaqCategory = z.infer<typeof FaqCategory>;
+
+// --------------------------------------------------------------------------------------
+// The audit log
+// --------------------------------------------------------------------------------------
+
+/** What an entry points at. `price_batch` is not a table - it is one bulk operation. */
+export const AUDIT_ENTITY_TYPE = [
+  'product',
+  'order',
+  'customer',
+  'promo_code',
+  'setting',
+  'shipping_rate',
+  'wholesale_request',
+  'price_batch',
+  'admin_user',
+] as const;
+export const AuditEntityType = z.enum(AUDIT_ENTITY_TYPE);
+export type AuditEntityType = z.infer<typeof AuditEntityType>;
+
+/**
+ * One action string per audited write route.
+ *
+ * One-to-one on purpose: it makes the vocabulary complete and testable, and a test asserts that
+ * the set of actions the routes actually produce is exactly this list. A route that grows without
+ * an action fails that test rather than quietly going unlogged.
+ *
+ * `POST /api/admin/wholesale/requests/:id/notes` is the deliberate omission. A wholesale note is
+ * already an append-only row carrying its author and the time - it *is* the audit record, and
+ * logging it would copy the thread into a second place that can disagree with it.
+ */
+export const AUDIT_ACTION = [
+  'product.created',
+  'product.updated',
+  'product.image_added',
+  'product.image_updated',
+  'product.images_arranged',
+  'product.image_removed',
+  'order.status_changed',
+  'order.tracking_updated',
+  'order.note_updated',
+  'customer.status_changed',
+  'promo.created',
+  'promo.updated',
+  'promo.active_changed',
+  'pricing.applied',
+  'settings.updated',
+  'shipping_rate.updated',
+  'wholesale.triaged',
+  'admin_user.created',
+  'admin_user.updated',
+  'admin_user.password_reset',
+] as const;
+export const AuditAction = z.enum(AUDIT_ACTION);
+export type AuditAction = z.infer<typeof AuditAction>;
+
+/** Which entity each action is about, so the writer never has to be told twice. */
+export const AUDIT_ACTION_ENTITY: Readonly<Record<AuditAction, AuditEntityType>> = {
+  'product.created': 'product',
+  'product.updated': 'product',
+  'product.image_added': 'product',
+  'product.image_updated': 'product',
+  'product.images_arranged': 'product',
+  'product.image_removed': 'product',
+  'order.status_changed': 'order',
+  'order.tracking_updated': 'order',
+  'order.note_updated': 'order',
+  'customer.status_changed': 'customer',
+  'promo.created': 'promo_code',
+  'promo.updated': 'promo_code',
+  'promo.active_changed': 'promo_code',
+  'pricing.applied': 'price_batch',
+  'settings.updated': 'setting',
+  'shipping_rate.updated': 'shipping_rate',
+  'wholesale.triaged': 'wholesale_request',
+  'admin_user.created': 'admin_user',
+  'admin_user.updated': 'admin_user',
+  'admin_user.password_reset': 'admin_user',
+};

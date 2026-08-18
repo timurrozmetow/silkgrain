@@ -66,6 +66,8 @@ const MUTABLE_TABLES = [
   'recipes',
   'wholesale_request_notes',
   'wholesale_requests',
+  // Every admin write now records one, so without this each test file leaks entries into the next.
+  'audit_log',
   'customers',
   'admin_users',
 ];

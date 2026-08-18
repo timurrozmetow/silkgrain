@@ -53,7 +53,7 @@ import { z } from 'zod';
 
 import { AppError } from '../../lib/errors';
 
-import { adminActor } from './actor';
+import { adminActor, auditContext } from './actor';
 import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
@@ -215,7 +215,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const created = await createProduct(app.db, request.body);
+      const created = await createProduct(
+        app.db,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      );
       return reply.status(201).send(await getAdminProduct(app.db, created.id));
     },
   );
@@ -245,7 +250,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => {
-      await updateProduct(app.db, request.params.id, request.body);
+      await updateProduct(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      );
       return getAdminProduct(app.db, request.params.id);
     },
   );
@@ -287,7 +298,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           ? String(altField.value)
           : '';
 
-      const images = await addImage(app.db, app.storage, request.params.id, buffer, alt);
+      const images = await addImage(
+        app.db,
+        app.storage,
+        request.params.id,
+        buffer,
+        alt,
+        adminActor(request),
+        auditContext(request),
+      );
       return reply.status(201).send({ images });
     },
   );
@@ -308,7 +327,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         response: { 200: ImageList, 401: ApiError, 403: ApiError, 404: ApiError, 422: ApiError },
       },
     },
-    async (request) => ({ images: await arrangeImages(app.db, request.params.id, request.body) }),
+    async (request) => ({
+      images: await arrangeImages(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
+    }),
   );
 
   routes.patch(
@@ -330,6 +357,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         request.params.id,
         request.params.imageId,
         request.body.alt,
+        adminActor(request),
+        auditContext(request),
       ),
     }),
   );
@@ -347,7 +376,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => ({
-      images: await removeImage(app.db, app.storage, request.params.id, request.params.imageId),
+      images: await removeImage(
+        app.db,
+        app.storage,
+        request.params.id,
+        request.params.imageId,
+        adminActor(request),
+        auditContext(request),
+      ),
     }),
   );
 
@@ -429,7 +465,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         app.db,
         request.params.orderNumber,
         request.body,
-        adminActor(request).role,
+        adminActor(request),
+        auditContext(request),
       );
       // After the transaction, never inside it: a mail server having a slow morning must not roll
       // back a shipment that has already left the building. `enqueueEmail` never throws into a
@@ -468,7 +505,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     (request) =>
-      setTracking(app.db, request.params.orderNumber, request.body, adminActor(request).role),
+      setTracking(
+        app.db,
+        request.params.orderNumber,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   routes.put(
@@ -498,7 +541,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         app.db,
         request.params.orderNumber,
         request.body.adminNote,
-        adminActor(request).role,
+        adminActor(request),
+        auditContext(request),
       ),
   );
 
@@ -555,7 +599,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const created = await createTeamMember(app.db, request.body);
+      const created = await createTeamMember(
+        app.db,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      );
       return reply.status(201).send(created);
     },
   );
@@ -587,7 +636,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => updateTeamMember(app.db, request.params.id, request.body, adminActor(request)),
+    (request) =>
+      updateTeamMember(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   routes.patch(
@@ -620,6 +676,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         request.params.id,
         request.body.password,
         adminActor(request),
+        auditContext(request),
       );
       return reply.status(204).send();
     },
@@ -691,7 +748,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => triageWholesaleRequest(app.db, request.params.id, request.body),
+    (request) =>
+      triageWholesaleRequest(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   routes.post(
@@ -803,7 +867,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => setCustomerStatus(app.db, request.params.id, request.body.status),
+    (request) =>
+      setCustomerStatus(
+        app.db,
+        request.params.id,
+        request.body.status,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   // --------------------------------------------------------------------------------- pricing
@@ -854,7 +925,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => applyPricing(app.db, request.body),
+    (request) => applyPricing(app.db, request.body, adminActor(request), auditContext(request)),
   );
 
   // ---------------------------------------------------------------------------- promo codes
@@ -928,7 +999,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => reply.status(201).send(await createPromo(app.db, request.body)),
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(await createPromo(app.db, request.body, adminActor(request), auditContext(request))),
   );
 
   routes.put(
@@ -957,7 +1031,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => updatePromo(app.db, request.params.id, request.body),
+    (request) =>
+      updatePromo(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   routes.patch(
@@ -983,7 +1064,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => setPromoActive(app.db, request.params.id, request.body.isActive),
+    (request) =>
+      setPromoActive(
+        app.db,
+        request.params.id,
+        request.body.isActive,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   // -------------------------------------------------------------------------------- settings
@@ -1032,7 +1120,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => saveSettings(app.db, request.body),
+    (request) => saveSettings(app.db, request.body, adminActor(request), auditContext(request)),
   );
 
   routes.get(
@@ -1080,7 +1168,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    (request) => saveShippingRate(app.db, request.params.id, request.body),
+    (request) =>
+      saveShippingRate(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   routes.get(

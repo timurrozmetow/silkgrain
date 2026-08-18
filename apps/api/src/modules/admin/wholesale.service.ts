@@ -16,6 +16,11 @@ import { adminUsers, wholesaleRequestNotes, wholesaleRequests } from '../../db/s
 import { AppError, notFound } from '../../lib/errors';
 import { likePattern } from '../catalog/catalog.query';
 
+import type { AdminActor } from './actor';
+import { diffSnapshots } from './audit.diff';
+import { wholesaleSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Wholesale enquiries, from the desk that answers them.
  *
@@ -174,11 +179,10 @@ export async function triageWholesaleRequest(
   db: Database,
   id: number,
   input: AdminWholesaleTriageInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminWholesaleDetail> {
-  const [row] = await db
-    .select({ id: wholesaleRequests.id })
-    .from(wholesaleRequests)
-    .where(eq(wholesaleRequests.id, id));
+  const [row] = await db.select().from(wholesaleRequests).where(eq(wholesaleRequests.id, id));
   if (!row) throw notFound('Wholesale request');
 
   if (input.assignedToId !== undefined && input.assignedToId !== null) {
@@ -189,13 +193,27 @@ export async function triageWholesaleRequest(
     if (!assignee) throw new AppError('VALIDATION_FAILED', 'No active administrator with that id');
   }
 
-  await db
-    .update(wholesaleRequests)
-    .set({
-      ...(input.status === undefined ? {} : { status: input.status }),
-      ...(input.assignedToId === undefined ? {} : { assignedToId: input.assignedToId }),
-    })
-    .where(eq(wholesaleRequests.id, id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(wholesaleRequests)
+      .set({
+        ...(input.status === undefined ? {} : { status: input.status }),
+        ...(input.assignedToId === undefined ? {} : { assignedToId: input.assignedToId }),
+      })
+      .where(eq(wholesaleRequests.id, id));
+
+    const [after] = await tx.select().from(wholesaleRequests).where(eq(wholesaleRequests.id, id));
+    const delta = after && diffSnapshots(wholesaleSnapshot(row), wholesaleSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'wholesale.triaged',
+        entityId: id,
+        entityLabel: row.businessName,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
+  });
 
   return getWholesaleRequest(db, id);
 }

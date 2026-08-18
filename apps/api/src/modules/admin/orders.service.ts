@@ -28,6 +28,11 @@ import { AppError, notFound } from '../../lib/errors';
 import { likePattern } from '../catalog/catalog.query';
 import { type OrderRow, projectOrder } from '../orders/orders.service';
 
+import type { AdminActor } from './actor';
+import { diffSnapshots } from './audit.diff';
+import { orderSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * The back office's orders: reading them, moving them along, and recording what was sent.
  *
@@ -221,8 +226,10 @@ export async function changeOrderStatus(
   db: Database,
   orderNumber: string,
   input: AdminOrderStatusInput,
-  role: AdminRole,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<StatusChangeOutcome> {
+  const role = actor.role;
   // Checked before the transaction opens: a role that may not cancel should not take a row lock
   // to be told so, and a 403 is a different answer from "that transition is not allowed".
   if (input.status === 'cancelled' && !can(role, 'orders:cancel')) {
@@ -268,6 +275,21 @@ export async function changeOrderStatus(
           : { adminNote: appendNote(row.adminNote, input.status, input.note, at) }),
       })
       .where(eq(orders.id, row.id));
+
+    const [after] = await tx.select().from(orders).where(eq(orders.id, row.id));
+    const delta = after && diffSnapshots(orderSnapshot(row), orderSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'order.status_changed',
+        entityId: row.id,
+        entityLabel: row.orderNumber,
+        before: delta.before,
+        after: delta.after,
+        // The operator's own words about why, kept beside the change rather than only appended
+        // to a note field that later edits will grow past.
+        note: input.note ?? null,
+      });
+    }
 
     return input.status === 'shipped';
   });
@@ -347,30 +369,71 @@ export async function setTracking(
   db: Database,
   orderNumber: string,
   input: AdminTrackingInput,
-  role: AdminRole,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminOrderDetail> {
-  const row = await loadOrderRow(db, orderNumber);
-  await db
-    .update(orders)
-    .set({
-      carrier: input.carrier,
-      trackingNumber: input.trackingNumber,
-      trackingUrl: input.trackingUrl,
-    })
-    .where(eq(orders.id, row.id));
-  return getAdminOrder(db, orderNumber, role);
+  // A transaction it did not need before: the before-image and the audit row have to agree, and
+  // two statements outside one can interleave with another operator's edit between them.
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.orderNumber, orderNumber))
+      .for('update');
+    if (!row) throw notFound('Order');
+
+    await tx
+      .update(orders)
+      .set({
+        carrier: input.carrier,
+        trackingNumber: input.trackingNumber,
+        trackingUrl: input.trackingUrl,
+      })
+      .where(eq(orders.id, row.id));
+
+    const [after] = await tx.select().from(orders).where(eq(orders.id, row.id));
+    const delta = after && diffSnapshots(orderSnapshot(row), orderSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'order.tracking_updated',
+        entityId: row.id,
+        entityLabel: row.orderNumber,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
+  });
+
+  return getAdminOrder(db, orderNumber, actor.role);
 }
 
 export async function setAdminNote(
   db: Database,
   orderNumber: string,
   adminNote: string,
-  role: AdminRole,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminOrderDetail> {
-  const row = await loadOrderRow(db, orderNumber);
-  await db
-    .update(orders)
-    .set({ adminNote: adminNote === '' ? null : adminNote })
-    .where(eq(orders.id, row.id));
-  return getAdminOrder(db, orderNumber, role);
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.orderNumber, orderNumber))
+      .for('update');
+    if (!row) throw notFound('Order');
+
+    const next = adminNote === '' ? null : adminNote;
+    if (next === row.adminNote) return;
+
+    await tx.update(orders).set({ adminNote: next }).where(eq(orders.id, row.id));
+    await recordAudit(tx, actor, context, {
+      action: 'order.note_updated',
+      entityId: row.id,
+      entityLabel: row.orderNumber,
+      before: { adminNote: row.adminNote },
+      after: { adminNote: next },
+    });
+  });
+
+  return getAdminOrder(db, orderNumber, actor.role);
 }

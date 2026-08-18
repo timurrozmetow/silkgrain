@@ -13,6 +13,9 @@ import { hashPassword } from '../../lib/password';
 import { revokeAllForSubject } from '../auth/tokens';
 
 import type { AdminActor } from './actor';
+import { diffSnapshots } from './audit.diff';
+import { adminUserSnapshot } from './audit.projectors';
+import { type AuditContext, recordAudit } from './audit.service';
 
 /**
  * The team, managed by the owner.
@@ -78,6 +81,8 @@ async function assertEmailFree(tx: DbExecutor, email: string): Promise<void> {
 export async function createTeamMember(
   db: Database,
   input: AdminTeamCreateInput,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminTeamMember> {
   const passwordHash = await hashPassword(input.password);
 
@@ -95,6 +100,15 @@ export async function createTeamMember(
         })
         .$returningId();
       if (!row) throw new AppError('INTERNAL', 'The administrator row was not inserted');
+
+      const [created] = await tx.select().from(adminUsers).where(eq(adminUsers.id, row.id));
+      await recordAudit(tx, actor, context, {
+        action: 'admin_user.created',
+        entityId: row.id,
+        entityLabel: input.email,
+        before: null,
+        after: created ? adminUserSnapshot(created) : null,
+      });
       return row.id;
     } catch (error) {
       // The window between the pre-check and the insert.
@@ -130,6 +144,7 @@ export async function updateTeamMember(
   id: number,
   input: AdminTeamUpdateInput,
   actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminTeamMember> {
   if (id === actor.id) {
     if (input.role !== undefined) {
@@ -186,6 +201,18 @@ export async function updateTeamMember(
       (input.role !== undefined && rank(input.role) < rank(target.role));
 
     if (demoted) await revokeAllForSubject(tx, 'admin', id, 'authority reduced');
+
+    const [after] = await tx.select().from(adminUsers).where(eq(adminUsers.id, id));
+    const delta = after && diffSnapshots(adminUserSnapshot(target), adminUserSnapshot(after));
+    if (delta) {
+      await recordAudit(tx, actor, context, {
+        action: 'admin_user.updated',
+        entityId: id,
+        entityLabel: target.email,
+        before: delta.before,
+        after: delta.after,
+      });
+    }
   });
 
   return getTeamMember(db, id);
@@ -208,6 +235,7 @@ export async function resetTeamPassword(
   id: number,
   password: string,
   actor: AdminActor,
+  context: AuditContext,
 ): Promise<void> {
   if (id === actor.id) {
     throw new AppError('CONFLICT', 'Change your own password from your account, not from here');
@@ -217,7 +245,7 @@ export async function resetTeamPassword(
 
   await db.transaction(async (tx) => {
     const [target] = await tx
-      .select({ id: adminUsers.id })
+      .select({ id: adminUsers.id, email: adminUsers.email })
       .from(adminUsers)
       .where(eq(adminUsers.id, id))
       .for('update');
@@ -225,5 +253,15 @@ export async function resetTeamPassword(
 
     await tx.update(adminUsers).set({ passwordHash }).where(eq(adminUsers.id, id));
     await revokeAllForSubject(tx, 'admin', id, 'password reset by an owner');
+
+    // That it happened, to whom, by whom. Neither the old hash nor the new one, obviously - and
+    // there is no field on the entry for one to land in even by accident.
+    await recordAudit(tx, actor, context, {
+      action: 'admin_user.password_reset',
+      entityId: id,
+      entityLabel: target.email,
+      before: null,
+      after: null,
+    });
   });
 }

@@ -17,6 +17,9 @@ import { notFound } from '../../lib/errors';
 import { revokeAllForSubject } from '../auth/tokens';
 import { likePattern } from '../catalog/catalog.query';
 
+import type { AdminActor } from './actor';
+import { type AuditContext, recordAudit } from './audit.service';
+
 /**
  * Customers, as the back office sees them.
  *
@@ -220,9 +223,11 @@ export async function setCustomerStatus(
   db: Database,
   id: number,
   status: CustomerStatus,
+  actor: AdminActor,
+  context: AuditContext,
 ): Promise<AdminCustomerDetail> {
   const [row] = await db
-    .select({ id: customers.id, status: customers.status })
+    .select({ id: customers.id, status: customers.status, email: customers.email })
     .from(customers)
     .where(eq(customers.id, id));
   if (!row) throw notFound('Customer');
@@ -236,6 +241,15 @@ export async function setCustomerStatus(
         id,
         status === 'blocked' ? 'blocked_by_admin' : 'unblocked_by_admin',
       );
+      await recordAudit(tx, actor, context, {
+        action: 'customer.status_changed',
+        entityId: id,
+        // The email as the label, not as a field: an entry has to say who was blocked, and
+        // carrying it once rather than in every payload keeps the address out of the diff.
+        entityLabel: row.email,
+        before: { status: row.status },
+        after: { status },
+      });
     });
   }
 
