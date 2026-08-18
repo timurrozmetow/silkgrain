@@ -1,3 +1,4 @@
+import { type AdminPermission, can } from '@silkgrain/contracts';
 import { Button, EmptyState, Icon, type IconName } from '@silkgrain/ui';
 import { Link, Outlet, createRootRoute, useMatches, useRouter } from '@tanstack/react-router';
 import { useEffect } from 'react';
@@ -16,15 +17,25 @@ import { useAuth } from '../store/auth';
  * The nav lists only what exists, the same rule the storefront's header followed while its pages
  * were still landing. It grows as Phase 7 does.
  */
-const NAV: { to: string; label: string; icon: IconName }[] = [
-  { to: '/', label: 'Dashboard', icon: 'chart-pie-slice' },
-  { to: '/products', label: 'Products', icon: 'package' },
-  { to: '/orders', label: 'Orders', icon: 'receipt' },
-  { to: '/wholesale', label: 'Wholesale', icon: 'handshake' },
-  { to: '/customers', label: 'Customers', icon: 'users' },
-  { to: '/promos', label: 'Promo codes', icon: 'tag' },
-  { to: '/pricing', label: 'Pricing', icon: 'currency-dollar' },
-  { to: '/settings', label: 'Settings', icon: 'gear' },
+/**
+ * The sidebar, and the permission each entry needs.
+ *
+ * A screen whose every control the role would be refused does not belong in the sidebar: a dead
+ * item in a back office is worse than a missing one, because it invites a click that ends in a
+ * message. The permission named here is the one the screen's *primary* endpoint resolves, so the
+ * item disappears exactly when the screen would be empty.
+ */
+const NAV: { to: string; label: string; icon: IconName; permission: AdminPermission }[] = [
+  { to: '/', label: 'Dashboard', icon: 'chart-pie-slice', permission: 'dashboard:read' },
+  { to: '/products', label: 'Products', icon: 'package', permission: 'products:read' },
+  { to: '/orders', label: 'Orders', icon: 'receipt', permission: 'orders:read' },
+  { to: '/wholesale', label: 'Wholesale', icon: 'handshake', permission: 'wholesale:read' },
+  { to: '/customers', label: 'Customers', icon: 'users', permission: 'customers:read' },
+  { to: '/promos', label: 'Promo codes', icon: 'tag', permission: 'promos:read' },
+  { to: '/pricing', label: 'Pricing', icon: 'currency-dollar', permission: 'pricing:bulk' },
+  { to: '/settings', label: 'Settings', icon: 'gear', permission: 'settings:read' },
+  { to: '/audit', label: 'Audit log', icon: 'clock-countdown', permission: 'audit:read' },
+  { to: '/team', label: 'Team', icon: 'shield-check', permission: 'team:manage' },
 ];
 
 function AdminLayout() {
@@ -64,6 +75,10 @@ function Sidebar() {
   const admin = useAuth((state) => state.admin);
   const signOut = useAuth((state) => state.signOut);
 
+  // Filtered here and nowhere else: one list, one rule, and no component deciding for itself
+  // whether it belongs on screen.
+  const visible = NAV.filter((item) => admin !== null && can(admin.role, item.permission));
+
   return (
     // On mobile the handoff turns this into a horizontally scrolling icon strip rather than a
     // drawer: an operator on a phone is checking one figure, not navigating a tree.
@@ -83,7 +98,7 @@ function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 mobile:flex-row mobile:items-center mobile:px-2">
-        {NAV.map((item) => (
+        {visible.map((item) => (
           <Link
             key={item.to}
             to={item.to}

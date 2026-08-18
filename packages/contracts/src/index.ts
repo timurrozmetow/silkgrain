@@ -10,6 +10,7 @@ export * from './rbac';
 
 export * from './modules/account';
 export * from './modules/admin';
+export * from './modules/audit';
 export * from './modules/auth';
 export * from './modules/cart';
 export * from './modules/catalog';

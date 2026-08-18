@@ -2,6 +2,9 @@ import {
   AUDIT_ACTION,
   AUDIT_ACTION_ENTITY,
   AUDIT_ENTITY_TYPE,
+  type AdminAuditActors,
+  type AdminAuditEntry,
+  type AdminAuditResponse,
   type AdminOrderDetail,
   type CheckoutIntentInput,
 } from '@silkgrain/contracts';
@@ -277,6 +280,165 @@ describe('the audit log', () => {
     expect(entries_[0]?.entityLabel).toBe('3 variants');
     // Keyed by SKU, so the entry stays legible after a variant is gone.
     expect(Object.keys(entries_[0]?.after ?? {}).every((key) => key.includes('.'))).toBe(true);
+  });
+
+  // ------------------------------------------------------------------------------ reading it
+
+  /** Writes `count` note entries against one order, oldest first. */
+  async function writeEntries(count: number): Promise<string> {
+    const order = await placeOrder();
+    for (let index = 0; index < count; index += 1) {
+      await app.inject({
+        method: 'PUT',
+        url: `/api/admin/orders/${order.number}/note`,
+        remoteAddress: freshAddress(),
+        headers: auth(),
+        payload: { adminNote: `Note ${String(index)}` },
+      });
+    }
+    return order.number;
+  }
+
+  it('reads the log newest first, with the fields that moved but not their values', async () => {
+    await writeEntries(2);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/admin/audit',
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(response.statusCode).toBe(200);
+
+    const body = response.json<AdminAuditResponse>();
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0]?.id).toBeGreaterThan(body.items[1]?.id ?? 0);
+    expect(body.items[0]?.changedFields).toEqual(['adminNote']);
+    expect(body.items[0]?.actorRole).toBe('manager');
+    // The values, the ip and the user agent belong to the detail: a page of fifty entries each
+    // hauling a full payload is a slow screen nobody reads.
+    expect(response.body).not.toContain('Note 1');
+    expect(response.body).not.toContain('userAgent');
+  });
+
+  it('walks pages by cursor and stops when there are none left', async () => {
+    await writeEntries(5);
+
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/admin/audit?limit=2',
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    const page1 = first.json<AdminAuditResponse>();
+    expect(page1.items).toHaveLength(2);
+    expect(page1.nextCursor).not.toBeNull();
+
+    const second = await app.inject({
+      method: 'GET',
+      url: `/api/admin/audit?limit=2&before=${String(page1.nextCursor)}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    const page2 = second.json<AdminAuditResponse>();
+    expect(page2.items).toHaveLength(2);
+    // No overlap: the cursor is the last id of the previous page and the filter is strictly less.
+    const seen = new Set(page1.items.map((item) => item.id));
+    expect(page2.items.every((item) => !seen.has(item.id))).toBe(true);
+
+    const third = await app.inject({
+      method: 'GET',
+      url: `/api/admin/audit?limit=2&before=${String(page2.nextCursor)}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    const page3 = third.json<AdminAuditResponse>();
+    expect(page3.items).toHaveLength(1);
+    // The last page says so rather than making the client ask again to find out.
+    expect(page3.nextCursor).toBeNull();
+  });
+
+  it('serves the values, the origin and the diff only on the detail', async () => {
+    await writeEntries(1);
+    const [row] = await entries();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/admin/audit/${String(row?.id ?? 0)}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(response.statusCode).toBe(200);
+
+    const entry = response.json<AdminAuditEntry>();
+    expect(entry.after).toEqual({ adminNote: 'Note 0' });
+    expect(entry.ip).not.toBeNull();
+    expect(entry.userAgent).toBeDefined();
+  });
+
+  it('filters to one entity, and refuses an id without the type it belongs to', async () => {
+    const number = await writeEntries(1);
+    const [row] = await entries();
+
+    const scoped = await app.inject({
+      method: 'GET',
+      url: `/api/admin/audit?entityType=order&entityId=${String(row?.entityId ?? 0)}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(scoped.json<AdminAuditResponse>().items).toHaveLength(1);
+    expect(scoped.json<AdminAuditResponse>().items[0]?.entityLabel).toBe(number);
+
+    // Ids are only unique within a type: product 41 and order 41 are different rows, and
+    // answering with both would be a coincidence presented as a result.
+    const loose = await app.inject({
+      method: 'GET',
+      url: '/api/admin/audit?entityId=1',
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(loose.statusCode).toBe(422);
+  });
+
+  it('lists who appears in the log, counted', async () => {
+    await writeEntries(3);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/admin/audit/actors',
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(response.statusCode).toBe(200);
+
+    const { actors } = response.json<AdminAuditActors>();
+    expect(actors).toHaveLength(1);
+    expect(actors[0]?.name).toBe('Dilnoza R.');
+    expect(actors[0]?.entryCount).toBe(3);
+  });
+
+  it('keeps the log away from support entirely', async () => {
+    await app.db.insert(adminUsers).values({
+      email: 'desk@silkgrain.test',
+      passwordHash: await hashPassword(FIXTURE_PASSWORD),
+      name: 'Ben C.',
+      role: 'support',
+    });
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin/login',
+      remoteAddress: freshAddress(),
+      payload: { email: 'desk@silkgrain.test', password: FIXTURE_PASSWORD },
+    });
+    const supportToken = login.json<{ accessToken: string }>().accessToken;
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/admin/audit',
+      remoteAddress: freshAddress(),
+      headers: { authorization: `Bearer ${supportToken}` },
+    });
+    expect(response.statusCode).toBe(403);
   });
 
   it('commits the change and the entry as one atomic thing', async () => {

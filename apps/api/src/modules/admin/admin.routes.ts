@@ -1,5 +1,9 @@
 import multipart from '@fastify/multipart';
 import {
+  AdminAuditActors,
+  AdminAuditEntry,
+  AdminAuditQuery,
+  AdminAuditResponse,
   AdminCustomerDetail,
   AdminCustomerListQuery,
   AdminCustomerListResponse,
@@ -54,6 +58,7 @@ import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 
 import { adminActor, auditContext } from './actor';
+import { getAuditEntry, listAudit, listAuditActors } from './audit.read.service';
 import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
@@ -544,6 +549,74 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         adminActor(request),
         auditContext(request),
       ),
+  );
+
+  // ----------------------------------------------------------------------------------- audit
+
+  routes.get(
+    '/audit',
+    {
+      onRequest: app.requirePermission('audit:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'What administrators have done',
+        description:
+          'Keyset on the id, newest first, and deliberately not offset - a departure from D-25, ' +
+          'which chose offset for the numbered pages the catalogue mockup showed and for a ' +
+          '`MIN(price)` sort keyset cannot serve. Neither applies here: nobody asks for page nine ' +
+          'of an audit log, the sort is the primary key, and the table only grows, so an offset ' +
+          'scan gets slower every week while a seek does not. There is no total for the same ' +
+          'reason. The list carries the names of the fields that moved, not their values; the ' +
+          'values come with the detail.',
+        security: [{ bearerAuth: [] }],
+        querystring: AdminAuditQuery,
+        response: { 200: AdminAuditResponse, 401: ApiError, 403: ApiError, 422: ApiError },
+      },
+    },
+    (request) => listAudit(app.db, request.query),
+  );
+
+  routes.get(
+    '/audit/actors',
+    {
+      onRequest: app.requirePermission('audit:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Who appears in the log',
+        description:
+          'Drawn from the log rather than from `admin_users`, because the useful list is the ' +
+          'people who have done something - including those whose accounts have since been ' +
+          'deleted, which the team list by definition cannot show. Grouped on id and copied name ' +
+          'together, so a renamed account shows both names it acted under.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminAuditActors, 401: ApiError, 403: ApiError },
+      },
+    },
+    () => listAuditActors(app.db),
+  );
+
+  routes.get(
+    '/audit/:id',
+    {
+      onRequest: app.requirePermission('audit:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'One entry, with what actually changed',
+        description:
+          'Served on expand, which is what keeps the list page from shipping every payload it ' +
+          'can see. This is also the only place `ip` and `userAgent` are returned.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: {
+          200: AdminAuditEntry,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => getAuditEntry(app.db, request.params.id),
   );
 
   // ------------------------------------------------------------------------------------ team

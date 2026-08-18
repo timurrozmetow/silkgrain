@@ -596,6 +596,21 @@ five hundred variants is one entry keyed by SKU; a settings save is one entry fo
 routes write nothing on purpose: a wholesale note is already an append-only row with its own author
 and time, so it _is_ the audit record, and the auth contour is covered by `refresh_tokens`.
 
+**The log can be read**, 6 more tests, and the panel gates itself. Three endpoints — the browser,
+the detail, and the actor facet — plus a screen with two filters, because it answers three
+questions and no more: why is this row like this, what did this person do, and who has been
+touching prices.
+
+Keyset on the id, no `total` (D-37). The list carries the names of the fields that moved and not
+their values; expanding a row fetches them. That is what keeps a bulk price change over hundreds of
+SKUs out of every page it appears on, and it is also where `ip` and `userAgent` live — one screen,
+one place.
+
+`ADMIN_PERMISSIONS` now drives the sidebar as well as the guards, which is the point of D-30: the
+list is filtered in one place, and no component decides for itself whether it belongs on screen. A
+support account sees six items where an owner sees ten. Verified in the browser: signed in as the
+seeded support account and counted them.
+
 Still to come in 7.8: (nothing can write
 `admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
 the audit writer and its screen, and the panel's own permission gating. Then the end-to-end
