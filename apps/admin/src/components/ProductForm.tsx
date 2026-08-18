@@ -22,6 +22,7 @@ import { useId, useState, type FormEvent } from 'react';
 
 import { ApiRequestError, apiGet, apiPost, apiPut } from '../lib/api';
 import { centsToDollars, dollarsToCents, gramsToMg, mgToGrams, toInt } from '../lib/form-values';
+import { useCan } from '../lib/permissions';
 
 import { ProductImages } from './ProductImages';
 
@@ -225,6 +226,9 @@ const BLANK = (): ProductState => ({
 export function ProductForm({ productId }: { productId: number | null }) {
   const navigate = useNavigate();
   const isEdit = productId !== null;
+  // Support reads the catalogue and does not write it. The form is still rendered, because
+  // "is it in stock" is a support question and the answer is on this page.
+  const mayWrite = useCan('products:write');
 
   const detail = useQuery({
     queryKey: ['admin', 'product', productId],
@@ -327,25 +331,309 @@ export function ProductForm({ productId }: { productId: number | null }) {
 
   return (
     <form className="flex flex-col gap-6" onSubmit={(event) => void submit(event)} noValidate>
-      {error !== null && (
-        <div
-          role="alert"
-          className="rounded-lg border border-terracotta/40 bg-terracotta-bg px-5 py-4 text-bodySm text-terracotta"
-        >
-          <p className="font-medium">This did not save:</p>
-          <ul className="mt-1.5 list-disc pl-5">
-            {error.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
+      {!mayWrite && (
+        <p className="rounded-lg border border-admin-border bg-admin-bg px-5 py-3 text-bodySm text-body-muted">
+          You can read this product but not change it. A manager or the owner edits the catalogue.
+        </p>
       )}
+      {/* One disabled fieldset rather than a `disabled` on forty controls: the browser propagates
+          it, and a control added later is covered without anybody remembering to. */}
+      <fieldset disabled={!mayWrite} className="contents">
+        {error !== null && (
+          <div
+            role="alert"
+            className="rounded-lg border border-terracotta/40 bg-terracotta-bg px-5 py-4 text-bodySm text-terracotta"
+          >
+            <p className="font-medium">This did not save:</p>
+            <ul className="mt-1.5 list-disc pl-5">
+              {error.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="font-serif text-[24px] text-ink">
-          {isEdit ? form.name || 'Edit product' : 'New product'}
-        </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-serif text-[24px] text-ink">
+            {isEdit ? form.name || 'Edit product' : 'New product'}
+          </h2>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void navigate({ to: '/products' })}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={saving} iconLeft="check">
+              {isEdit ? 'Save changes' : 'Create product'}
+            </Button>
+          </div>
+        </div>
+
+        <Section title="Details">
+          <div className="grid grid-cols-2 gap-5 mobile:grid-cols-1">
+            <Field label="Name" required>
+              <Input
+                value={form.name}
+                onChange={(event) => {
+                  const name = event.target.value;
+                  // The slug follows the name until an editor edits it by hand; after that it is left
+                  // alone, because a published slug is a public address nobody wants silently moved.
+                  update(
+                    !isEdit && form.slug === slugify(form.name)
+                      ? { name, slug: slugify(name) }
+                      : { name },
+                  );
+                }}
+              />
+            </Field>
+            <Field label="Slug" required hint="The product’s address: /product/this">
+              <Input
+                value={form.slug}
+                onChange={(event) => {
+                  update({ slug: event.target.value });
+                }}
+              />
+            </Field>
+            <Field label="Category" required>
+              <Select
+                value={form.categoryId}
+                options={[
+                  { value: '', label: 'Choose a category' },
+                  ...(categories.data?.items ?? []).flatMap((node) => [
+                    { value: String(node.id), label: node.name },
+                    ...node.children.map((child) => ({
+                      value: String(child.id),
+                      label: `— ${child.name}`,
+                    })),
+                  ]),
+                ]}
+                onChange={(event) => {
+                  update({ categoryId: event.target.value });
+                }}
+              />
+            </Field>
+            <Field label="Origin" required>
+              <Select
+                value={form.origin}
+                options={ORIGIN.map((origin) => ({ value: origin, label: ORIGIN_LABELS[origin] }))}
+                onChange={(event) => {
+                  update({ origin: event.target.value as Origin });
+                }}
+              />
+            </Field>
+            <Field label="Origin region" hint="Fergana Valley, Samarkand…">
+              <Input
+                value={form.originRegion}
+                onChange={(event) => {
+                  update({ originRegion: event.target.value });
+                }}
+              />
+            </Field>
+            <Field label="Status" required>
+              <Select
+                value={form.status}
+                options={PRODUCT_STATUS.map((status) => ({
+                  value: status,
+                  label: STATUS_LABELS[status],
+                }))}
+                onChange={(event) => {
+                  update({ status: event.target.value as ProductStatus });
+                }}
+              />
+            </Field>
+          </div>
+
+          <Field label="Blurb" required hint="One line, shown on the card" className="mt-5">
+            <Input
+              value={form.blurb}
+              maxLength={300}
+              onChange={(event) => {
+                update({ blurb: event.target.value });
+              }}
+            />
+          </Field>
+
+          <Field label="Subtitle" className="mt-5">
+            <Input
+              value={form.subtitle}
+              onChange={(event) => {
+                update({ subtitle: event.target.value });
+              }}
+            />
+          </Field>
+
+          <Field label="Description" required className="mt-5">
+            <Textarea
+              rows={5}
+              value={form.description}
+              onChange={(event) => {
+                update({ description: event.target.value });
+              }}
+            />
+          </Field>
+
+          <Field label="Origin story" className="mt-5">
+            <Textarea
+              rows={5}
+              value={form.story}
+              onChange={(event) => {
+                update({ story: event.target.value });
+              }}
+            />
+          </Field>
+
+          <div className="mt-5">
+            <Checkbox
+              label="Feature this product on the home page"
+              checked={form.isFeatured}
+              onChange={(event) => {
+                update({ isFeatured: event.target.checked });
+              }}
+            />
+          </div>
+        </Section>
+
+        <Section title="Variants" note="Exactly one is the default">
+          <div className="flex flex-col gap-4">
+            {form.variants.map((variant, index) => (
+              <VariantRow
+                key={variant.id ?? `new-${String(index)}`}
+                variant={variant}
+                index={index}
+                canRemove={form.variants.length > 1}
+                onChange={(patch) => {
+                  setVariant(index, patch);
+                }}
+                onDefault={() => {
+                  setDefaultVariant(index);
+                }}
+                onRemove={() => {
+                  update({ variants: form.variants.filter((_, i) => i !== index) });
+                }}
+              />
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            iconLeft="plus"
+            className="mt-4"
+            onClick={() => {
+              update({ variants: [...form.variants, EMPTY_VARIANT(form.variants.length)] });
+            }}
+          >
+            Add a variant
+          </Button>
+        </Section>
+
+        {/* Images live only on the edit form: there is no product to attach one to until it exists,
+          and they save on their own rather than with the form (see ProductImages). */}
+        {isEdit && detail.data !== undefined && (
+          <Section title="Images" note="Drag to add · first leads">
+            <ProductImages productId={detail.data.id} initial={detail.data.images} />
+          </Section>
+        )}
+
+        <Section title="Certifications & badges">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-admin-muted">
+            Certifications
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2.5">
+            {CERTIFICATION.map((certification) => (
+              <Chip
+                key={certification}
+                label={CERT_LABELS[certification]}
+                active={form.certifications.includes(certification)}
+                onClick={() => {
+                  update({ certifications: toggle(form.certifications, certification) });
+                }}
+              />
+            ))}
+          </div>
+
+          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.14em] text-admin-muted">
+            Badges
+          </p>
+          {/* Only the editorial three. `sale` and `organic` are derived and never stored (D-12):
+            `sale` is a variant with a compare-at price, `organic` is the organic certification. */}
+          <div className="mt-2.5 flex flex-wrap gap-2.5">
+            {PRODUCT_BADGE.map((badge) => (
+              <Chip
+                key={badge}
+                label={BADGE_LABELS[badge]}
+                active={form.badges.includes(badge)}
+                onClick={() => {
+                  update({ badges: toggle(form.badges, badge) });
+                }}
+              />
+            ))}
+          </div>
+        </Section>
+
+        <Section
+          title="Nutrition facts"
+          note={form.nutrition === null ? 'No panel' : 'Marked entered on save'}
+        >
+          {form.nutrition === null ? (
+            <div>
+              <p className="text-bodySm text-admin-muted">
+                This product has no nutrition panel. Adding one marks its figures as entered by
+                hand, which is what separates them from the seed’s category-level references.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                iconLeft="plus"
+                className="mt-4"
+                onClick={() => {
+                  update({ nutrition: EMPTY_NUTRITION() });
+                }}
+              >
+                Add a nutrition panel
+              </Button>
+            </div>
+          ) : (
+            <NutritionPanel
+              panel={form.nutrition}
+              onChange={(patch) => {
+                update({ nutrition: { ...form.nutrition, ...patch } as NutritionForm });
+              }}
+              onRemove={() => {
+                update({ nutrition: null });
+              }}
+            />
+          )}
+        </Section>
+
+        <Section title="Search engine">
+          <div className="grid grid-cols-2 gap-5 mobile:grid-cols-1">
+            <Field label="Meta title" hint="Falls back to the name if blank">
+              <Input
+                value={form.metaTitle}
+                onChange={(event) => {
+                  update({ metaTitle: event.target.value });
+                }}
+              />
+            </Field>
+            <Field label="Meta description">
+              <Input
+                value={form.metaDescription}
+                maxLength={320}
+                onChange={(event) => {
+                  update({ metaDescription: event.target.value });
+                }}
+              />
+            </Field>
+          </div>
+        </Section>
+      </fieldset>
+
+      {mayWrite && (
+        <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => void navigate({ to: '/products' })}>
             Cancel
           </Button>
@@ -353,276 +641,7 @@ export function ProductForm({ productId }: { productId: number | null }) {
             {isEdit ? 'Save changes' : 'Create product'}
           </Button>
         </div>
-      </div>
-
-      <Section title="Details">
-        <div className="grid grid-cols-2 gap-5 mobile:grid-cols-1">
-          <Field label="Name" required>
-            <Input
-              value={form.name}
-              onChange={(event) => {
-                const name = event.target.value;
-                // The slug follows the name until an editor edits it by hand; after that it is left
-                // alone, because a published slug is a public address nobody wants silently moved.
-                update(
-                  !isEdit && form.slug === slugify(form.name)
-                    ? { name, slug: slugify(name) }
-                    : { name },
-                );
-              }}
-            />
-          </Field>
-          <Field label="Slug" required hint="The product’s address: /product/this">
-            <Input
-              value={form.slug}
-              onChange={(event) => {
-                update({ slug: event.target.value });
-              }}
-            />
-          </Field>
-          <Field label="Category" required>
-            <Select
-              value={form.categoryId}
-              options={[
-                { value: '', label: 'Choose a category' },
-                ...(categories.data?.items ?? []).flatMap((node) => [
-                  { value: String(node.id), label: node.name },
-                  ...node.children.map((child) => ({
-                    value: String(child.id),
-                    label: `— ${child.name}`,
-                  })),
-                ]),
-              ]}
-              onChange={(event) => {
-                update({ categoryId: event.target.value });
-              }}
-            />
-          </Field>
-          <Field label="Origin" required>
-            <Select
-              value={form.origin}
-              options={ORIGIN.map((origin) => ({ value: origin, label: ORIGIN_LABELS[origin] }))}
-              onChange={(event) => {
-                update({ origin: event.target.value as Origin });
-              }}
-            />
-          </Field>
-          <Field label="Origin region" hint="Fergana Valley, Samarkand…">
-            <Input
-              value={form.originRegion}
-              onChange={(event) => {
-                update({ originRegion: event.target.value });
-              }}
-            />
-          </Field>
-          <Field label="Status" required>
-            <Select
-              value={form.status}
-              options={PRODUCT_STATUS.map((status) => ({
-                value: status,
-                label: STATUS_LABELS[status],
-              }))}
-              onChange={(event) => {
-                update({ status: event.target.value as ProductStatus });
-              }}
-            />
-          </Field>
-        </div>
-
-        <Field label="Blurb" required hint="One line, shown on the card" className="mt-5">
-          <Input
-            value={form.blurb}
-            maxLength={300}
-            onChange={(event) => {
-              update({ blurb: event.target.value });
-            }}
-          />
-        </Field>
-
-        <Field label="Subtitle" className="mt-5">
-          <Input
-            value={form.subtitle}
-            onChange={(event) => {
-              update({ subtitle: event.target.value });
-            }}
-          />
-        </Field>
-
-        <Field label="Description" required className="mt-5">
-          <Textarea
-            rows={5}
-            value={form.description}
-            onChange={(event) => {
-              update({ description: event.target.value });
-            }}
-          />
-        </Field>
-
-        <Field label="Origin story" className="mt-5">
-          <Textarea
-            rows={5}
-            value={form.story}
-            onChange={(event) => {
-              update({ story: event.target.value });
-            }}
-          />
-        </Field>
-
-        <div className="mt-5">
-          <Checkbox
-            label="Feature this product on the home page"
-            checked={form.isFeatured}
-            onChange={(event) => {
-              update({ isFeatured: event.target.checked });
-            }}
-          />
-        </div>
-      </Section>
-
-      <Section title="Variants" note="Exactly one is the default">
-        <div className="flex flex-col gap-4">
-          {form.variants.map((variant, index) => (
-            <VariantRow
-              key={variant.id ?? `new-${String(index)}`}
-              variant={variant}
-              index={index}
-              canRemove={form.variants.length > 1}
-              onChange={(patch) => {
-                setVariant(index, patch);
-              }}
-              onDefault={() => {
-                setDefaultVariant(index);
-              }}
-              onRemove={() => {
-                update({ variants: form.variants.filter((_, i) => i !== index) });
-              }}
-            />
-          ))}
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          iconLeft="plus"
-          className="mt-4"
-          onClick={() => {
-            update({ variants: [...form.variants, EMPTY_VARIANT(form.variants.length)] });
-          }}
-        >
-          Add a variant
-        </Button>
-      </Section>
-
-      {/* Images live only on the edit form: there is no product to attach one to until it exists,
-          and they save on their own rather than with the form (see ProductImages). */}
-      {isEdit && detail.data !== undefined && (
-        <Section title="Images" note="Drag to add · first leads">
-          <ProductImages productId={detail.data.id} initial={detail.data.images} />
-        </Section>
       )}
-
-      <Section title="Certifications & badges">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-admin-muted">
-          Certifications
-        </p>
-        <div className="mt-2.5 flex flex-wrap gap-2.5">
-          {CERTIFICATION.map((certification) => (
-            <Chip
-              key={certification}
-              label={CERT_LABELS[certification]}
-              active={form.certifications.includes(certification)}
-              onClick={() => {
-                update({ certifications: toggle(form.certifications, certification) });
-              }}
-            />
-          ))}
-        </div>
-
-        <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.14em] text-admin-muted">
-          Badges
-        </p>
-        {/* Only the editorial three. `sale` and `organic` are derived and never stored (D-12):
-            `sale` is a variant with a compare-at price, `organic` is the organic certification. */}
-        <div className="mt-2.5 flex flex-wrap gap-2.5">
-          {PRODUCT_BADGE.map((badge) => (
-            <Chip
-              key={badge}
-              label={BADGE_LABELS[badge]}
-              active={form.badges.includes(badge)}
-              onClick={() => {
-                update({ badges: toggle(form.badges, badge) });
-              }}
-            />
-          ))}
-        </div>
-      </Section>
-
-      <Section
-        title="Nutrition facts"
-        note={form.nutrition === null ? 'No panel' : 'Marked entered on save'}
-      >
-        {form.nutrition === null ? (
-          <div>
-            <p className="text-bodySm text-admin-muted">
-              This product has no nutrition panel. Adding one marks its figures as entered by hand,
-              which is what separates them from the seed’s category-level references.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              iconLeft="plus"
-              className="mt-4"
-              onClick={() => {
-                update({ nutrition: EMPTY_NUTRITION() });
-              }}
-            >
-              Add a nutrition panel
-            </Button>
-          </div>
-        ) : (
-          <NutritionPanel
-            panel={form.nutrition}
-            onChange={(patch) => {
-              update({ nutrition: { ...form.nutrition, ...patch } as NutritionForm });
-            }}
-            onRemove={() => {
-              update({ nutrition: null });
-            }}
-          />
-        )}
-      </Section>
-
-      <Section title="Search engine">
-        <div className="grid grid-cols-2 gap-5 mobile:grid-cols-1">
-          <Field label="Meta title" hint="Falls back to the name if blank">
-            <Input
-              value={form.metaTitle}
-              onChange={(event) => {
-                update({ metaTitle: event.target.value });
-              }}
-            />
-          </Field>
-          <Field label="Meta description">
-            <Input
-              value={form.metaDescription}
-              maxLength={320}
-              onChange={(event) => {
-                update({ metaDescription: event.target.value });
-              }}
-            />
-          </Field>
-        </div>
-      </Section>
-
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="ghost" onClick={() => void navigate({ to: '/products' })}>
-          Cancel
-        </Button>
-        <Button type="submit" loading={saving} iconLeft="check">
-          {isEdit ? 'Save changes' : 'Create product'}
-        </Button>
-      </div>
     </form>
   );
 }

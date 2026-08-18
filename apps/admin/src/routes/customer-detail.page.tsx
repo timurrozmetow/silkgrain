@@ -6,6 +6,7 @@ import { Link, getRouteApi } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { ApiRequestError, apiGet, apiPatch } from '../lib/api';
+import { useCan } from '../lib/permissions';
 
 /**
  * One customer.
@@ -79,6 +80,10 @@ function CustomerDetail() {
       setBusy(false);
     }
   }
+
+  // Above every early return: React counts hooks by call order, so one below a `return` would
+  // shift every hook after it on the render that bails out.
+  const mayBlock = useCan('customers:block');
 
   if (isError) {
     return (
@@ -187,17 +192,27 @@ function CustomerDetail() {
             </div>
           </div>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-4"
-            disabled={busy}
-            onClick={() => {
-              setConfirming(true);
-            }}
-          >
-            {blocked ? 'Restore account' : 'Suspend account'}
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              disabled={busy || !mayBlock}
+              onClick={() => {
+                setConfirming(true);
+              }}
+            >
+              {blocked ? 'Restore account' : 'Suspend account'}
+            </Button>
+            {/* Disabled with a reason rather than hidden: a support agent who reaches this page is
+                answering a ticket about the customer, and knowing the lever exists - and who has
+                it - is part of the answer. */}
+            {!mayBlock && (
+              <p className="mt-2 text-caption text-admin-muted">
+                A manager or the owner suspends an account.
+              </p>
+            )}
+          </>
         )}
       </section>
 

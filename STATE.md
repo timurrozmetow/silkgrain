@@ -611,10 +611,30 @@ list is filtered in one place, and no component decides for itself whether it be
 support account sees six items where an owner sees ten. Verified in the browser: signed in as the
 seeded support account and counted them.
 
-Still to come in 7.8: (nothing can write
-`admin_users.role` today, so the matrix is a claim the system cannot yet honour), one migration,
-the audit writer and its screen, and the panel's own permission gating. Then the end-to-end
-scenario (7.9).
+**The Team screen and the in-screen gating are done**, which finishes task 7.8 apart from its own
+acceptance run. The screen sits on the 18 tests the API already had; what it adds is drawing the
+three refusals as disabled controls with a reason. A control that is present and refused teaches
+somebody what the rule is; one that is absent leaves them wondering whether the feature exists.
+
+Inside the screens, the product form becomes one disabled `<fieldset>` for a role that cannot write
+— one attribute rather than a `disabled` on forty controls, so a control added later is covered
+without anybody remembering. The customer Block button is disabled with a line naming who can press
+it, rather than hidden: a support agent on that page is answering a ticket about the customer, and
+knowing the lever exists is part of the answer.
+
+Verified in the browser across two accounts. As the owner: the Team screen lists three
+administrators, the counter reads "One active owner", and the owner's own Role and Account controls
+are locked with "You cannot change your own role" and "You cannot deactivate your own account"
+while another member's are free. As support: six sidebar items against the owner's ten, a direct
+visit to `/admin/team` answers "The team could not be loaded" rather than crashing, and the product
+form renders read-only — all 43 inputs and 5 selects match `:disabled`, the save button with them.
+The first probe of that last point was wrong and worth recording: on a child of a disabled
+`fieldset`, `element.disabled` reflects only its own attribute, so the check has to be
+`matches(':disabled')`. The database confirmed nothing was written.
+
+**Task 7.8 is complete.** What remains of Phase 7 is 7.9, the end-to-end scenario: create a product
+with two variants, see it in the catalogue, place an order, ship it, find the letter in Mailpit, and
+move a wholesale enquiry to `contacted` with a note.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

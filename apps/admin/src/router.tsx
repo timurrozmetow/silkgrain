@@ -15,6 +15,7 @@ import { promoNewRoute } from './routes/promo-new';
 import { promosRoute } from './routes/promos';
 import { rootRoute } from './routes/root';
 import { settingsRoute } from './routes/settings';
+import { teamRoute } from './routes/team';
 import { wholesaleRoute } from './routes/wholesale';
 import { wholesaleDetailRoute } from './routes/wholesale-detail';
 
@@ -42,6 +43,7 @@ const routeTree = rootRoute.addChildren([
   pricingRoute,
   settingsRoute,
   auditRoute,
+  teamRoute,
 ]);
 
 export const router = createRouter({
