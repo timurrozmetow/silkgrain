@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SilkGrain \u2014 premium Central Asian food e-commerce platform (Houston, TX)",
+  "description": "SilkGrain — premium Central Asian food e-commerce platform (Houston, TX)",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=20.11.0"
@@ -13,9 +13,9 @@
     "build": "turbo run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc -p tsconfig.json --noEmit",
     "test": "turbo run test",
-    "test:e2e": "turbo run test:e2e",
+    "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rimraf node_modules .turbo",
@@ -29,7 +29,9 @@
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
+    "@playwright/test": "^1.62.1",
     "@silkgrain/config": "workspace:*",
+    "@types/node": "^22.20.1",
     "eslint": "^9.18.0",
     "husky": "^9.1.7",
     "lighthouse": "^13.4.1",

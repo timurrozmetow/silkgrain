@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "The end-to-end layer, which belongs to no package: it drives the built artefacts of two apps and the API at once, so it sits at the root and needs a program of its own. Type-aware ESLint maps each file to its nearest tsconfig, and without this one the specs and the Playwright config are the only .ts files in the repository outside every program - which ESLint reports as a parsing error rather than skipping.",
+  "extends": "./packages/config/tsconfig/node.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["playwright.config.ts", "e2e/**/*.ts"]
+}
