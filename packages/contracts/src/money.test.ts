@@ -163,4 +163,22 @@ describe('Money comparison and output', () => {
     expect(usd(4900).toAmount()).toBe(49);
     expect(usd(799).toAmount()).toBe(7.99);
   });
+
+  it('refuses to add two different currencies', () => {
+    // One shop, one currency today - but the guard is what makes adding a second one a compile
+    // -and-test failure rather than a silently wrong total.
+    const dollars = Money.fromCents(1000, 'USD');
+    const euros = Money.fromCents(1000, 'EUR' as 'USD');
+    expect(() => dollars.add(euros)).toThrow(TypeError);
+    expect(() => dollars.add(euros)).toThrow(/currency mismatch/);
+  });
+
+  it('refuses a tax rate that is not a whole number of basis points', () => {
+    // 8.25% is 825 basis points, never 8.25. A float here is the bug the whole integer-cents
+    // rule exists to prevent, so it throws rather than rounding quietly.
+    expect(() => usd(10_000).basisPoints(8.25)).toThrow(RangeError);
+    expect(() => usd(10_000).basisPoints(Number.NaN)).toThrow(RangeError);
+    // The honest form still works.
+    expect(usd(10_000).basisPoints(825).cents).toBe(825);
+  });
 });
