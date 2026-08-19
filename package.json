@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SilkGrain — premium Central Asian food e-commerce platform (Houston, TX)",
+  "description": "SilkGrain \u2014 premium Central Asian food e-commerce platform (Houston, TX)",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=20.11.0"
@@ -19,12 +19,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rimraf node_modules .turbo",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm bundle:budget",
+    "verify": "pnpm secret:scan && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm bundle:budget",
     "setup:services": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-setup.ps1",
     "lighthouse": "node scripts/lighthouse.mjs",
     "prepare": "husky",
     "test:coverage": "turbo run test:coverage",
-    "bundle:budget": "node scripts/bundle-budget.mjs"
+    "bundle:budget": "node scripts/bundle-budget.mjs",
+    "secret:scan": "node scripts/secret-scan.mjs",
+    "secret:scan:history": "node scripts/secret-scan.mjs --history"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",

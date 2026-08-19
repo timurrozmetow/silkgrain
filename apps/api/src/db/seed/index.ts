@@ -193,7 +193,18 @@ interface VariantRef {
   imageUrl: string | null;
 }
 
-export async function seed(db: Database): Promise<void> {
+export async function seed(db: Database, nodeEnv?: string): Promise<void> {
+  // The emptiness check below is the wrong guard for the dangerous case, because a fresh
+  // production database is empty - that is what "fresh" means. Seeding one would create
+  // `owner@silkgrain.local` holding `DEV_PASSWORD`, which is four lines up in a file anybody can
+  // read, and hand the whole back office to the first person who tries it.
+  if (nodeEnv === 'production') {
+    throw new Error(
+      'Refusing to seed a production database. This is demo data, and it includes admin accounts ' +
+        'whose password is published in this repository.',
+    );
+  }
+
   const existing = await db.select({ count: sql<number>`count(*)` }).from(products);
   if ((existing[0]?.count ?? 0) > 0) {
     throw new Error(
@@ -794,7 +805,7 @@ if (isMain(import.meta.url)) {
   const env = loadEnv();
   const handle = createDatabase(env.DATABASE_URL, env.DATABASE_POOL_SIZE);
   try {
-    await seed(handle.db);
+    await seed(handle.db, env.NODE_ENV);
     process.stdout.write(
       `seeded ${redact(env.DATABASE_URL)}\n` +
         `admin login: owner@silkgrain.local / ${DEV_PASSWORD} (development only)\n`,
