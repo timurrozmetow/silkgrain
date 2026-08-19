@@ -632,9 +632,26 @@ The first probe of that last point was wrong and worth recording: on a child of 
 `fieldset`, `element.disabled` reflects only its own attribute, so the check has to be
 `matches(':disabled')`. The database confirmed nothing was written.
 
-**Task 7.8 is complete.** What remains of Phase 7 is 7.9, the end-to-end scenario: create a product
-with two variants, see it in the catalogue, place an order, ship it, find the letter in Mailpit, and
-move a wholesale enquiry to `contacted` with a note.
+**Task 7.9 is done, and Phase 7 with it.** The acceptance scenario from the brief is one test in
+`apps/api/src/modules/admin/scenario.test.ts`, walked in order through the real HTTP surface: create
+a product with two variants in the back office, find it in the storefront catalogue unauthenticated,
+place an order, pay for it through a signed Stripe webhook, ship it from the panel, read the letter
+out of Mailpit, and move a wholesale enquiry to `contacted` with a note. It ends by asserting the
+audit log holds exactly the administrator's half of that — four entries, and nothing for the order
+the customer placed or the webhook that paid it.
+
+One test rather than seven, deliberately. Each step depends on the last, and seven independent tests
+would either rebuild the world each time, proving nothing about the seam between them, or share
+mutable state in a way that makes a failure impossible to place. What it proves is that the seams
+hold: the catalogue reads what the admin form wrote, the cart prices what the catalogue showed, the
+paid transaction moves the stock the order reserved, and the letter the shipment triggers carries
+the tracking number the panel was given.
+
+Playwright is not used here. It belongs to Phase 8 (task 8.2); this is the same scenario one layer
+down, against real MySQL, Redis and Mailpit.
+
+**Phase 7 is complete: 414 api tests, `lint`, `typecheck` and `format:check` all clean.** Phase 8 is
+local acceptance — coverage, Playwright, the `any` sweep, Lighthouse and the `pnpm verify` gate.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
