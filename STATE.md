@@ -650,8 +650,30 @@ the tracking number the panel was given.
 Playwright is not used here. It belongs to Phase 8 (task 8.2); this is the same scenario one layer
 down, against real MySQL, Redis and Mailpit.
 
-**Phase 7 is complete: 414 api tests, `lint`, `typecheck` and `format:check` all clean.** Phase 8 is
-local acceptance — coverage, Playwright, the `any` sweep, Lighthouse and the `pnpm verify` gate.
+**Phase 7 is complete: 414 api tests, `lint`, `typecheck` and `format:check` all clean.**
+
+**Phase 8 is under way. `pnpm verify` exits 0** — the phase's acceptance criterion — and now runs
+`format:check`, `lint`, `typecheck`, `test:coverage`, `build` and `bundle:budget` in that order.
+
+- **8.1 coverage — done.** 96.8% statements and 84.81% branches on the API, 100% on the three files
+  in `packages/contracts` that hold logic. Thresholds are wired a few points below today's numbers,
+  because a floor at the 80% target would let coverage fall sixteen points before failing.
+- **8.3 the `any` sweep — done, and needed no work.** Zero `any`, zero `@ts-ignore`, zero
+  `@ts-expect-error` across apps and packages.
+- **8.4 the bundle budget — done.** `scripts/bundle-budget.mjs` walks the entry chunk's eager import
+  graph and gzips it: web 158.6 KB against 250, admin 164.9 against 320. It runs inside `verify`,
+  and the failure path was tested by lowering the limit rather than assumed.
+- **8.6 the empty-database run — done.** `db:reset` → `db:migrate` → `db:seed` from nothing, then
+  every public endpoint and six guarded admin reads, all 200. It also confirmed D-22 from scratch:
+  six settings keys with the retired free-shipping one gone, and `freeShippingFromCents` computed
+  as 7500 from the shipping rate.
+- **8.7 security — partly done and now blocked on the owner (Q-47).** The dependency audit reports
+  30 findings, and every critical one was checked for reachability rather than counted: none is
+  exploitable in this configuration, and the reasons are tabulated in the question. What cannot be
+  done without a decision is fixing them, because every fix is a major-version stack change and
+  `CLAUDE.md` forbids that without discussion. One free hardening landed regardless: the JWT
+  algorithm is now pinned on verification as well as signing.
+- **8.2 Playwright and 8.5 Lighthouse** remain. 8.5 is still blocked on Q-46.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

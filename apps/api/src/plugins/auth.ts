@@ -111,8 +111,16 @@ export const authPlugin = fp<AuthOptions>(
 
     await app.register(jwt, {
       secret: env.JWT_ACCESS_SECRET,
-      sign: { iss: ISSUER, expiresIn: env.JWT_ACCESS_TTL },
-      verify: { allowedIss: ISSUER },
+      sign: { algorithm: 'HS256', iss: ISSUER, expiresIn: env.JWT_ACCESS_TTL },
+      /**
+       * The algorithm is pinned on verification, not only on signing.
+       *
+       * A symmetric string secret already restricts the verifier to HMAC, so algorithm confusion
+       * is not reachable today - but "not reachable today" is a property of the secret's type,
+       * and the day somebody moves to a key pair it stops holding silently. Naming the algorithm
+       * makes the guarantee a property of this file instead.
+       */
+      verify: { algorithms: ['HS256'], allowedIss: ISSUER },
     });
 
     app.decorate('accessTokenTtl', accessTtl);

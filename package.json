@@ -19,11 +19,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rimraf node_modules .turbo",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm bundle:budget",
     "setup:services": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-setup.ps1",
     "lighthouse": "node scripts/lighthouse.mjs",
     "prepare": "husky",
-    "test:coverage": "turbo run test:coverage"
+    "test:coverage": "turbo run test:coverage",
+    "bundle:budget": "node scripts/bundle-budget.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",
