@@ -214,14 +214,23 @@ function scan(where, content) {
  * ships on "probably fine". These are synthetic credentials in the issued format, and each one
  * must be caught; the last two are the false positives that made earlier drafts of this file
  * unusable, and each must NOT be.
+ *
+ * Every sample is assembled from pieces rather than written out, and that is not stylistic. The
+ * first version of this function spelled them in full, and the scanner promptly failed the build
+ * by finding all five of them in this file - which is the strongest evidence available that the
+ * rules work, and also unrunnable. Splitting each one across a `+` breaks the pattern in the
+ * source text while leaving the string the rules see at runtime byte-for-byte identical.
+ *
+ * The alternative was to skip this file, and skipping it would mean a real key pasted here is the
+ * one key in the repository nobody looks for.
  */
 function selfTest() {
   const cases = [
-    ['sk_live_51Hx9QpKZvEXAMPLEabcdefghijklmn', true, 'a live Stripe key'],
-    ['whsec_9fK2mQx7ZpLr4TvNb8YcWd3EhJs6Gu1A', true, 'a webhook signing secret'],
-    ['AKIAIOSFODNN7EXAMPLE', true, 'an AWS access key id'],
-    ['-----BEGIN RSA PRIVATE KEY-----', true, 'a private key block'],
-    ['const DB_PASSWORD = "xQ7#mK9$pL2@vN4wZ8rT"', true, 'a high-entropy password literal'],
+    ['sk_live_' + '51Hx9QpKZvREDACTEDabcdefghijklmn', true, 'a live Stripe key'],
+    ['whsec_' + '9fK2mQx7ZpLr4TvNb8YcWd3EhJs6Gu1A', true, 'a webhook signing secret'],
+    ['AKIA' + 'IOSFODNN7EXAMPLE', true, 'an AWS access key id'],
+    ['-----BEGIN RSA ' + 'PRIVATE KEY-----', true, 'a private key block'],
+    ['const DB_PASSWORD = "' + 'xQ7#mK9$pL2@vN4wZ8rT' + '"', true, 'a high-entropy password'],
     ['STRIPE_SECRET_KEY=sk_test_replace_me', false, 'the placeholder in .env.example'],
     ['const token = `seed-unsubscribe-${String(i).padStart(4, "0")}`', false, 'a built template'],
   ];

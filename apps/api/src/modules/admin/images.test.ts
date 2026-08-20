@@ -236,6 +236,36 @@ describe('product images', () => {
     expect(status).toBe(404);
   });
 
+  it('keeps the object while another product still points at it', async () => {
+    // The object key is a hash of the processed bytes, so the same photograph uploaded twice is
+    // one object with two rows naming it - deduplication, working as designed. Deleting one of
+    // them must not take the bytes out from under the other, or the surviving row looks perfectly
+    // healthy in the panel while every customer gets a 404 where the picture should be.
+    const photo = await pngOf('#B85C38');
+    const first = fixture.productIds['devzira-rice'];
+    const second = fixture.productIds['chungara-rice'];
+
+    const a = await upload(first, photo);
+    const b = await upload(second, photo);
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+    // Same bytes in, same key out - otherwise this test proves nothing.
+    expect(a.images[0]?.url).toBe(b.images[0]?.url);
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/admin/products/${String(first)}/images/${String(a.images[0]?.id ?? 0)}`,
+      remoteAddress: freshAddress(),
+      headers: auth(),
+    });
+    expect(removed.statusCode).toBe(200);
+
+    // The second product's image must still be fetchable, which is the whole point.
+    const url = b.images[0]?.url ?? '';
+    const fetched = await fetch(url);
+    expect(fetched.status).toBe(200);
+  });
+
   it('refuses an image by its pixel count, not only by its byte count', async () => {
     // Both size gates on this route measure compressed bytes, and compression is what makes a
     // large image small: this 7000x7000 PNG is well under the 12 MB limit on the wire and about

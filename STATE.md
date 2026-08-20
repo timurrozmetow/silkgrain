@@ -710,7 +710,21 @@ down, against real MySQL, Redis and Mailpit.
   production, and `guard.test.ts` passes a null handle to prove the refusal happens before a
   connection is opened.
 
-- **8.5 Lighthouse** remains, still blocked on Q-46.
+  The pass itself: eight independent lenses, every finding put to three sceptics told to refute it,
+  survival requiring fewer than two of the three. No auth bypass, no injection, no violation of the
+  six non-negotiable rules - the money path, the webhook contour, the RBAC matrix and the
+  refresh-token design all held under line-by-line reading. **Five findings survived and all five
+  are fixed** (D-38 through D-41). Three more went to the owner as Q-48 through Q-50, because each
+  is a decision rather than a repair: promo limits belong in the checkout transaction that does not
+  exist yet, the trusted-proxy hop count has to match what Phase 9's Nginx writes, and image
+  deduplication by content hash is a behaviour worth confirming rather than choosing for somebody.
+
+- **8.8 `pnpm verify` - done, exit 0.** 489 tests (424 api + 65 contracts) plus 58 ui, coverage
+  96.93% statements and 84.71% branches on the API and 100% on the three contracts files that hold
+  logic, zero lint warnings, zero type errors, and both bundles inside budget. Twenty Playwright
+  checks run separately with `pnpm test:e2e`, since they need a built preview and a seeded database.
+
+- **8.5 Lighthouse** is the only task left, and it is still blocked on Q-46.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

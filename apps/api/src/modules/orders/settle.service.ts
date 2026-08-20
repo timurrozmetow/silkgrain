@@ -196,11 +196,22 @@ async function recordPayment(
 }
 
 /**
- * The promo code's only authoritative accounting.
+ * The promo code's accounting: it writes the redemption row and the counter every other check
+ * reads from.
  *
- * `POST /api/cart/promo` checks the per-customer limit when it happens to know who is asking,
- * but it cannot enforce it: nothing stops a customer repricing a cart a hundred times. Here
- * the read and the write are in one transaction with the order, so the limit holds.
+ * **It does not enforce the limits, and the previous version of this comment said it did.**
+ * `POST /api/cart/promo` compares against `usageLimit` and `usageLimitPerCustomer` when it happens
+ * to know who is asking, but it cannot enforce them - nothing stops a customer repricing a cart a
+ * hundred times - and this function locks the promo row, inserts and increments without comparing
+ * against either. So N concurrent checkouts on a `usageLimit: 1` code would all settle.
+ *
+ * Unreachable today: `POST /api/checkout/intent` does not exist, for want of a Stripe key (D-27),
+ * so nothing outside the tests reaches `createPendingOrder`. It stops being unreachable the moment
+ * that route lands, which is why it is written down here and in `QUESTIONS.md` as Q-48 rather than
+ * fixed in passing during a security pass: settle time is the wrong place for the check anyway.
+ * The money has already moved by then, and refusing it would leave a paid customer with no order.
+ * The comparison belongs in the transaction that writes the order, and putting it there is part of
+ * building the checkout, not part of hardening what exists.
  */
 async function recordPromoRedemption(
   tx: DbExecutor,

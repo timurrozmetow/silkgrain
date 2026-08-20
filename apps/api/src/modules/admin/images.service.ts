@@ -196,6 +196,13 @@ export async function setImageAlt(
  * A product with images must have exactly one primary, so deleting the primary promotes whatever is
  * now first rather than leaving the product with none. The object is deleted after the row,
  * best-effort - an orphaned blob is cheap, a blocked delete is not.
+ *
+ * But only if nothing else still points at it. The object key is a hash of the processed bytes, so
+ * uploading the same photograph to two products deliberately produces one object with two rows
+ * naming it - that is the deduplication working. An unconditional `storage.remove` would then let
+ * deleting either one break the other, and the surviving row would look fine in the panel while
+ * every customer got a 404 where the picture should be. The check runs after the commit, so it
+ * sees a tree the deleted row has already left.
  */
 export async function removeImage(
   db: Database,
@@ -239,6 +246,12 @@ export async function removeImage(
     });
   });
 
-  await storage.remove(image.url);
+  const stillReferenced = await db
+    .select({ id: productImages.id })
+    .from(productImages)
+    .where(eq(productImages.url, image.url))
+    .limit(1);
+  if (stillReferenced.length === 0) await storage.remove(image.url);
+
   return listImages(db, productId);
 }
