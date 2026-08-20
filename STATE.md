@@ -1,28 +1,35 @@
 # Where the project stands
 
-Updated 2026-07-30. Read this first after any context loss, then `CLAUDE.md` for the rules.
+Updated 2026-08-19. Read this first after any context loss, then `CLAUDE.md` for the rules.
 
 ---
 
 ## Position
 
-**Branch:** `phase/3-catalog-cart`. `main` has no commits yet — branches merge there once the
-owner accepts the work.
+**Branch:** `phase/3-catalog-cart` — the name is four phases stale and the branch is not. `main`
+has no commits yet; branches merge there once the owner accepts the work.
 
-| Commit    | What                                                             |
-| --------- | ---------------------------------------------------------------- |
-| `7b74172` | Phase 0 — monorepo, tooling, local services                      |
-| `ef0acbe` | The responsive design handoff, committed unmodified              |
-| `bfae409` | Phase 1 — design system                                          |
-| `187c166` | Responsive breakpoints wired into tokens and the Tailwind preset |
-| `f1db2b8` | The design handoff distilled into docs                           |
-| `9c72c97` | Phase 2 — backend core                                           |
-| `3696fab` | The responsive schedule and the nutrition-data decision          |
-| _HEAD_    | Phase 3 — catalogue and cart API                                 |
+**58 commits. Phases 0 through 7 are complete. Phase 8 is nearly done.**
 
-**Phases 0 through 3 are complete and verified.** `pnpm verify` exits 0: 208 tests
-(43 contracts + 107 api + 58 ui), zero lint warnings, zero type errors. Storefront bundle
-110 KB gzip against a 250 KB budget.
+| Phase | Commits             | State                                                |
+| ----- | ------------------- | ---------------------------------------------------- |
+| 0     | `7b74172`           | Monorepo, tooling, local services                    |
+| 1     | `bfae409`+`187c166` | Design system, 22 components, the responsive layer   |
+| 2     | `9c72c97`           | Backend core — schema, seeds, auth                   |
+| 3     | `cdbf5bb`           | Catalogue and cart API                               |
+| 4     | four commits        | Done **except** 4.2 and 4.6, which need a Stripe key |
+| 5     | fourteen commits    | The storefront, complete, plus the Lighthouse pass   |
+| 6     | 6.5 and 6.6 only    | The rest is the checkout, behind the same Stripe key |
+| 7     | fourteen commits    | The admin panel, complete, 7.1 through 7.9           |
+| 8     | four commits        | 8.1–8.4, 8.6, 8.8 done; 8.7 in progress; 8.5 blocked |
+
+**`pnpm verify` exits 0** — Phase 8's acceptance criterion — and runs `secret:scan`,
+`format:check`, `lint`, `typecheck`, `test:coverage`, `build` and `bundle:budget` in that order.
+Zero lint warnings, zero type errors, zero `any`. Storefront 158.6 KB gzip against a 250 KB
+budget, admin 164.9 against 320.
+
+Detail on every phase is below, in the order it was built. **What is left is at the bottom, under
+"Blocked on the owner"** — read that if you want the short answer.
 
 Beyond the suite, every new endpoint was also driven against the **real seeded development
 database** — all thirty-two products, every sort, every filter, both cart routes and
@@ -667,13 +674,43 @@ down, against real MySQL, Redis and Mailpit.
   every public endpoint and six guarded admin reads, all 200. It also confirmed D-22 from scratch:
   six settings keys with the retired free-shipping one gone, and `freeShippingFromCents` computed
   as 7500 from the shipping rate.
-- **8.7 security — partly done and now blocked on the owner (Q-47).** The dependency audit reports
-  30 findings, and every critical one was checked for reachability rather than counted: none is
-  exploitable in this configuration, and the reasons are tabulated in the question. What cannot be
-  done without a decision is fixing them, because every fix is a major-version stack change and
-  `CLAUDE.md` forbids that without discussion. One free hardening landed regardless: the JWT
-  algorithm is now pinned on verification as well as signing.
-- **8.2 Playwright and 8.5 Lighthouse** remain. 8.5 is still blocked on Q-46.
+- **8.2 Playwright — done.** Twenty checks: six scenarios across Desktop Chrome and Pixel 7, run
+  against `preview` rather than `dev`, because the dev server serves a different module graph and
+  a green run over it says nothing about what a visitor downloads. They test the seams the 435
+  integration tests cannot see — a cart surviving a full page load with the price the product page
+  quoted, a session surviving a reload _and_ proof it survived through the httpOnly cookie rather
+  than `localStorage` (the only place D-15 can actually be checked), the free-shipping figure on
+  the page reconciled against what `GET /api/settings` computes, a real 404 in the shop's own
+  words. **No payment path is covered**: the task asks for both providers and a payment failure,
+  PayPal is in `BACKLOG.md` (D-26) and `POST /api/checkout/intent` is unwritten for want of a key
+  (D-27), and a test that mocked the provider would assert the mock works.
+  The e2e layer belongs to no package, so it has a `tsconfig.json` at the root — without one,
+  type-aware ESLint reports the specs as unparseable rather than skipping them.
+- **8.7 security — the dependency half is blocked on the owner (Q-47); the rest is landing.** The
+  dependency audit reports 30 findings, and every critical one was checked for reachability rather
+  than counted: none is exploitable in this configuration, and the reasons are tabulated in the
+  question. Fixing them is a major-version stack change, which `CLAUDE.md` forbids without
+  discussion. Two free hardenings landed regardless: the JWT algorithm is pinned on verification as
+  well as signing, and secret scanning now runs in `verify`.
+
+  **`scripts/secret-scan.mjs` stands in for gitleaks**, which is a Go binary this machine cannot
+  install; downloading a release archive to satisfy a checklist would be worse than the checklist.
+  Its rules match the format of an issued credential rather than the name beside it, so
+  `sk_test_replace_me` is excluded by its own shape and not by an allow-list — a scanner that cries
+  wolf on `.env.example` stops being run. Where format cannot help it is entropy over an assignment
+  to a secret-shaped name, and each accepted value is pinned by fingerprint with its reason, so a
+  second secret in an allow-listed file still fails. It self-tests on every run against seven
+  synthetic cases. The tracked tree and every blob that ever existed both come back clean.
+
+  It found two things on the first run, both the same mistake — a guard aimed at the wrong failure.
+  `db:reset` refused a mistyped database name and would have waved through the correct one in the
+  wrong environment, and production is called `silkgrain` too. `db:seed` refused a database that
+  already had products, which a fresh production database does not; it would have created
+  `owner@silkgrain.local` holding a password published in this repository. Both now refuse
+  production, and `guard.test.ts` passes a null handle to prove the refusal happens before a
+  connection is opened.
+
+- **8.5 Lighthouse** remains, still blocked on Q-46.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale
