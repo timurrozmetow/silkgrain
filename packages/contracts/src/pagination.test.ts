@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { PageQuery, pageBounds, pageMeta, paginated } from './pagination';
+import { PAGE_MAX, PageQuery, pageBounds, pageMeta, paginated } from './pagination';
 
 /**
  * Offset pagination, on its own.
@@ -77,6 +77,16 @@ describe('the page query', () => {
     expect(PageQuery.safeParse({ page: '0' }).success).toBe(false);
     expect(PageQuery.safeParse({ page: '-1' }).success).toBe(false);
     expect(PageQuery.safeParse({ page: '1.5' }).success).toBe(false);
+  });
+
+  it('refuses a page number past what an OFFSET can hold', () => {
+    // The other half of the same guard, and it was missing until the Phase 8 security pass.
+    // `?page=100000000000000000000` renders an OFFSET MySQL will not parse, which turns a public
+    // catalogue request into a 500 - a bad number has to be a 422.
+    expect(PageQuery.safeParse({ page: '100000000000000000000' }).success).toBe(false);
+    expect(PageQuery.safeParse({ page: String(PAGE_MAX + 1) }).success).toBe(false);
+    // And the boundary itself is still allowed, so the cap is a ceiling and not an off-by-one.
+    expect(PageQuery.parse({ page: String(PAGE_MAX) }).page).toBe(PAGE_MAX);
   });
 });
 

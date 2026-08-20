@@ -98,7 +98,11 @@ export async function issueRefreshToken(
     familyId,
     expiresAt,
     userAgent: params.context?.userAgent?.slice(0, 400) ?? null,
-    ip: params.context?.ip ?? null,
+    // Clamped like the line above it, and for the same reason: `ip` is `varchar(45)`, and under
+    // STRICT_TRANS_TABLES an over-long value is an error rather than a truncation. Behind a proxy
+    // this string comes from a header, so its length is the client's to choose - and a 46-byte
+    // one would turn a correct sign-in into a 500.
+    ip: params.context?.ip?.slice(0, 45) ?? null,
   });
 
   return { token, familyId, expiresAt };

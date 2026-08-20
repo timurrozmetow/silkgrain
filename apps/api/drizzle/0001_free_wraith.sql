@@ -1,0 +1,1 @@
+ALTER TABLE `product_nutrition` ADD `source` enum('reference','entered') DEFAULT 'reference' NOT NULL;

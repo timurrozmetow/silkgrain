@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { PRODUCT_SORT } from '../constants';
 import { Badge, Certification, Origin, ProductStatus, StockState, WeightUnit } from '../enums';
-import { PageMeta } from '../pagination';
+import { PageMeta, PageNumber } from '../pagination';
 import { Cents, Currency, Id, IsoDate, Slug } from '../primitives';
 
 /**
@@ -280,7 +280,7 @@ export const ProductListQuery = z
     inStock: QueryBoolean.optional(),
     q: z.string().trim().min(1).max(120).optional(),
     sort: ProductSort.default('featured'),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(48).default(16),
   })
   .strict()

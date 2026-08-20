@@ -235,4 +235,28 @@ describe('product images', () => {
     const { status } = await upload(99_999, await pngOf('#0E6B4A'));
     expect(status).toBe(404);
   });
+
+  it('refuses an image by its pixel count, not only by its byte count', async () => {
+    // Both size gates on this route measure compressed bytes, and compression is what makes a
+    // large image small: this 7000x7000 PNG is well under the 12 MB limit on the wire and about
+    // 200 MB once decoded. The API serves the storefront from the same process, so without a
+    // pixel ceiling a handful of these would take the shop down rather than the back office.
+    const wide = await pngOf('#0E6B4A', 7000);
+    expect(wide.length).toBeLessThan(12 * 1024 * 1024);
+
+    const body = new FormData();
+    body.append('file', wide, { filename: 'huge.png', contentType: 'image/png' });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/admin/products/${String(productId())}/images`,
+      remoteAddress: freshAddress(),
+      headers: { ...body.getHeaders(), authorization: `Bearer ${token}` },
+      payload: body.getBuffer(),
+    });
+
+    expect(response.statusCode).toBe(422);
+    // And it says which of the two things went wrong. Telling somebody their perfectly valid
+    // photograph "could not be read" sends them hunting for a corrupt file that does not exist.
+    expect(response.json<{ error: { message: string } }>().error.message).toMatch(/pixels/i);
+  });
 });

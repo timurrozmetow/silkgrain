@@ -15,7 +15,7 @@ import {
   WeightUnit,
   WholesaleStatus,
 } from '../enums';
-import { paginated } from '../pagination';
+import { PageNumber, paginated } from '../pagination';
 import { Cents, Currency, Email, Id, IsoDate, Slug } from '../primitives';
 
 import { AdminProfile, Password } from './auth';
@@ -96,7 +96,7 @@ export const AdminOrderListQuery = z
     q: z.string().trim().max(120).optional(),
     status: z.union([OrderStatus, z.literal('all')]).default('all'),
     needsFulfilment: QueryBoolean.optional(),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();
@@ -255,7 +255,7 @@ export const AdminPromoListQuery = z
   .object({
     q: z.string().trim().max(120).optional(),
     state: z.union([PromoState, z.literal('all')]).default('all'),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();
@@ -411,7 +411,7 @@ export const AdminCustomerListQuery = z
     status: z.union([CustomerStatus, z.literal('all')]).default('all'),
     /** "Who are my best customers" is the one question no other screen answers. */
     sort: z.enum(['newest', 'spend']).default('newest'),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();
@@ -556,7 +556,7 @@ export const AdminWholesaleListQuery = z
     status: z.union([WholesaleStatus, z.literal('all')]).default('all'),
     /** Only the ones nobody has taken - the queue that actually needs a person. */
     unassigned: QueryBoolean.optional(),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();
@@ -677,7 +677,7 @@ export const AdminProductListQuery = z
     category: Slug.optional(),
     /** Products whose stock is at or under a variant's threshold, the dashboard's definition. */
     lowStock: QueryBoolean.optional(),
-    page: z.coerce.number().int().min(1).default(1),
+    page: PageNumber.default(1),
     perPage: z.coerce.number().int().min(1).max(100).default(20),
   })
   .strict();

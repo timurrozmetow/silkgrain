@@ -60,8 +60,17 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
     // collide, and a request id that is not unique is worse than none.
     genReqId: () => randomUUID(),
     requestIdHeader: 'x-request-id',
-    // Trust the reverse proxy in production so rate limiting sees the real client IP.
-    trustProxy: env.NODE_ENV === 'production',
+    /**
+     * Trust the reverse proxy in production so rate limiting sees the real client IP.
+     *
+     * A hop count, not `true`. `true` compiles to trust-everything, which makes `request.ip` the
+     * leftmost `X-Forwarded-For` entry - a value the client writes. Every limiter keys on that
+     * (`plugins/security.ts`), so a rotating header would hand out a fresh bucket per request and
+     * defeat all of them at once, including the 10-per-15-minutes on the sign-in routes that is
+     * the only online-guessing defence the back office has. Trusting exactly one hop discards
+     * everything to the left of what our own proxy appended.
+     */
+    trustProxy: env.NODE_ENV === 'production' ? 1 : false,
     bodyLimit: 1_048_576,
     ajv: { customOptions: { removeAdditional: false } },
   });
