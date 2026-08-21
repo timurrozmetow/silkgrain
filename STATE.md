@@ -724,7 +724,42 @@ down, against real MySQL, Redis and Mailpit.
   logic, zero lint warnings, zero type errors, and both bundles inside budget. Twenty Playwright
   checks run separately with `pnpm test:e2e`, since they need a built preview and a seeded database.
 
-- **8.5 Lighthouse** is the only task left, and it is still blocked on Q-46.
+- **8.5 Lighthouse - done, and it changed the answer to Q-46.** `pnpm lighthouse:ci` gates the four
+  pages the task names, both form factors, against a committed `lighthouse-budget.json` with a
+  tolerance of 2; `--update` regenerates it. It passes, and its failure path was tested by raising
+  a threshold rather than assumed.
+
+  The harness had to be repaired first, and one of the repairs invalidates numbers this document
+  used to carry. It measured `/product/devzira-rice`; the seed's slug is `uzbek-devzira-rice`. So
+  **every product figure ever printed was the score of the "We do not stock that" empty state** -
+  99 desktop, 87 mobile, the top of the table, because a page with no photograph is the fastest
+  page in the shop. The real product page measured **74 desktop and 56 mobile**. The harness now
+  preflights each page's backing API resource and refuses to run (D-42); `--block-third-party` was
+  also missing unsplash, which is every recipe image, and a failed run printed a line and still
+  exited 0.
+
+  Then three defects, all found by decomposing the reports rather than guessing:
+
+  | Fix                                                                       | Cost                          | Gain                               |
+  | ------------------------------------------------------------------------- | ----------------------------- | ---------------------------------- |
+  | The recipes featured panel reserved no height once it stacked (CLS 0.264) | one Tailwind class            | recipes mobile 69 -> 79            |
+  | Five webfonts loading late and reflowing every page                       | a 40-line Vite preload plugin | ~4-5 points everywhere             |
+  | The product skeleton drew a third of the page it stood in for (CLS 0.381) | mirror the real sections      | product mobile 61 -> 78, CLS 0.002 |
+
+  All three are the same defect - a placeholder that lies about height - and it is now D-43.
+
+  **Measured after the fixes**, third-party fixture blocked, which is what production looks like
+  once images are self-hosted: mobile home 83, shop 87, category 91, product 90, cart 93,
+  recipes 92, about 93, help 91, wishlist 91, account 87, 404 93. Desktop 98-100 everywhere.
+  **Eight of eleven mobile pages clear 90.** Before today, none did on either matrix, and this
+  document asserted that ">=90 on mobile needs prerendering or SSR". That assertion was wrong, and
+  it was wrong because it rested on a page that was never being measured. What is left below the
+  bar - home 83, shop 87, account 87 - is the seed's remote imagery, not the architecture.
+
+  Unblocked, as a visitor sees it today with the fixture's remote images: mobile home 74, shop 77,
+  category 80, product 78, cart 93, recipes 84, about 93, help 91, wishlist 92, account 87, 404 93.
+
+  Q-46 is therefore rewritten rather than still open: see `QUESTIONS.md`.
 
 `apps/web/src/store/cart.ts` holds variant ids and quantities and nothing else. Every figure
 comes from `POST /api/cart/validate`. A cart that cached its own totals would show a stale

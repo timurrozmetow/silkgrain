@@ -470,11 +470,25 @@ const STOCK_TEXT: Record<ProductVariantView['stockState'], string> = {
   out: 'text-terracotta',
 };
 
+/**
+ * The placeholder, and it has to be the height of the page it stands in for.
+ *
+ * It used to draw only the gallery and the summary - about a third of the real page - so when the
+ * response arrived the reviews section, the nutrition panel and the related rail all appeared at
+ * once and drove the footer down. Measured CLS 0.381 against 0.017-0.022 everywhere else, which is
+ * 18.3 of the 43 points this page was losing on mobile: the worst score in the shop, on the page
+ * that sells things.
+ *
+ * Third time for this exact defect - the `/help` FAQ skeleton reserved 368px for a 744px list, and
+ * the recipes featured panel reserved nothing at all. The rule that comes out of all three: a
+ * placeholder is a promise about height, and a placeholder for only the part above the fold is a
+ * promise that the rest of the page does not exist.
+ */
 function ProductSkeleton() {
   return (
     <div className="mx-auto max-w-container px-gutter py-8 tablet:px-gutter-tablet mobile:px-gutter-mobile">
       <Skeleton className="h-4 w-64" />
-      <div className="mt-8 grid grid-cols-2 gap-16 mobile:grid-cols-1 mobile:gap-8">
+      <div className="mt-8 grid grid-cols-2 gap-16 tablet:gap-10 mobile:grid-cols-1 mobile:gap-8">
         <Skeleton className="aspect-square w-full" />
         <div className="space-y-5">
           <Skeleton className="h-3 w-28" />
@@ -486,6 +500,32 @@ function ProductSkeleton() {
           <Skeleton className="h-14 w-full" />
         </div>
       </div>
+
+      {/* Provenance, nutrition and the review histogram - the two-column band at line 331. */}
+      <section className="mt-20 grid grid-cols-2 gap-16 tablet:gap-10 mobile:mt-12 mobile:grid-cols-1 mobile:gap-8">
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </section>
+
+      {/* "You May Also Like" - four cards on desktop, two at every narrower width (D-19). */}
+      <section className="mt-20 mobile:mt-12">
+        <Skeleton className="h-6 w-52" />
+        <div className="mt-6 grid grid-cols-4 gap-6 tablet:grid-cols-3 mobile:grid-cols-2 mobile:gap-4">
+          {[0, 1, 2, 3].map((slot) => (
+            <div key={slot} className="space-y-3 tablet:last:hidden mobile:last:block">
+              <Skeleton className="aspect-square w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

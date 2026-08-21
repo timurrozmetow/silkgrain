@@ -112,7 +112,15 @@ function Meta({ recipe, onDark = false }: { recipe: ApiRecipeCard; onDark?: bool
 function FeaturedPanel({ recipe }: { recipe: ApiRecipeCard }) {
   return (
     <article className="mt-12 grid min-h-[380px] grid-cols-2 overflow-hidden bg-green-deep tablet:grid-cols-1 mobile:mt-8">
-      <div className="flex items-center justify-center bg-gradient-to-br from-gold-pale to-surface">
+      {/*
+        The ratio is only needed once the panel stacks. Side by side, the text column sets the row
+        height and the image fills it; at 1024 and below the image is on its own row with nothing
+        reserving it, so everything under it jumps down when the photograph arrives. Measured at
+        CLS 0.264 on mobile against 0.017-0.022 everywhere else, which is 13.5 points of the score
+        - the same defect, and the same fix, as the /help skeleton that reserved 368px for a 744px
+        list. `RecipeTile` below has carried `aspect-[4/3]` from the start; this panel never did.
+      */}
+      <div className="flex items-center justify-center bg-gradient-to-br from-gold-pale to-surface tablet:aspect-[16/10]">
         {recipe.image === null ? (
           <Icon name="cooking-pot" size={80} className="text-green/25" />
         ) : (

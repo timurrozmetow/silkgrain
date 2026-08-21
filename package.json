@@ -26,7 +26,8 @@
     "test:coverage": "turbo run test:coverage",
     "bundle:budget": "node scripts/bundle-budget.mjs",
     "secret:scan": "node scripts/secret-scan.mjs",
-    "secret:scan:history": "node scripts/secret-scan.mjs --history"
+    "secret:scan:history": "node scripts/secret-scan.mjs --history",
+    "lighthouse:ci": "node scripts/lighthouse.mjs --ci"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",
