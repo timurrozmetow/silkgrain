@@ -288,3 +288,16 @@ phase in `PLAN.md`.
 - Per-SKU nutrition data. The seed carries category-level reference values; the real figures
   come from the supplier's certificate of analysis and are entered in the admin product form
   (Q-43, D-20). Required by the FDA before the store takes a real order.
+
+## Structured address fields in settings
+
+`store.address` is one free-text line, and it is what the footer and `/help` print - both now read
+it from `GET /api/settings` rather than carrying a copy. The `Organization` JSON-LD in
+`apps/web/src/lib/seo.tsx` cannot: `schema.org/PostalAddress` wants `streetAddress`,
+`addressLocality`, `addressRegion` and `postalCode` as separate fields, and splitting a line of
+text into four is a guess that gets a shop's address wrong in a machine-readable way - worse than
+a stale one a person can see. So that constant is the one place a contact detail is still written
+down in the source, and the second place to change if the shop moves.
+
+The fix is four settings rows instead of one, with the footer composing the display line from them.
+Perhaps 3 h, worth doing the day the address is not a placeholder.

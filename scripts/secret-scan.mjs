@@ -191,13 +191,18 @@ function scan(where, content) {
     if (value === undefined || name === undefined) continue;
     if (ALLOWED.has(fingerprint(value))) continue;
     if (PLACEHOLDER.test(value)) continue;
-    // A template literal is a value being *built*, and what the regex captured is source text
-    // rather than a credential - `seed-unsubscribe-${i}` scores as 49 disordered characters while
-    // the thing it produces is a predictable twenty. Score only the literal part: if what is
-    // hard-coded around the holes is not itself long and random, there is no secret here.
-    // The closing brace is optional because the capture often does not reach it: the value stops
-    // at the first quote, and an interpolation like `${x.padStart(4, '0')}` contains one.
-    const literal = value.replace(/\$\{[^}]*\}?/g, '');
+    // A value being *built* is not a value being stored, and what the regex captured is source
+    // text rather than a credential. Two shapes, one rule:
+    //
+    //   `seed-unsubscribe-${i}`                  a JS template - scores as 49 disordered
+    //                                            characters while producing a predictable twenty
+    //   BOOTSTRAP_OWNER_PASSWORD="$(openssl ...)"  a shell substitution - the whole point of which
+    //                                            is that the value is NOT written down
+    //
+    // Score only what is hard-coded around the holes: if that is not itself long and random,
+    // there is no secret here. The closing delimiter is optional because the capture often does
+    // not reach it - the value stops at the first quote, and `${x.padStart(4, '0')}` contains one.
+    const literal = value.replace(/\$\{[^}]*\}?/g, '').replace(/\$\([^)]*\)?/g, '');
     if (literal.length < 16) continue;
     if (entropy(literal) < 3.5) continue;
     found.push({ where, line: lineOf(match.index), rule: `high-entropy:${name}`, value: literal });
@@ -233,6 +238,7 @@ function selfTest() {
     ['const DB_PASSWORD = "' + 'xQ7#mK9$pL2@vN4wZ8rT' + '"', true, 'a high-entropy password'],
     ['STRIPE_SECRET_KEY=sk_test_replace_me', false, 'the placeholder in .env.example'],
     ['const token = `seed-unsubscribe-${String(i).padStart(4, "0")}`', false, 'a built template'],
+    ['SOME_PASSWORD="$(openssl rand -base64 24)"', false, 'a shell command substitution'],
   ];
 
   let broken = 0;

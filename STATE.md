@@ -9,19 +9,21 @@ Updated 2026-08-19. Read this first after any context loss, then `CLAUDE.md` for
 **Branch:** `phase/3-catalog-cart` — the name is four phases stale and the branch is not. `main`
 has no commits yet; branches merge there once the owner accepts the work.
 
-**58 commits. Phases 0 through 7 are complete. Phase 8 is nearly done.**
+**62 commits. Phases 0 through 9 are complete**, less the four tasks that need a Stripe
+key (4.2, 4.6, 6.1-6.3, 6.7) and one that needs a machine this one cannot provide (9.8).
 
-| Phase | Commits             | State                                                |
-| ----- | ------------------- | ---------------------------------------------------- |
-| 0     | `7b74172`           | Monorepo, tooling, local services                    |
-| 1     | `bfae409`+`187c166` | Design system, 22 components, the responsive layer   |
-| 2     | `9c72c97`           | Backend core — schema, seeds, auth                   |
-| 3     | `cdbf5bb`           | Catalogue and cart API                               |
-| 4     | four commits        | Done **except** 4.2 and 4.6, which need a Stripe key |
-| 5     | fourteen commits    | The storefront, complete, plus the Lighthouse pass   |
-| 6     | 6.5 and 6.6 only    | The rest is the checkout, behind the same Stripe key |
-| 7     | fourteen commits    | The admin panel, complete, 7.1 through 7.9           |
-| 8     | four commits        | 8.1–8.4, 8.6, 8.8 done; 8.7 in progress; 8.5 blocked |
+| Phase | Commits             | State                                                  |
+| ----- | ------------------- | ------------------------------------------------------ |
+| 0     | `7b74172`           | Monorepo, tooling, local services                      |
+| 1     | `bfae409`+`187c166` | Design system, 22 components, the responsive layer     |
+| 2     | `9c72c97`           | Backend core — schema, seeds, auth                     |
+| 3     | `cdbf5bb`           | Catalogue and cart API                                 |
+| 4     | four commits        | Done **except** 4.2 and 4.6, which need a Stripe key   |
+| 5     | fourteen commits    | The storefront, complete, plus the Lighthouse pass     |
+| 6     | 6.5 and 6.6 only    | The rest is the checkout, behind the same Stripe key   |
+| 7     | fourteen commits    | The admin panel, complete, 7.1 through 7.9             |
+| 8     | seven commits       | **Complete.** All eight tasks; `pnpm verify` exits 0   |
+| 9     | two commits         | Complete **except 9.8**, which this machine cannot run |
 
 **`pnpm verify` exits 0** — Phase 8's acceptance criterion — and runs `secret:scan`,
 `format:check`, `lint`, `typecheck`, `test:coverage`, `build` and `bundle:budget` in that order.
@@ -887,6 +889,62 @@ The one remaining contrast finding is the wordmark's gold half at 2.13:1. It is 
 which WCAG 1.4.3 exempts and no markup can declare — `aria-hidden` does not help, because the
 rule measures what a sighted reader sees. Left as the designer drew it; changing the mark is the
 owner's call. Decision D-7 bars gold from carrying text everywhere else, and nothing else does.
+
+---
+
+## Phase 9 — deployment
+
+**Done, except 9.8.** Eight artefacts: `ecosystem.config.cjs` (PM2 cluster, `kill_timeout` above
+the app's own 10 s drain), `deploy/nginx/silkgrain.conf` (634 lines - three server blocks, the
+security headers the API's helmet policy cannot reach because the HTML is a static file, and
+`X-Forwarded-For $proxy_add_x_forwarded_for` matching `trustProxy: 1`), `apps/api/Dockerfile` for
+CI only, `deploy/{deploy,rollback,backup-db}.sh`, two GitHub workflows, `.env.production.example`,
+`docs/observability.md`, and `DEPLOY.md` at 1413 lines from a bare Ubuntu 24.04 box to a working
+site.
+
+Six agents wrote those against one topology specification and three reviewers cross-checked them.
+**What that found was mostly not in the deployment files at all**, and each of the three would have
+failed the first deploy on its own:
+
+- **PM2 could not have started the API.** Its cluster container loads the entry with `require()`,
+  and `require()` of an ES module throws `ERR_REQUIRE_ASYNC_MODULE` when the graph holds a
+  top-level await. `server.ts` had two (D-45). Measured, not argued: `require()` of the built
+  bundle threw, and the same module with the awaits inside a function loads.
+- **The API could not have found its `.env`.** `loadDotEnv` counted four directories up from
+  `src/config/`, which is the repository root in development; the built entry is one level
+  shallower, so under the release layout it read `/srv/silkgrain/releases/.env` (D-46).
+- **A freshly migrated database cannot run a shop.** No screen can create the first administrator,
+  `shipping_rates` has no POST at any role, and `saveSettings` throws `notFound` and then UPDATEs
+  without ever inserting. `pnpm --filter @silkgrain/api db:bootstrap` closes it (D-47), replacing
+  the nine hand-written commands and two blocks of raw SQL the first draft of DEPLOY.md carried.
+
+Proved end to end on a genuinely empty database: create, migrate, bootstrap, boot. `GET
+/api/products` answered `total: 0`, `GET /api/settings` answered `freeShippingFromCents: 7500`
+computed from the bootstrapped rate row, and the owner signed in with a 200.
+
+Smaller repairs from the same review: the scripts named `deploy/ecosystem.config.cjs` while the
+file is at the root, **and the check for it ran one line after the symlink moved** - deterministically
+leaving Nginx on the new bundles and PM2 on the old API with no health check and no revert;
+`shared/logs` was never created though PM2 writes there; Nginx did not set `X-Request-ID`, so the
+id labelling every log line was the caller's to choose; three seed image hosts sat in the
+production CSP that production can never legitimately load; the CI deploy invoked the scripts
+without a login shell while they do not set `PATH` despite a comment claiming they do; and the
+shell scripts are committed `100755`, because `core.filemode` is false here and without it the
+_second_ deploy fails.
+
+**9.8 - rehearsing DEPLOY.md on a clean machine - cannot be done here.** No Docker, no VM, and
+`wsl.exe` turns out to be the stub Windows ships with no distribution installed, while
+`wsl --install` needs administrator. Checked rather than assumed. Everything in DEPLOY.md is
+therefore reasoned from the code and the packages rather than executed, and its "known rough
+edges" section says which claims are distribution-dependent.
+
+**One defect found afterwards and fixed:** the footer and `/help` hard-coded
+`hello@silkgrain.example` and the warehouse address, both of which are `settings` rows the owner
+edits and `GET /api/settings` already served - decision D-22's defect, repeated in two more places.
+Both now read the hook the announcement bar uses. Verified by changing the rows in the database and
+watching both pages follow. The `Organization` JSON-LD still writes the address down, deliberately:
+`schema.org/PostalAddress` wants four separate fields and `store.address` is one line, so splitting
+it would be a guess that gets the address wrong in a machine-readable way. That is in `BACKLOG.md`.
 
 ---
 

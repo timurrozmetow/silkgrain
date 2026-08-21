@@ -16,6 +16,7 @@ import { useRef, useState } from 'react';
 
 import { apiGet, apiPost, ApiRequestError } from '../lib/api';
 import { Seo } from '../lib/seo';
+import { usePublicSettings } from '../lib/use-public-settings';
 
 /**
  * Help: the FAQ, then a way to ask something it does not answer.
@@ -145,6 +146,8 @@ function FaqSection() {
 }
 
 function ContactSection() {
+  const { data: settings } = usePublicSettings();
+
   // Captured once, on mount, and sent with the form. The server refuses anything submitted
   // faster than a person could have read it.
   const renderedAt = useRef(Date.now());
@@ -264,16 +267,25 @@ function ContactSection() {
           Send message
         </Button>
 
-        <p className="text-[12px] text-muted">
-          Or write to{' '}
-          <a
-            href="mailto:hello@silkgrain.example"
-            className="text-green underline underline-offset-2"
-          >
-            hello@silkgrain.example
-          </a>
-          .
-        </p>
+        {/*
+          From `GET /api/settings`, like the footer's copy of the same row. The owner edits
+          `store.contact_email` on the Settings screen; a string here would keep printing the old
+          address on the one page whose entire purpose is telling somebody how to get in touch.
+          The sentence is omitted rather than shown with a placeholder while the value loads -
+          the form above it is the primary route anyway, and this is the fallback.
+        */}
+        {settings?.contactEmail !== null && settings?.contactEmail !== undefined && (
+          <p className="text-[12px] text-muted">
+            Or write to{' '}
+            <a
+              href={`mailto:${settings.contactEmail}`}
+              className="text-green underline underline-offset-2"
+            >
+              {settings.contactEmail}
+            </a>
+            .
+          </p>
+        )}
       </form>
     </aside>
   );

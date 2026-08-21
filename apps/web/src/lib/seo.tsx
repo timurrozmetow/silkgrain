@@ -108,6 +108,19 @@ export function absoluteUrl(path: string): string {
  * Repeating it on every page is legal and pointless; search engines take it from the site's
  * front door.
  */
+/**
+ * The one place a contact detail is still written down, and deliberately so.
+ *
+ * The footer and `/help` read the address and the email from `GET /api/settings`, because those
+ * are rows the owner edits and a hard-coded copy goes stale silently. This constant does not,
+ * for a reason that is a modelling gap rather than an oversight: `schema.org/PostalAddress` wants
+ * `streetAddress`, `addressLocality`, `addressRegion` and `postalCode` as separate fields, and
+ * `store.address` is one free-text line. Splitting a line of text into four is a guess that gets
+ * a shop's address wrong in a machine-readable way, which is worse than a stale one a person can
+ * see. It is in `BACKLOG.md` as structured address fields.
+ *
+ * So: if the shop moves, this is the second place to change, and the only one.
+ */
 export const ORGANIZATION_JSON_LD: Record<string, unknown> = {
   '@context': 'https://schema.org',
   '@type': 'Organization',

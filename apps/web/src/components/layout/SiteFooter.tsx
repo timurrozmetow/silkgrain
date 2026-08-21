@@ -1,6 +1,8 @@
 import { Icon, type IconName } from '@silkgrain/ui';
 import { Link } from '@tanstack/react-router';
 
+import { usePublicSettings } from '../../lib/use-public-settings';
+
 import { Wordmark } from './Wordmark';
 
 /**
@@ -48,6 +50,8 @@ const SOCIALS: { href: string; icon: IconName; label: string }[] = [
 const PAYMENTS = ['Visa', 'Mastercard', 'Amex', 'PayPal', 'Apple Pay'];
 
 export function SiteFooter() {
+  const { data: settings } = usePublicSettings();
+
   return (
     <footer className="mt-24 bg-green-footer text-onfooter mobile:mt-16">
       <div className="mx-auto max-w-container px-gutter py-16 tablet:px-gutter-tablet mobile:px-gutter-mobile mobile:py-12">
@@ -98,17 +102,34 @@ export function SiteFooter() {
             <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold">
               Get in touch
             </h2>
+            {/*
+              Both from `GET /api/settings`, not from this file. `store.address` and
+              `store.contact_email` are rows the owner edits on the Settings screen, so a copy here
+              is a second answer to "where are you" that goes stale the first time they move or
+              change the address people write to - and nothing would notice, because the panel
+              would show the new value while the footer of every page showed the old one. Exactly
+              the defect decision D-22 removed for the free-shipping figure, in the same file that
+              was fixed for it.
+
+              A row is rendered only once its value has arrived. There is no placeholder: a
+              contact block that flashes a wrong address is worse than one that arrives a moment
+              late, and the query is cached for the session so it arrives once.
+            */}
             <ul className="mt-5 space-y-3 text-[14px] text-onfooter-muted">
-              <li className="flex gap-3">
-                <Icon name="map-pin" size={16} className="mt-0.5 shrink-0 text-gold" />
-                <span>5850 San Felipe St, Houston, TX 77057</span>
-              </li>
-              <li className="flex gap-3">
-                <Icon name="envelope-simple" size={16} className="mt-0.5 shrink-0 text-gold" />
-                <a href="mailto:hello@silkgrain.example" className="hover:text-gold">
-                  hello@silkgrain.example
-                </a>
-              </li>
+              {settings?.address !== null && settings?.address !== undefined && (
+                <li className="flex gap-3">
+                  <Icon name="map-pin" size={16} className="mt-0.5 shrink-0 text-gold" />
+                  <span>{settings.address}</span>
+                </li>
+              )}
+              {settings?.contactEmail !== null && settings?.contactEmail !== undefined && (
+                <li className="flex gap-3">
+                  <Icon name="envelope-simple" size={16} className="mt-0.5 shrink-0 text-gold" />
+                  <a href={`mailto:${settings.contactEmail}`} className="hover:text-gold">
+                    {settings.contactEmail}
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
         </div>
