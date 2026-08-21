@@ -204,6 +204,24 @@ rather than a rewrite.
 
 ## Quality and infrastructure
 
+### Error reporting — Sentry, or whatever replaces it
+
+Deferred out of task 9.6 by decision D-27's rule rather than by a new decision: there is no DSN,
+no account and no project, and an SDK that has never been pointed at a real one is a stub whose
+`init('')` is indistinguishable from a working install that has never seen an error. Question
+Q-41 lists the DSN among the accounts somebody has to open, and it is unanswered.
+
+The concrete gap it closes is the front end. The API logs every 5xx with a request id and a
+redacted request, and those lines survive in PM2's files; a React crash is caught by the router's
+`errorComponent`, rendered as "Something went wrong", and recorded nowhere at all — the API is
+healthy, the logs are clean and the page is white.
+
+`docs/observability.md` names the six attachment points, the variables, the scrubbing that has
+to be repeated for Sentry because it does not read pino's `redact` list, and the one line without
+which the front-end integration installs cleanly and reports nothing. It also flags the source
+maps: both Vite builds emit them and Nginx serves them today.
+**Estimate 3–5 h** once a DSN exists, plus `requestId` on `ApiRequestError`.
+
 ### Visual regression testing
 
 Storybook plus a screenshot differ would catch drift from the mockup on every change.

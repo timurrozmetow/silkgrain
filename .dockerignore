@@ -1,0 +1,70 @@
+# What the Docker build is allowed to see. Used by `docker build -f apps/api/Dockerfile .`;
+# the daemon reads this file from the context root, which is why it lives here and not beside
+# the Dockerfile.
+#
+# ## Why this is an allow-list
+#
+# `audit.projectors.ts` makes the same argument for the same reason (decision D-35): a deny-list
+# keeps its promise only until somebody adds a file nobody thought to exclude. Here the file
+# nobody thought to exclude is `.env`, or a `.pem` a future certbot step drops in the repository,
+# and the consequence is worse than an audit entry with too many columns - a secret copied into
+# an image layer is in every registry that ever pulled it, is visible to anyone who can run
+# `docker history`, and cannot be rotated by editing a file.
+#
+# So: exclude everything, then name what the build genuinely needs. Adding a workspace package
+# means adding a line here, and forgetting produces ERR_PNPM_OUTDATED_LOCKFILE on the next
+# build - loud, immediate, and fixed in a minute. That is the right direction for this mistake
+# to fail in.
+#
+# Last rule wins in Docker, unlike .gitignore. The order below is therefore load-bearing.
+
+# 1. Nothing.
+*
+
+# 2. The workspace definition. `--frozen-lockfile` reads all four of these and resolves nothing
+#    without them; `.npmrc` in particular carries auto-install-peers, so leaving it out gives
+#    the image a different dependency graph from the one that was tested.
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.npmrc
+
+# 3. The source. Every workspace manifest has to be present for the lockfile to validate, even
+#    for packages this image never builds.
+!apps
+!packages
+
+# 4. ...minus the two SPAs and the component library, which the API image does not build. Their
+#    manifests stay, because step 3's rule about the lockfile still applies to them. `apps/web/*`
+#    matches direct children only - Docker's `*` does not cross a slash - which is exactly what
+#    is wanted: the directory itself stays visible so the exception below can reach into it.
+apps/web/*
+!apps/web/package.json
+apps/admin/*
+!apps/admin/package.json
+packages/ui/*
+!packages/ui/package.json
+
+# 5. ...and minus everything generated. `dist` is rebuilt inside the image on purpose: shipping a
+#    Windows-built bundle into a Linux container is how a build stops proving anything. Sending
+#    `node_modules` would be worse - it holds the win32 binaries of sharp and argon2, and pnpm
+#    would then be reconciling a tree it did not create.
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+# 6. The last word, whatever the rules above say or a future edit to them says. Every one of
+#    these is already excluded by rule 1 and none is re-included by rules 2-5; they are written
+#    out anyway because this is the block that has to hold when somebody widens an allow-list in
+#    a hurry, and a rule that is only redundant while the file is correct is not redundant.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+.git
+.services
