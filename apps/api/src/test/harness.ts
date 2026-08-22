@@ -85,8 +85,10 @@ export async function truncateAll(databaseUrl: string): Promise<void> {
   }
 }
 
-export async function buildTestApp(): Promise<FastifyInstance> {
-  const env = testEnv();
+export async function buildTestApp(
+  overrides: Partial<Parameters<typeof buildApp>[0]> = {},
+): Promise<FastifyInstance> {
+  const env = { ...testEnv(), ...overrides };
 
   // Migrating once per process rather than once per file: the journal makes it a no-op after
   // the first call, but the round trip is not free and every test file pays it otherwise.

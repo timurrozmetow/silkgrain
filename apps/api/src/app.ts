@@ -110,7 +110,16 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await app.register(adminRoutes, { prefix: '/api/admin' });
   // Registered last and in its own scope: it replaces the JSON parser with a raw-bytes one,
   // and that substitution must not escape into any other route.
-  await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', env });
+  //
+  // Not registered at all when payments are off, which is the whole of D-51. Signature
+  // verification is local HMAC against `STRIPE_WEBHOOK_SECRET`, so a route mounted without a
+  // real secret is a route that accepts whatever anyone signs with the published placeholder.
+  // And with `POST /api/checkout/intent` unwritten (D-27) no PaymentIntent exists to report on,
+  // so every event such a route could receive would be a forgery. An absent route answers 404
+  // through the ordinary not-found handler and gives an attacker nothing to work against.
+  if (env.PAYMENTS_ENABLED) {
+    await app.register(stripeWebhookRoutes, { prefix: '/api/webhooks', env });
+  }
 
   return app;
 }

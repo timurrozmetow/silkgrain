@@ -100,6 +100,39 @@ describe('loadEnv', () => {
     );
   });
 
+  it('lets a catalogue-only deployment boot with no Stripe account at all', () => {
+    // D-51. Without this the only way onto a VPS is putting the published placeholders in a
+    // production .env, which hands the order pipeline to anyone who can read this repository.
+    const {
+      STRIPE_SECRET_KEY: _secret,
+      STRIPE_WEBHOOK_SECRET: _webhook,
+      VITE_STRIPE_PUBLISHABLE_KEY: _publishable,
+      ...withoutStripe
+    } = PRODUCTION;
+
+    const env = loadEnv({ ...withoutStripe, PAYMENTS_ENABLED: 'false' });
+    expect(env.PAYMENTS_ENABLED).toBe(false);
+    expect(env.STRIPE_SECRET_KEY).toBe('');
+
+    // Even the placeholders are fine once nothing reads them.
+    expect(() =>
+      loadEnv({
+        ...PRODUCTION,
+        PAYMENTS_ENABLED: 'false',
+        STRIPE_SECRET_KEY: 'sk_live_replace_me',
+      }),
+    ).not.toThrow();
+  });
+
+  it('demands the keys while payments are on, and defaults to on', () => {
+    expect(loadEnv(VALID).PAYMENTS_ENABLED).toBe(true);
+
+    // Absent is as bad as placeholder: an operator who forgot must not get a quiet catalogue.
+    const { STRIPE_SECRET_KEY: _dropped, ...missing } = VALID;
+    expect(() => loadEnv(missing)).toThrow(/STRIPE_SECRET_KEY/);
+    expect(() => loadEnv({ ...VALID, STRIPE_WEBHOOK_SECRET: '' })).toThrow(/STRIPE_WEBHOOK_SECRET/);
+  });
+
   it('accepts only a plausible order-number prefix', () => {
     expect(loadEnv(VALID).ORDER_NUMBER_PREFIX).toBe('SG');
     expect(loadEnv({ ...VALID, ORDER_NUMBER_PREFIX: 'SILK' }).ORDER_NUMBER_PREFIX).toBe('SILK');

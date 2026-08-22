@@ -984,6 +984,16 @@ created. What is left is a credential, a machine, and five open questions.
    4.2 and 4.6, then 6.1-6.3 and 6.7 - and they are the till. Everything on this side of the SDK
    call is built and tested: `createPendingOrder`, the signed-webhook contour, the paid
    transaction, the receipt.
+
+   **This no longer blocks deploying.** `PAYMENTS_ENABLED=false` (D-51) is a supported production
+   configuration: the whole shop except a checkout, with `POST /api/webhooks/stripe` not registered
+   at all. It was added when the owner asked for a VPS launch without keys, and it replaces the
+   thing DEPLOY.md used to point at as the narrower fix - which would have let the migration through
+   and left the API refusing to boot one step later. What made it worth doing properly rather than
+   relaxing the check: verification is local HMAC against `STRIPE_WEBHOOK_SECRET`, this repository
+   is public, and a production API holding `whsec_replace_me` would accept a forged
+   `payment_intent.succeeded` from anyone - orders paid, stock decremented, receipts sent.
+
 2. **Task 9.8 needs a machine.** Rehearsing `DEPLOY.md` end to end wants a clean Ubuntu box. This
    one has no Docker, no VM, and `wsl.exe` with no distribution installed - `wsl --install` needs
    administrator. A cheap VPS for an afternoon settles it, and the document's own "known rough

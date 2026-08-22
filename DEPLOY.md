@@ -63,10 +63,34 @@ site and issuing the certificate — both of which are marked.
 Which SMTP provider and which object store is open question Q-41 in `QUESTIONS.md`; nothing in the
 code cares, as long as one speaks SMTP and the other speaks S3.
 
+### Deploying without a Stripe account
+
+**You can, and it is a supported configuration rather than a workaround.** Set one line in
+`shared/.env`:
+
+```bash
+PAYMENTS_ENABLED=false
+```
+
+and leave `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `VITE_STRIPE_PUBLISHABLE_KEY` exactly as
+`.env.production.example` ships them. The migration runs, the API boots, and you get the whole shop
+except a till: catalogue, search, cart, accounts, wholesale enquiries, recipes, the back office.
+`POST /api/webhooks/stripe` is **not registered at all**, so it answers 404 like any unknown path.
+
+That last part is the point, and it is decision **D-51**. What people do instead is put the
+`replace_me` placeholders into a production `.env` and force it past the check. Do not. Webhook
+verification is local HMAC against `STRIPE_WEBHOOK_SECRET`, `whsec_replace_me` is published in this
+repository, and an API holding it accepts a forged `payment_intent.succeeded` from anyone who can
+read GitHub — orders marked paid, stock decremented, receipts sent to customers who paid nothing.
+Inventing a realistic-looking string instead buys nothing either: `POST /api/checkout/intent` is not
+written (D-27), so no PaymentIntent exists for a genuine event to refer to.
+
+When the keys arrive, flip `PAYMENTS_ENABLED=true`, fill in the three values, and redeploy.
+
 ### The one thing that will waste your evening
 
-**A by-the-book first deploy cannot complete today.** It fails at the migration, not at the API
-boot, and here is the exact chain:
+**With `PAYMENTS_ENABLED=true` and no real keys, the first deploy stops at the migration** — not at
+the API boot, which is later. The exact chain:
 
 - `deploy/deploy.sh` step 5 runs `pnpm db:migrate`, which is `tsx src/db/migrate.ts`.
 - `apps/api/src/db/migrate.ts` calls `loadDotEnv()` and then `loadEnv()`.
@@ -87,17 +111,17 @@ Invalid environment configuration:
 ```
 
 Nothing is damaged — the pre-deploy dump has already been taken and `current` was never switched —
-but the site does not come up. **Get the three Stripe keys before you begin.** They are Dashboard →
-Developers → API keys with test mode off for the secret and publishable pair, and Dashboard →
-Developers → Webhooks → add an endpoint at `https://<your domain>/api/webhooks/stripe` for the
-signing secret. That last one is not the value `stripe listen` prints in development; they are
-different secrets for different endpoints, and a mismatch is a 400 on every event which Stripe
-retries for three days.
+but the site does not come up. Either **set `PAYMENTS_ENABLED=false`** as the previous section
+describes, or **get the three keys before you begin**. They are Dashboard → Developers → API keys
+with test mode off for the secret and publishable pair, and Dashboard → Developers → Webhooks → add
+an endpoint at `https://<your domain>/api/webhooks/stripe` for the signing secret. That last one is
+not the value `stripe listen` prints in development; they are different secrets for different
+endpoints, and a mismatch is a 400 on every event which Stripe retries for three days.
 
 `loadEnv` only rejects the literal substring `replace_me`, so a made-up string would technically get
-past it. Do not do that. There is nothing to gain: `POST /api/checkout/intent` is not written
-either (D-27 again), so a shop deployed on a fictional key is a catalogue that cannot take an order,
-and you would have traded one loud failure at deploy time for a quiet one later.
+past it. Do not do that — turn payments off instead. A fictional key leaves the webhook route
+mounted and verifying against a secret you invented, which is a lock with a key you have published
+to yourself; `PAYMENTS_ENABLED=false` removes the door.
 
 ### What you are deploying
 
@@ -1340,14 +1364,14 @@ list. `silkgrain.com` is the domain token this repository uses throughout, so re
 Written down rather than smoothed over, because each of these will cost somebody time and a document
 that pretended otherwise would cost them more.
 
-**The first deploy cannot complete without Stripe keys, and that is the biggest one.** Everything
-above is correct and none of it gets you a running site today unless Q-41 has been answered.
-`apps/api/src/db/migrate.ts` calls the same `loadEnv` the server does, and the refusal of the
-`replace_me` placeholders under `NODE_ENV=production` is deliberate (D-27) — a deployment that
-discovered its keys were fictional when the first event arrived is the failure it exists to prevent.
-The narrower fix, if the shop ever wants to launch as a catalogue before the checkout lands, is for
-the migration entry point to parse only the subset of the environment it uses. That is a code change
-and belongs in `BACKLOG.md`, not in a deploy document.
+**~~The first deploy cannot complete without Stripe keys.~~ Fixed — `PAYMENTS_ENABLED=false`.** This
+paragraph used to say the first deploy was impossible without keys and that the narrower fix, a
+migration entry point parsing only the environment it uses, belonged in `BACKLOG.md`. That fix would
+have been the wrong one: it would have let the migration through and left the API refusing to boot
+one step later, and had somebody forced both past, it would have left the webhook route mounted and
+verifying against a published placeholder. The whole shop is a supported deployment without payments
+now (D-51), and the route simply does not exist in that mode. See
+[Deploying without a Stripe account](#deploying-without-a-stripe-account).
 
 **The TLS bootstrap is a hand edit in a 644-line file.** Section 3.5 makes it mechanical with `awk`
 and two `sed`s, and it is still a config produced by cutting a committed one in half at a comment

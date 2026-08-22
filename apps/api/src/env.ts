@@ -80,14 +80,31 @@ const EnvSchema = z
       .regex(/^[A-Z]{2,4}$/, 'Two to four capital letters, as in SG')
       .default('SG'),
 
-    STRIPE_SECRET_KEY: z.string().min(1),
-    STRIPE_WEBHOOK_SECRET: z.string().min(1),
+    /**
+     * Whether this deployment takes money.
+     *
+     * `false` is a shop with no till: `POST /api/webhooks/stripe` is **not registered at all**
+     * and the three keys below are not required. It exists because `POST /api/checkout/intent`
+     * does not (D-27), so a deployment without a Stripe account can serve a complete, indexable
+     * catalogue - and the alternative people reach for, putting the `.env.example` placeholders
+     * in a production file, is a full compromise of the order pipeline. See D-51.
+     *
+     * Default `true`: an operator who simply forgot to set the keys gets a loud refusal, and one
+     * who means to launch without a checkout has to say so.
+     */
+    PAYMENTS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+
+    STRIPE_SECRET_KEY: z.string().default(''),
+    STRIPE_WEBHOOK_SECRET: z.string().default(''),
     /**
      * Read under its `VITE_` name because the storefront needs the same value at build time
      * and the API hands it to the client in the checkout response. Two copies of one key is
      * one copy too many, and the copy that drifts is always the one nobody is looking at.
      */
-    VITE_STRIPE_PUBLISHABLE_KEY: z.string().min(1),
+    VITE_STRIPE_PUBLISHABLE_KEY: z.string().default(''),
     STRIPE_TAX_ENABLED: z
       .enum(['true', 'false'])
       .default('true')
@@ -148,22 +165,45 @@ const EnvSchema = z
       });
     }
 
-    // Development boots on the placeholders from `.env.example`, because everything except
-    // the two calls that reach Stripe works without a real account. A deployment that took
-    // an order and only then discovered its keys were fictional is the failure worth
-    // preventing, so production refuses them outright.
-    if (value.NODE_ENV === 'production') {
-      for (const key of [
+    // With payments off nothing reads these, and the webhook route the secret protects is never
+    // registered - so there is nothing to check and nothing to forge against.
+    if (value.PAYMENTS_ENABLED) {
+      const STRIPE_KEYS = [
         'STRIPE_SECRET_KEY',
         'STRIPE_WEBHOOK_SECRET',
         'VITE_STRIPE_PUBLISHABLE_KEY',
-      ] as const) {
-        if (value[key].includes('replace_me')) {
+      ] as const;
+
+      for (const key of STRIPE_KEYS) {
+        if (value[key].length === 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: [key],
-            message: 'Still the placeholder from .env.example',
+            message:
+              'Required while PAYMENTS_ENABLED is true. Set PAYMENTS_ENABLED=false to ' +
+              'run the shop as a catalogue with no checkout.',
           });
+        }
+      }
+
+      // Development boots on the placeholders from `.env.example`, because everything except
+      // the two calls that reach Stripe works without a real account. A deployment that took
+      // an order and only then discovered its keys were fictional is the failure worth
+      // preventing, so production refuses them outright.
+      //
+      // This is not bureaucracy: the webhook verifies with local HMAC against
+      // STRIPE_WEBHOOK_SECRET, and `whsec_replace_me` is published in this repository. A
+      // production API holding it would accept a forged `payment_intent.succeeded` from anyone
+      // who can read GitHub - marking orders paid, decrementing stock and sending receipts.
+      if (value.NODE_ENV === 'production') {
+        for (const key of STRIPE_KEYS) {
+          if (value[key].includes('replace_me')) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [key],
+              message: 'Still the placeholder from .env.example',
+            });
+          }
         }
       }
     }

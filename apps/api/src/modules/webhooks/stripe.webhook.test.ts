@@ -509,3 +509,68 @@ describe('stripe webhook', () => {
     expect(status).toBe(500);
   });
 });
+
+/**
+ * The catalogue-only deployment (D-51).
+ *
+ * `PAYMENTS_ENABLED=false` is how this shop goes live without a Stripe account, and the whole of
+ * it is that the route below does not exist. The alternative an operator would otherwise reach
+ * for - production holding `whsec_replace_me` from `.env.production.example` - would accept a
+ * forged `payment_intent.succeeded` from anyone who can read this public repository, because
+ * verification is local HMAC and that secret is published in it.
+ */
+describe('stripe webhook, payments disabled', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildTestApp({ PAYMENTS_ENABLED: false });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('does not mount the route at all', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/webhooks/stripe',
+      remoteAddress: freshAddress(),
+      headers: { 'content-type': 'application/json', 'stripe-signature': 'anything' },
+      payload: '{}',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('NOT_FOUND');
+  });
+
+  it('refuses a correctly signed event too, having nothing to sign against', async () => {
+    // Signed with the very secret a misconfigured production box would be holding.
+    const stripe = new Stripe('sk_test_not_a_key');
+    const payload = JSON.stringify({
+      id: 'evt_forged',
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { id: 'pi_forged', object: 'payment_intent', metadata: { order_id: '1' } } },
+    });
+    const signature = stripe.webhooks.generateTestHeaderString({
+      payload,
+      secret: 'whsec_replace_me',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/webhooks/stripe',
+      remoteAddress: freshAddress(),
+      headers: { 'content-type': 'application/json', 'stripe-signature': signature },
+      payload,
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('leaves the rest of the shop serving', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/products' });
+    expect(response.statusCode).toBe(200);
+  });
+});
