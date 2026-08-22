@@ -14,4 +14,4 @@ Disallow: /api/
 # A search result is a visitor's query, not a page of the catalogue.
 Disallow: /shop?q=
 
-Sitemap: https://silkgrain.example/sitemap.xml
+Sitemap: https://silkgrain.com/sitemap.xml

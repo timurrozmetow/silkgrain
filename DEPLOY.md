@@ -586,13 +586,13 @@ complete until the first deploy succeeds, and section 3.8 verifies it with an ac
 ### 3.0 The three values that are yours
 
 Set these once in the shell you are about to work in. Everything below reads them, and
-`silkgrain.example` stays written out everywhere else in this repository on purpose so that a single
+`silkgrain.com` stays written out everywhere else in this repository on purpose so that a single
 substitution finishes the job.
 
 ```bash
-DOMAIN=silkgrain.example                                   # your apex domain, no scheme, no www
+DOMAIN=silkgrain.com                                   # your apex domain, no scheme, no www
 REPO_URL=git@github.com:silkgrain/silkgrain.git            # `git remote get-url origin` locally
-ADMIN_EMAIL=ops@silkgrain.example                          # where certificate expiry warnings go
+ADMIN_EMAIL=ops@silkgrain.com                          # where certificate expiry warnings go
 ```
 
 If you have a real domain, replace the first line now — that is the documented substitution, and it
@@ -895,7 +895,7 @@ never reviewed. The web server's configuration is not release state, which also 
 commands.**
 
 **Step five — the one thing the sed can get wrong.** That substitution also rewrote
-`media.silkgrain.example` inside the Content-Security-Policy's `img-src`. If your images are served
+`media.silkgrain.com` inside the Content-Security-Policy's `img-src`. If your images are served
 from a provider hostname rather than a subdomain of yours, it has now written the wrong one, and a
 wrong `img-src` is not a visible error — it is a catalogue of blank rectangles and a console nobody
 is reading. Compare:
@@ -971,14 +971,14 @@ pnpm --filter @silkgrain/api db:bootstrap
 
 # Or unattended. Not on the command line: `ps` shows every argument to every user on the box, and
 # the shell keeps the rest in its history. Generate the password rather than inventing one.
-BOOTSTRAP_OWNER_EMAIL=you@silkgrain.example BOOTSTRAP_OWNER_NAME='Your Name' BOOTSTRAP_OWNER_PASSWORD="$(openssl rand -base64 24)"   pnpm --filter @silkgrain/api db:bootstrap
+BOOTSTRAP_OWNER_EMAIL=you@silkgrain.com BOOTSTRAP_OWNER_NAME='Your Name' BOOTSTRAP_OWNER_PASSWORD="$(openssl rand -base64 24)"   pnpm --filter @silkgrain/api db:bootstrap
 ```
 
 It prints what it created:
 
 ```
 bootstrapped mysql://silkgrain:***@127.0.0.1:3306/silkgrain
-  owner:          you@silkgrain.example
+  owner:          you@silkgrain.com
   shipping rates: 3 created
   settings:       4 created
 
@@ -1000,7 +1000,7 @@ Verified against a genuinely empty database before this document was written: mi
 start the API, and `GET /api/settings` answered `freeShippingFromCents: 7500` computed from the
 rate row, `GET /api/products` answered `total: 0`, and the owner signed in with a 200.
 
-Now sign in at `https://silkgrain.example/admin` and add products. The catalogue is empty on
+Now sign in at `https://silkgrain.com/admin` and add products. The catalogue is empty on
 purpose; there is no demo data in production.
 
 Then close that shell, which triggers the `trap` and removes the defaults file:
@@ -1077,7 +1077,7 @@ Repository → Settings → Secrets and variables → Actions:
 | Secret   | `DEPLOY_SSH_KEY`     | the whole private half of `~/.ssh/silkgrain_deploy` from section 2.2 |
 | Secret   | `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -p 22 <host>` run on your machine         |
 | Variable | `DEPLOY_SSH_PORT`    | `22`, or your port                                                   |
-| Variable | `PUBLIC_SITE_URL`    | `https://silkgrain.example` — the apex, over https, no `www`         |
+| Variable | `PUBLIC_SITE_URL`    | `https://silkgrain.com` — the apex, over https, no `www`             |
 
 `DEPLOY_KNOWN_HOSTS` is a pinned host key, never `StrictHostKeyChecking=no`: anyone who can answer
 on port 22 of that address would otherwise be handed the deploy key and told to install a release.
@@ -1308,7 +1308,7 @@ What each rotation costs:
 ## 5. When it breaks
 
 Every row here is a failure mode that exists in the scripts as written, not a general troubleshooting
-list. `silkgrain.example` is the domain token this repository uses throughout, so read it as yours;
+list. `silkgrain.com` is the domain token this repository uses throughout, so read it as yours;
 `<host>` is the box's SSH address, which is an argument rather than a token.
 
 | Symptom                                                            | First command                                                                            | Likely cause                                                                                                                                                                                           |
@@ -1321,8 +1321,8 @@ list. `silkgrain.example` is the domain token this repository uses throughout, s
 | `/ready` answers 503 `degraded`                                    | `curl -s 127.0.0.1:3001/ready`                                                           | The body names which of MySQL and Redis did not answer within 2s. Not a code problem. The driver's own message is in the API log, deliberately not on the wire (D-40).                                 |
 | 502 from Nginx on `/api/` but the static pages load                | `pm2 list; ss -lntp \| grep 3001`                                                        | No worker listening. If `ss` shows `0.0.0.0:3001` rather than `127.0.0.1:3001`, `API_HOST` is wrong and the API is exposed.                                                                            |
 | 403 on every asset, "Permission denied" in the Nginx error log     | `sudo -u www-data test -r /srv/silkgrain/current/apps/web/dist/index.html`               | A missing traverse bit between `/srv` and the `dist` directories. `chmod o+x` each level, or put `www-data` in the `deploy` group and use `g+rx`.                                                      |
-| `/admin/` is blank with 404s in the browser console                | `curl -sI https://silkgrain.example/admin/orders/1`                                      | The admin's Vite base is `/admin/`; the `alias` + `try_files` block or the `= /admin` redirect is wrong. Expect 200 with a `content-security-policy` header.                                           |
-| Every product image is a blank rectangle                           | browser console, then `grep -o 'img-src[^;]*' /etc/nginx/sites-available/silkgrain.conf` | The domain `sed` rewrote `media.silkgrain.example` to a host that is not `S3_PUBLIC_URL`. Section 3.5 step five.                                                                                       |
+| `/admin/` is blank with 404s in the browser console                | `curl -sI https://silkgrain.com/admin/orders/1`                                          | The admin's Vite base is `/admin/`; the `alias` + `try_files` block or the `= /admin` redirect is wrong. Expect 200 with a `content-security-policy` header.                                           |
+| Every product image is a blank rectangle                           | browser console, then `grep -o 'img-src[^;]*' /etc/nginx/sites-available/silkgrain.conf` | The domain `sed` rewrote `media.silkgrain.com` to a host that is not `S3_PUBLIC_URL`. Section 3.5 step five.                                                                                           |
 | `nginx -t`: `unknown directive "brotli"`                           | `ls /etc/nginx/snippets/silkgrain-brotli.conf*`                                          | The snippet exists but `libnginx-mod-brotli` does not. The site includes it as a glob so an absent file is fine; a present file without the module is not.                                             |
 | Backup exits 3 every night                                         | `grep '^BACKUP_S3' /srv/silkgrain/shared/.env; command -v aws`                           | Bucket unset, credentials missing, or `aws` outside cron's `PATH`. The dump is fine and local; the off-site copy is not.                                                                               |
 | Backup exits 1, "does not end with mysqldump's completion marker"  | `df -h /srv/silkgrain/shared`                                                            | Suspect the disk before the database. A truncated dump is deleted rather than kept, which is why you are seeing an error and not a bad file.                                                           |
@@ -1330,7 +1330,7 @@ list. `silkgrain.example` is the domain token this repository uses throughout, s
 | Site does not come back after a reboot                             | `systemctl status pm2-deploy; pm2 list`                                                  | `pm2 startup` never run, or no `pm2 save` since. `deploy.sh` saves after every healthy deploy, so one successful deploy fixes it.                                                                      |
 | Certificate expired                                                | `certbot certificates; systemctl list-timers certbot.timer`                              | Either the timer is off, or renewal fails because something now shadows `/.well-known/acme-challenge/`, or it renewed and Nginx was never reloaded (the deploy hook in section 3.5).                   |
 | Emails never arrive, nothing in the log                            | `redis-cli CONFIG GET maxmemory-policy`                                                  | Anything but `noeviction` and BullMQ jobs are discarded under memory pressure with no trace. Next suspect: `SMTP_SECURE=true` on port 587, which hangs until the socket times out rather than failing. |
-| Rate limiting has stopped working and nothing is in the log        | `curl -sI https://silkgrain.example/api/products \| grep -i ratelimit`                   | A CDN or a second proxy was put in front. `app.ts` sets `trustProxy: 1`; a second hop must be a code change in the same commit, or every limiter buckets on an address the client chooses.             |
+| Rate limiting has stopped working and nothing is in the log        | `curl -sI https://silkgrain.com/api/products \| grep -i ratelimit`                       | A CDN or a second proxy was put in front. `app.ts` sets `trustProxy: 1`; a second hop must be a code change in the same commit, or every limiter buckets on an address the client chooses.             |
 | A deploy "succeeded" but the change is not live                    | `cat /srv/silkgrain/current/RELEASE`                                                     | The mirror fetched nothing and the ref resolved to yesterday's commit. CI checks exactly this and fails; by hand, compare `sha=` with what you pushed.                                                 |
 
 ---
@@ -1366,9 +1366,9 @@ is the only way those three tables get their first rows, so it is a step nobody 
 reminds you about except this document.
 
 **The domain token is not entirely a `sed`.** On the box it is: two files, one substitution each,
-exactly as `.env.production.example` and the Nginx site promise. But `silkgrain.example` is also
+exactly as `.env.production.example` and the Nginx site promise. But `silkgrain.com` is also
 compiled into the storefront bundle in four places — `apps/web/public/robots.txt` advertises
-`https://silkgrain.example/sitemap.xml`, and `hello@silkgrain.example` appears in `SiteFooter.tsx`,
+`https://silkgrain.com/sitemap.xml`, and `hello@silkgrain.com` appears in `SiteFooter.tsx`,
 `help.page.tsx` and the `Organization` JSON-LD in `seo.tsx`. Those change with a commit, not with a
 command on the server, and they are waiting on Q-8 (real contact details) as much as on Q-11.
 
@@ -1376,7 +1376,7 @@ command on the server, and they are waiting on Q-8 (real contact details) as muc
 `deploy/nginx/silkgrain.conf` in git reaches the box only when somebody re-runs section 3.5 step
 four by hand. That is the correct trade — a symlinked config would silently change on every deploy
 and every rollback — but nothing warns you that the committed file and the installed file have
-drifted apart. `diff <(sed "s/$DOMAIN/silkgrain.example/g" /etc/nginx/sites-available/silkgrain.conf)
+drifted apart. `diff <(sed "s/$DOMAIN/silkgrain.com/g" /etc/nginx/sites-available/silkgrain.conf)
 /srv/silkgrain/current/deploy/nginx/silkgrain.conf` is the check, and it is not automated.
 
 **`sitemap.xml` is a 404 by configuration** while `robots.txt` advertises it, and an unknown path is

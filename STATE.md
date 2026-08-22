@@ -939,7 +939,7 @@ therefore reasoned from the code and the packages rather than executed, and its 
 edges" section says which claims are distribution-dependent.
 
 **One defect found afterwards and fixed:** the footer and `/help` hard-coded
-`hello@silkgrain.example` and the warehouse address, both of which are `settings` rows the owner
+`hello@silkgrain.com` and the warehouse address, both of which are `settings` rows the owner
 edits and `GET /api/settings` already served - decision D-22's defect, repeated in two more places.
 Both now read the hook the announcement bar uses. Verified by changing the rows in the database and
 watching both pages follow. The `Organization` JSON-LD still writes the address down, deliberately:

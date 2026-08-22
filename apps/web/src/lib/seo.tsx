@@ -97,7 +97,7 @@ export function Seo({
   return null;
 }
 
-/** `https://silkgrain.example/product/devzira` from `/product/devzira`. */
+/** `https://silkgrain.com/product/devzira` from `/product/devzira`. */
 export function absoluteUrl(path: string): string {
   return new URL(path, window.location.origin).toString();
 }
@@ -107,9 +107,8 @@ export function absoluteUrl(path: string): string {
  *
  * Repeating it on every page is legal and pointless; search engines take it from the site's
  * front door.
- */
-/**
- * The one place a contact detail is still written down, and deliberately so.
+ *
+ * It is also the one place a contact detail is still written down, and deliberately so.
  *
  * The footer and `/help` read the address and the email from `GET /api/settings`, because those
  * are rows the owner edits and a hard-coded copy goes stale silently. This constant does not,
@@ -135,7 +134,7 @@ export const ORGANIZATION_JSON_LD: Record<string, unknown> = {
     postalCode: '77057',
     addressCountry: 'US',
   },
-  email: 'hello@silkgrain.example',
+  email: 'hello@silkgrain.com',
 };
 
 export function breadcrumbJsonLd(trail: { name: string; path: string }[]): Record<string, unknown> {

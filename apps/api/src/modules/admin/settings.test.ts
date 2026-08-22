@@ -54,7 +54,7 @@ describe('admin settings', () => {
       },
       {
         key: 'store.contact_email',
-        value: 'hello@silkgrain.example',
+        value: 'hello@silkgrain.com',
         group: 'general',
         label: 'Contact email',
         isPublic: true,
@@ -424,7 +424,7 @@ describe('admin settings', () => {
     const body = response.json<PublicSettings>();
     expect(body.freeShippingFromCents).toBe(7500);
     expect(body.announcementText).toBe('Complimentary shipping over $75');
-    expect(body.contactEmail).toBe('hello@silkgrain.example');
+    expect(body.contactEmail).toBe('hello@silkgrain.com');
   });
 
   it('moves the storefront’s figure when the rate moves, with no second place to edit', async () => {

@@ -50,7 +50,11 @@
 В футере — Privacy Policy и Terms of Service, макетов и текстов нет. Кто пишет? Нужны также Shipping Policy и Return Policy (в макете обещаны «30-Day Returns» и возврат в течение 30 дней без отправки товара обратно — это публичная оферта, формулировку надо согласовать).
 Плюс: в футере «© 2025», сейчас 2026 — ставлю динамический год.
 
-**Q-11 Домен.**
+**Q-11 Домен.** — ✅ **Отвечено 2026-08-21: `silkgrain.com`** (D-48). Плейсхолдер
+`silkgrain.example` заменён везде — 64 вхождения в четырнадцати файлах: `server_name` в Nginx,
+`CORS_ORIGINS`, `media.silkgrain.com` в CSP и `S3_PUBLIC_URL`, строка `Sitemap:` в `robots.txt`,
+контактные строки сида и значения по умолчанию в `db:bootstrap`. Grep по старому имени больше
+ничего не находит.
 Нужен для canonical, sitemap.xml, robots.txt, OG, CORS whitelist, Stripe webhook endpoint, верификации домена Apple Pay и Let's Encrypt. Какой?
 
 ---

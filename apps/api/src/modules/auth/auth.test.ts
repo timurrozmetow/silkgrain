@@ -74,6 +74,13 @@ describe('customer authentication', () => {
     expect(raw).toContain('HttpOnly');
     expect(raw).toContain('SameSite=Lax');
     expect(raw).toContain('Path=/api/auth');
+
+    // No `Domain`, so the cookie is host-only. Naming a domain widens it in both directions:
+    // the apex would send the session to every subdomain, and every subdomain could set one the
+    // apex reads - `Secure` does not prevent that, a sibling over HTTPS can do it too. With
+    // `media.silkgrain.com` serving images under the same apex in production, that is a real
+    // host, and `Path=/api/auth` means the cookie it could toss is this one.
+    expect(raw).not.toContain('Domain=');
   });
 
   it('stores the password as an Argon2id hash and never returns it', async () => {

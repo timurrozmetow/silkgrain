@@ -111,7 +111,7 @@ const SETTINGS_ROWS = [
   },
   {
     key: 'store.contact_email',
-    value: 'hello@silkgrain.example',
+    value: 'hello@silkgrain.com',
     group: 'general',
     label: 'Public contact address',
     isPublic: true,

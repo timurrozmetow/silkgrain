@@ -44,7 +44,7 @@
 # Secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS.
 # Variables: DEPLOY_SSH_PORT (default 22), PUBLIC_SITE_URL.
 #
-# There is no domain yet (question Q-11), so `silkgrain.example` is the placeholder everywhere in
+# There is no domain yet (question Q-11), so `silkgrain.com` is the placeholder everywhere in
 # this repository, including the fallback below. Set the PUBLIC_SITE_URL variable once there is a
 # real one and the fallback is never read - it is not a value to go and edit in twelve files.
 
@@ -83,13 +83,13 @@ jobs:
     timeout-minutes: 30
     environment:
       name: production
-      url: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.example' }}
+      url: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.com' }}
 
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
-      SITE_URL: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.example' }}
+      SITE_URL: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.com' }}
 
     steps:
       - name: Refuse to deploy without configuration

@@ -90,7 +90,23 @@ function cookieOptions(env: Env, maxAgeSeconds: number) {
     sameSite: 'lax' as const,
     path: '/api/auth',
     maxAge: maxAgeSeconds,
-    ...(env.COOKIE_DOMAIN === 'localhost' ? {} : { domain: env.COOKIE_DOMAIN }),
+    /**
+     * No `Domain` attribute unless something genuinely needs one, and this topology does not.
+     *
+     * A cookie without `Domain` is host-only: it goes back to exactly the host that set it. Adding
+     * `Domain=silkgrain.com` widens it to every subdomain in both directions - the apex sends the
+     * refresh cookie to anything under it, and, worse, anything under it can SET a cookie the apex
+     * will read. `Secure` does not help; a sibling subdomain over HTTPS can do it too. With
+     * `media.silkgrain.com` serving product images from a bucket, that is a real host under the
+     * apex, and `Path=/api/auth` means the cookie it could toss is the session one.
+     *
+     * The back office is `/admin` on the same origin, so nothing is gained by widening. Both the
+     * empty string and `localhost` mean host-only; the day the panel moves to its own subdomain,
+     * setting the apex here is the deliberate change that makes it work.
+     */
+    ...(env.COOKIE_DOMAIN === '' || env.COOKIE_DOMAIN === 'localhost'
+      ? {}
+      : { domain: env.COOKIE_DOMAIN }),
   };
 }
 

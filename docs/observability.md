@@ -210,11 +210,11 @@ of both and the benefit of one.
 An external monitor, because a check that runs on the same VPS cannot report that the VPS is
 down. Any of the usual services does this; nothing here depends on which.
 
-**Poll `https://silkgrain.example/health` every 60 seconds.** Expect 200 and
+**Poll `https://silkgrain.com/health` every 60 seconds.** Expect 200 and
 `"status":"ok"`. This is the "is the process alive" signal, and it is the one to wake somebody
 for. It touches nothing external, so it cannot go red because MySQL is busy.
 
-**Poll `https://silkgrain.example/ready` every 5 minutes.** Expect 200 and `"status":"ready"`.
+**Poll `https://silkgrain.com/ready` every 5 minutes.** Expect 200 and `"status":"ready"`.
 A 503 with `"status":"degraded"` means the process is alive and one of its dependencies is not;
 the response says which, and by how much latency. Do not poll this at the liveness interval:
 each request costs a round trip to MySQL and one to Redis, and a monitor checking from six

@@ -10,7 +10,7 @@ const VALID = {
   STRIPE_SECRET_KEY: 'sk_test_example',
   STRIPE_WEBHOOK_SECRET: 'whsec_example',
   VITE_STRIPE_PUBLISHABLE_KEY: 'pk_test_example',
-  MAIL_FROM_ADDRESS: 'orders@silkgrain.example',
+  MAIL_FROM_ADDRESS: 'orders@silkgrain.com',
   S3_ENDPOINT: 'http://127.0.0.1:9000',
   S3_BUCKET: 'silkgrain-media',
   S3_ACCESS_KEY_ID: 'silkgrain',

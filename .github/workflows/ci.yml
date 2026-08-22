@@ -74,8 +74,8 @@ env:
   STRIPE_WEBHOOK_SECRET: whsec_replace_me
   VITE_STRIPE_PUBLISHABLE_KEY: pk_test_replace_me
 
-  MAIL_FROM_ADDRESS: orders@silkgrain.example
-  MAIL_REPLY_TO: hello@silkgrain.example
+  MAIL_FROM_ADDRESS: orders@silkgrain.com
+  MAIL_REPLY_TO: hello@silkgrain.com
   SMTP_HOST: 127.0.0.1
   SMTP_PORT: "1025"
 

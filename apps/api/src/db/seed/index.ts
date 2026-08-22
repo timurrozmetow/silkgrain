@@ -723,7 +723,7 @@ export async function seed(db: Database, nodeEnv?: string): Promise<void> {
     },
     {
       key: 'store.contact_email',
-      value: 'hello@silkgrain.example',
+      value: 'hello@silkgrain.com',
       group: 'general',
       label: 'Public contact address',
       isPublic: true,
@@ -758,7 +758,7 @@ export async function seed(db: Database, nodeEnv?: string): Promise<void> {
     },
     {
       key: 'ops.notification_email',
-      value: 'ops@silkgrain.example',
+      value: 'ops@silkgrain.com',
       group: 'operations',
       label: 'Wholesale and low-stock alerts',
       isPublic: false,
