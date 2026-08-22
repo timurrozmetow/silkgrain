@@ -710,6 +710,26 @@ down, against real MySQL, Redis and Mailpit.
   second secret in an allow-listed file still fails. It self-tests on every run against seven
   synthetic cases. The tracked tree and every blob that ever existed both come back clean.
 
+  **That last sentence was untrue between `a77c39e` and the first push, and the push is what found
+  it.** The self-test's five fixtures were written out in full in the draft that commit landed, and
+  split across `+` only later — so the working tree was clean and two historical blobs were not.
+  `pnpm secret:scan:history` had been red ever since, which is the exact command `deploy.yml` runs
+  on every release, so the first deploy would have failed on it. The five are pinned in `ALLOWED` by
+  fingerprint with their reason rather than purged: rewriting 61 commits to remove a string
+  containing the word EXAMPLE would invalidate every sha this document cites and none of the five
+  ever authorised anything (`AKIAIOSFODNN7EXAMPLE` is AWS's own published example).
+
+  Pinning them exposed a second defect, which is the one worth remembering: the self-test ran
+  through the same allow-list as the scan, so allow-listing a value silently stopped testing the
+  rule that catches it — four rules reported themselves broken the moment the fixtures were pinned.
+  `scan()` now takes `applyAllowList`, and the self-test passes `false`. "Does this rule match this
+  shape" and "is this value accepted here" are two questions, and one must not be able to answer the
+  other.
+
+  GitHub's own push protection blocks the same Stripe fixture independently, from commit `a77c39e`.
+  That is a false positive on a string containing `EXAMPLE`, and it is cleared once from the
+  repository's security page; nothing in the working tree triggers it.
+
   It found two things on the first run, both the same mistake — a guard aimed at the wrong failure.
   `db:reset` refused a mistyped database name and would have waved through the correct one in the
   wrong environment, and production is called `silkgrain` too. `db:seed` refused a database that

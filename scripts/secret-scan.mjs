@@ -132,6 +132,47 @@ const ALLOWED = new Map([
       'fresh production database is empty and the seed would have created an owner account ' +
       'holding it. Both facts are pinned by apps/api/src/db/guard.test.ts.',
   ],
+
+  // ------------------------------------------------------------------------------------
+  // This file's own self-test fixtures, as they were written in commits a77c39e and 53b586b.
+  //
+  // `selfTest()` below assembles each sample from pieces so the rules cannot match the source
+  // text of the working tree. The first draft spelled them out in full, exactly as the comment
+  // there records - and that draft was committed before the splitting was introduced. So the
+  // working tree is clean and two historical blobs are not, which makes `--history` red on
+  // every run and would fail deploy.yml's "scan every blob that ever existed" step on every
+  // release.
+  //
+  // Pinned rather than purged. Rewriting 61 commits to remove a string containing the word
+  // EXAMPLE would invalidate every sha STATE.md and the commit messages refer to, and would
+  // buy nothing: none of these five ever authorised anything. `AKIAIOSFODNN7EXAMPLE` is the
+  // example key out of AWS's own published documentation, and the "private key" is a header
+  // with no key under it. A fingerprint is the narrow instrument here - a real credential
+  // added to either of those blobs would still fail.
+  //
+  // Split across `+` for the same reason the fixtures themselves are: written out here, they
+  // would be found in the working tree and this file would fail its own scan.
+  // ------------------------------------------------------------------------------------
+  [
+    fingerprint('sk_live_' + '51Hx9QpKZvEXAMPLEabcdefghijklmn'),
+    'self-test fixture, superseded draft of this file (a77c39e). Never an issued Stripe key.',
+  ],
+  [
+    fingerprint('whsec_' + '9fK2mQx7ZpLr4TvNb8YcWd3EhJs6Gu1A'),
+    'self-test fixture, superseded draft of this file (a77c39e). Never an issued webhook secret.',
+  ],
+  [
+    fingerprint('AKIA' + 'IOSFODNN7EXAMPLE'),
+    "self-test fixture, superseded draft of this file (a77c39e). AWS's own documented example.",
+  ],
+  [
+    fingerprint('-----BEGIN RSA ' + 'PRIVATE KEY-----'),
+    'self-test fixture, superseded draft of this file (a77c39e). A header with no key under it.',
+  ],
+  [
+    fingerprint('xQ7#mK9$' + 'pL2@vN4wZ8rT'),
+    'self-test fixture, superseded draft of this file (a77c39e). Invented, never a password.',
+  ],
 ]);
 
 const git = (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
@@ -174,14 +215,24 @@ function* sources() {
   }
 }
 
-function scan(where, content) {
+/**
+ * `applyAllowList: false` is for the self-test, and the distinction is load-bearing.
+ *
+ * "Does this rule match this shape" and "is this particular value accepted in this repository"
+ * are two questions, and answering the first through the allow-list makes the second able to
+ * silence the first: pin a value in `ALLOWED` and the rule that catches it silently stops being
+ * tested. That is not hypothetical - it happened the moment this file's own historical fixtures
+ * were pinned, and four rules reported themselves broken. The self-test asks the rules; the scan
+ * asks the repository.
+ */
+function scan(where, content, { applyAllowList = true } = {}) {
   const found = [];
   const lineOf = (index) => content.slice(0, index).split('\n').length;
 
   for (const rule of RULES) {
     for (const match of content.matchAll(rule.pattern)) {
       const value = match[0];
-      if (ALLOWED.has(fingerprint(value))) continue;
+      if (applyAllowList && ALLOWED.has(fingerprint(value))) continue;
       found.push({ where, line: lineOf(match.index), rule: rule.id, value });
     }
   }
@@ -189,7 +240,7 @@ function scan(where, content) {
   for (const match of content.matchAll(ASSIGNMENT)) {
     const [, name, value] = match;
     if (value === undefined || name === undefined) continue;
-    if (ALLOWED.has(fingerprint(value))) continue;
+    if (applyAllowList && ALLOWED.has(fingerprint(value))) continue;
     if (PLACEHOLDER.test(value)) continue;
     // A value being *built* is not a value being stored, and what the regex captured is source
     // text rather than a credential. Two shapes, one rule:
@@ -243,7 +294,7 @@ function selfTest() {
 
   let broken = 0;
   for (const [sample, shouldCatch, description] of cases) {
-    const caught = scan('self-test', sample).length > 0;
+    const caught = scan('self-test', sample, { applyAllowList: false }).length > 0;
     if (caught !== shouldCatch) {
       console.error(
         `  self-test FAILED: ${shouldCatch ? 'missed' : 'falsely flagged'} ${description}`,
