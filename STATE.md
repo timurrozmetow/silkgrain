@@ -6,11 +6,17 @@ Updated 2026-08-19. Read this first after any context loss, then `CLAUDE.md` for
 
 ## Position
 
-**Branch:** `phase/3-catalog-cart` — the name is four phases stale and the branch is not. `main`
-has no commits yet; branches merge there once the owner accepts the work.
+**Branch: `main`.** Created from the head of `phase/3-catalog-cart` on 2026-08-22, at the owner's
+instruction — which under this project's own rule means **phases 0 through 9 are accepted as
+delivered**. The `phase/*` branches are left where they are as markers; nothing merges into them.
 
-**62 commits. Phases 0 through 9 are complete**, less the four tasks that need a Stripe
-key (4.2, 4.6, 6.1-6.3, 6.7) and one that needs a machine this one cannot provide (9.8).
+Accepted does not mean finished: five tasks were never built, and they are blocked rather than
+rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 needs the checkout
+those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
+the owner" below.
+
+**65 commits.** The remote, `github.com/timurrozmetow/silkgrain`, still holds only
+`phase/0-foundation`; nothing since has been pushed, by the owner's decision on 2026-08-22.
 
 | Phase | Commits             | State                                                  |
 | ----- | ------------------- | ------------------------------------------------------ |
@@ -950,19 +956,33 @@ it would be a guess that gets the address wrong in a machine-readable way. That 
 
 ## Blocked on the owner
 
-1. **Phase 2 and Phase 3 acceptance.** Both reported; the process in `CLAUDE-CODE-PROMPT.md`
-   says a phase is not left until the owner confirms.
-2. **Q-46 — Phase 5's mobile Performance bar.** A11y, SEO and desktop Performance all pass. 8.4
-   was pulled forward and done, which took mobile from 62–87 to 70–89; the rest is the seed's
-   third-party images (task 7.4) and the cost of booting a client-rendered app, which only
-   prerendering or SSR changes. Accept the phase and carry the mobile bar into Phase 8, or treat
-   prerendering as its own decision? Numbers and a recommendation are in `QUESTIONS.md`.
-3. **Decisions taken during Phase 2 without waiting** — Q-6, Q-12, Q-13, Q-15, Q-16 are
-   answered in place in `QUESTIONS.md` and recorded as D-12…D-18 in `CLAUDE.md`. They shaped
-   the schema, so reversing one now costs a migration.
-4. **Decisions taken during Phase 3** — D-21…D-25 in `CLAUDE.md`. None costs a migration;
-   D-22 is the one worth a glance, because it makes `commerce.free_shipping_threshold_cents`
-   decorative and the shipping rate row authoritative.
+Phase acceptance is no longer one of these: all nine were accepted on 2026-08-22 when `main` was
+created. What is left is a credential, a machine, and five open questions.
+
+1. **A real Stripe test key.** `sk_test_`, `pk_test_` and the `whsec_` that
+   `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints. Five tasks wait on it -
+   4.2 and 4.6, then 6.1-6.3 and 6.7 - and they are the till. Everything on this side of the SDK
+   call is built and tested: `createPendingOrder`, the signed-webhook contour, the paid
+   transaction, the receipt.
+2. **Task 9.8 needs a machine.** Rehearsing `DEPLOY.md` end to end wants a clean Ubuntu box. This
+   one has no Docker, no VM, and `wsl.exe` with no distribution installed - `wsl --install` needs
+   administrator. A cheap VPS for an afternoon settles it, and the document's own "known rough
+   edges" section lists which of its claims are distribution-dependent until then.
+3. **Q-46 - the mobile Performance bar**, rewritten on 2026-08-21 after the harness turned out to
+   have been measuring an empty state. Eight of eleven mobile pages now clear 90 with the seed's
+   fixture images blocked. The question is no longer "do we need SSR" - it is whether to accept
+   that, or first move the seed's images to our own storage.
+4. **Q-47 - the stack is a major version behind**, and fixing the 30 dependency findings means a
+   Fastify 5 upgrade the working agreement forbids without discussion. None of the findings is
+   reachable in this configuration; the reasons are tabulated in the question.
+5. **Q-48 - promo limits are not enforced anywhere**, and become live the day
+   `POST /api/checkout/intent` lands. The check belongs in the transaction that writes the order,
+   which is part of task 4.2 rather than a repair.
+6. **Q-49 - the trusted-proxy topology**, which the Nginx config must match. The hop count is 1
+   today; a CDN in front makes it 2, and getting it wrong in the unsafe direction silently
+   disables every rate limiter.
+7. **Q-50 - image deduplication by content hash** is a behaviour worth confirming rather than
+   choosing for you. The defect it caused is fixed either way.
 
 Answered on 2026-07-29, nothing left to ask:
 

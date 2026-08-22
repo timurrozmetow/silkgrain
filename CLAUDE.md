@@ -188,6 +188,12 @@ fit the current phase, it is not created at all — it goes to `BACKLOG.md`.
 Work proceeds strictly by the phases in `PLAN.md`. A phase is not left until its acceptance
 criteria pass locally, and the result is reported and confirmed before the next one starts.
 
+**All nine phases were accepted on 2026-08-22**, when the owner had `main` created from the head of
+`phase/3-catalog-cart`. Five tasks inside them were never built and are blocked rather than
+rejected: 4.2, 4.6 and 6.1-6.3 need a real Stripe key (D-27), 6.7 needs the checkout those build,
+and 9.8 - rehearsing `DEPLOY.md` on a clean machine - needs a VM this machine cannot host. Work
+continues on `main` from here.
+
 Open questions live in `QUESTIONS.md`. Items marked `[BLOCK]` block the phase they name.
 The proposed shape of `packages/contracts` is in `CONTRACTS-DRAFT.md`.
 
