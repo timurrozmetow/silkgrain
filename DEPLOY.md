@@ -191,11 +191,50 @@ MySQL** (section 2.5) takes `mysqld` from a few hundred megabytes of resident me
 measured here. With that, MinIO at 50 MB, PM2 and the API, the steady state fits with the swapfile
 barely touched. Without it, the box swaps continuously.
 
-If the VM is on VMware, check `lsmod | grep vmw_balloon` before believing `free`: with the balloon
-inflated the guest reports nearly all of its RAM as used while the processes on it account for a
-tenth of that. It deflates on demand — a 500 MB allocation succeeded here against a reported 45 MB
-"available" — so it is not the emergency it looks like, but it does make `free -m` useless as a
-capacity check. Read `ps -eo rss --sort=-rss` instead.
+### The hypervisor's balloon, which cost this deployment two hours
+
+**If the box is a VMware guest, check `lsmod | grep vmw_balloon` before anything else.** This is not
+a footnote; on the machine this document was rehearsed on it was the difference between a deploy that
+finishes in minutes and one that does not finish at all.
+
+What it looks like. `free -m` reports 925 MB of 961 used with 35 MB available, while `ps` accounts
+for about 150 MB of resident processes. The gap is not a leak and not the page cache — it is memory
+the hypervisor has taken back from a guest it decided was not using it. `vmstat 1` is what names it:
+
+```
+ r  b   swpd   free  buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 0  2 475000  70208  3704  74308  959  313  1901   399  999   13  2  3 75 20  0
+ 0  3 475000  67540  3712  72100 6700 1736  7712  1736 1903 2533  3 10  0 87  0
+```
+
+**87% in `wa`, single-digit `us`, and `si`/`so` never settling.** The box is not computing, it is
+paging. Measured here with exactly one 22 MB `pnpm` process running: `pnpm install` sat for 22
+minutes, and before that two Vite builds sat for thirty with no output at all.
+
+The fix is one command, and it is reversible:
+
+```bash
+modprobe -r vmw_balloon
+free -m          # here: 925 MB used -> 350, 35 MB available -> 610
+```
+
+Then keep it off, because section 3.8 reboots this box on purpose:
+
+```bash
+printf 'blacklist vmw_balloon\n' > /etc/modprobe.d/silkgrain-no-balloon.conf
+```
+
+What that bought, on the same build, same box, same commit: the `packages/ui` bundle step went from
+**22,700 ms to 402 ms**, and `vmstat` flipped from 87% iowait to 87% user time. Nothing else changed.
+
+Two things worth being clear about. The balloon does deflate on demand — a deliberate 500 MB
+allocation succeeded against a reported 45 MB "available" — so this is not a hard ceiling and a
+lightly loaded shop runs fine underneath it. It is the sustained allocation of a build that it
+cannot keep up with. And unloading it means the hypervisor can no longer reclaim from this guest,
+which is the point: the guest was paid for as 1 GB. `modprobe vmw_balloon` and deleting that file
+puts it back.
+
+`free -m` is not a capacity check on such a guest. `ps -eo rss --sort=-rss` and `vmstat 1` are.
 
 ---
 
@@ -792,8 +831,13 @@ ss -lntp | grep -E ':900[01]'      # both must show 127.0.0.1, never 0.0.0.0 or 
 **No bucket is created here, and none should be.** `Storage.provision` in
 `apps/api/src/modules/media/storage.service.ts` does it lazily on the first upload — `HeadBucket`,
 then `CreateBucket`, then the public-read `PutBucketPolicy` — which is exactly what the root
-credentials above are for. Until an editor uploads the first product image, `https://<domain>/media/…`
-answers 404, and that is the correct answer rather than a fault.
+credentials above are for.
+
+So `https://<domain>/media/anything` answers **403 before the first upload and 404 after it**, and
+both are correct. Before, there is no bucket and MinIO refuses the request rather than reporting a
+missing object; after, the bucket exists with a public-read policy and a key that is not there is
+an ordinary 404. Measured on this deployment — worth knowing, because a 403 on the media path looks
+like a permissions mistake and on an empty shop it is not one.
 
 The credentials go into `shared/.env` in section 3.2 as `S3_ACCESS_KEY_ID` and
 `S3_SECRET_ACCESS_KEY`. They are the root pair rather than a scoped service account, because scoping
@@ -1588,8 +1632,11 @@ list. `silkgrain.com` is the domain token this repository uses throughout, so re
 | 502 from Nginx on `/api/` but the static pages load                | `pm2 list; ss -lntp \| grep 3001`                                                                                                  | No worker listening. If `ss` shows `0.0.0.0:3001` rather than `127.0.0.1:3001`, `API_HOST` is wrong and the API is exposed.                                                                                                                          |
 | 403 on every asset, "Permission denied" in the Nginx error log     | `sudo -u www-data test -r /srv/silkgrain/current/apps/web/dist/index.html`                                                         | A missing traverse bit between `/srv` and the `dist` directories. `chmod o+x` each level, or put `www-data` in the `deploy` group and use `g+rx`.                                                                                                    |
 | `/admin/` is blank with 404s in the browser console                | `curl -sI https://silkgrain.com/admin/orders/1`                                                                                    | The admin's Vite base is `/admin/`; the `alias` + `try_files` block or the `= /admin` redirect is wrong. Expect 200 with a `content-security-policy` header.                                                                                         |
-| Every product image is a blank rectangle                           | browser console, then `curl -sI https://silkgrain.com/media/` and `grep -E '^S3_(PUBLIC_URL\|BUCKET)=' /srv/silkgrain/shared/.env` | `S3_PUBLIC_URL` and the `/media/` block disagree about the domain or the bucket (D-52), or the origin is blocked by `img-src`. Section 3.5 step five. A 404 with no image ever uploaded is correct — the bucket is created on the first upload.      |
+| Every product image is a blank rectangle                           | browser console, then `curl -sI https://silkgrain.com/media/` and `grep -E '^S3_(PUBLIC_URL\|BUCKET)=' /srv/silkgrain/shared/.env` | `S3_PUBLIC_URL` and the `/media/` block disagree about the domain or the bucket (D-52), or the origin is blocked by `img-src`. Section 3.5 step five. A 403 with no image ever uploaded is correct — the bucket is created on the first upload.      |
 | 502 on `/media/…` while every other page is fine                   | `systemctl status minio; ss -lntp \| grep 9000`                                                                                    | MinIO is down or not on `127.0.0.1:9000`. Nginx proxies `/media/` there and nothing else on the site touches it (D-52), which is why only the images fail. `journalctl -u minio -n 50` names the cause; a bad `/etc/default/minio` is the usual one. |
+| 403 on every `/media/…` on a shop that never had an upload         | `curl -sI https://silkgrain.com/media/x.webp`                                                                                      | Correct, not a fault: the bucket does not exist until the first upload creates it, and MinIO refuses rather than reporting a missing object. It becomes 404 once the bucket is there.                                                                |
+| `pnpm install` or `pnpm build` hangs for tens of minutes           | `vmstat 1 3` — read the `wa` column; `lsmod \| grep vmw_balloon`                                                                   | Not slow, paging. The VMware balloon is holding most of the guest's RAM. `modprobe -r vmw_balloon`, then blacklist it — see "The hypervisor's balloon" in section 1. Measured here: one build step went 22,700 ms to 402 ms.                         |
+| The build still starves on a one-core box after that               | re-run as `TURBO_CONCURRENCY=1 deploy/deploy.sh main`                                                                              | Turbo builds every workspace it can at once, which on one core means two Vite bundles competing for no gain. Serialising halves the peak. An environment variable rather than a `turbo.json` setting, because it costs wall-clock on a bigger box.   |
 | `nginx -t`: `unknown directive "brotli"`                           | `ls /etc/nginx/snippets/silkgrain-brotli.conf*`                                                                                    | The snippet exists but `libnginx-mod-brotli` does not. The site includes it as a glob so an absent file is fine; a present file without the module is not.                                                                                           |
 | Backup exits 3 every night                                         | `grep '^BACKUP_S3' /srv/silkgrain/shared/.env; command -v aws`                                                                     | Bucket unset, credentials missing, or `aws` outside cron's `PATH`. The dump is fine and local; the off-site copy is not.                                                                                                                             |
 | Backup exits 1, "does not end with mysqldump's completion marker"  | `df -h /srv/silkgrain/shared`                                                                                                      | Suspect the disk before the database. A truncated dump is deleted rather than kept, which is why you are seeing an error and not a bad file.                                                                                                         |
