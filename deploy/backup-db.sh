@@ -298,8 +298,11 @@ fi
 
 if ! command -v aws >/dev/null 2>&1; then
   warn "the aws CLI is not installed, so ${TARGET} was not uploaded.
-  Install it, or pass --no-upload if a local dump is genuinely what you want:
-    sudo apt-get install -y awscli"
+  Install it, or pass --no-upload if a local dump is genuinely what you want. NOT from apt:
+  Ubuntu 24.04 dropped the awscli package from the archive, so that install cannot succeed.
+    curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp && sudo /tmp/aws/install
+  It lands in /usr/local/bin, which is why the cron entry in DEPLOY.md sets PATH."
   printf '%s\n' "$TARGET"
   exit 3
 fi

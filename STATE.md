@@ -15,8 +15,11 @@ rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 
 those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
 the owner" below.
 
-**65 commits.** The remote, `github.com/timurrozmetow/silkgrain`, still holds only
-`phase/0-foundation`; nothing since has been pushed, by the owner's decision on 2026-08-22.
+**68 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
+`6afce3d` as of 2026-08-22, alongside `phase/0-foundation`. Two things there still want a hand
+that only the owner has: the repository's **default branch is still `phase/0-foundation`** and
+should be `main`, and the first deploy needs a **read-only deploy key** under Settings → Deploy
+keys (`DEPLOY.md` §3.1 prints the public line to paste).
 
 | Phase | Commits             | State                                                  |
 | ----- | ------------------- | ------------------------------------------------------ |

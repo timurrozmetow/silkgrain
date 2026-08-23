@@ -51,14 +51,15 @@ site and issuing the certificate — both of which are marked.
 
 ### What you need in hand
 
-| Thing                                                                                                                 | Why, and what fails without it                                                                                                                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A domain, with `A` (and `AAAA`, if the box has IPv6) records for the apex **and** `www`, already resolving to the box | Certbot proves control by answering on port 80 at both names. The committed Nginx site has a `www` → apex redirect block that will not load unless the certificate covers `www`.                                    |
-| SSH access to the VPS as `root`, by key                                                                               | All of section 2.                                                                                                                                                                                                   |
-| The repository URL, and the ability to add a read-only Deploy Key to it                                               | The box keeps a bare mirror and fetches from it on every deploy.                                                                                                                                                    |
-| An SMTP account, with SPF and DKIM published for the sending domain                                                   | Order confirmations and shipping notices. Without SPF/DKIM they land in spam, the customer concludes the order failed, and the first you hear of it is a ticket about a double charge that never happened.          |
-| An S3-compatible bucket for product images, and a **second, private** one for database dumps                          | `S3_BUCKET` is opened for anonymous reads by the API itself — product images are public by definition. A dump in that bucket is the whole shop on a guessable URL. `backup-db.sh` refuses when the two names match. |
-| A Stripe account with live API keys                                                                                   | **Read the next subsection before you go any further.**                                                                                                                                                             |
+| Thing                                                                                                                 | Why, and what fails without it                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A domain, with `A` (and `AAAA`, if the box has IPv6) records for the apex **and** `www`, already resolving to the box | Certbot proves control by answering on port 80 at both names. The committed Nginx site has a `www` → apex redirect block that will not load unless the certificate covers `www`.                                                                         |
+| SSH access to the VPS as `root`, by key                                                                               | All of section 2.                                                                                                                                                                                                                                        |
+| The repository URL, and the ability to add a read-only Deploy Key to it                                               | The box keeps a bare mirror and fetches from it on every deploy.                                                                                                                                                                                         |
+| An SMTP account, with SPF and DKIM published for the sending domain                                                   | Order confirmations and shipping notices. Without SPF/DKIM they land in spam, the customer concludes the order failed, and the first you hear of it is a ticket about a double charge that never happened. **Not needed with payments off** — see below. |
+| Somewhere to put product images                                                                                       | Either a hosted S3-compatible bucket, or nothing at all: section 2.10 installs MinIO on this box and Nginx serves it from the shop's own origin (D-52). The API will not boot without one of the two.                                                    |
+| A **second, private** bucket for database dumps — optional, and it must be somewhere else                             | `S3_BUCKET` is opened for anonymous reads by the API itself, so a dump in it is the whole shop on a guessable URL; `backup-db.sh` refuses when the two names match. Left empty, dumps stay on this disk and the deploy warns rather than failing.        |
+| A Stripe account with live API keys                                                                                   | **Read the next subsection before you go any further.**                                                                                                                                                                                                  |
 
 Which SMTP provider and which object store is open question Q-41 in `QUESTIONS.md`; nothing in the
 code cares, as long as one speaks SMTP and the other speaks S3.
@@ -86,6 +87,28 @@ Inventing a realistic-looking string instead buys nothing either: `POST /api/che
 written (D-27), so no PaymentIntent exists for a genuine event to refer to.
 
 When the keys arrive, flip `PAYMENTS_ENABLED=true`, fill in the three values, and redeploy.
+
+### Deploying without an email provider
+
+**With payments off, you can, and nothing is degraded by it** — which is a stronger claim than it
+sounds, so here is the whole of it. Exactly two places in this codebase send mail: the order
+confirmation, enqueued by the Stripe webhook when an order becomes paid, and the shipping notice,
+enqueued when an operator marks an order shipped. The first route is not registered at all with
+`PAYMENTS_ENABLED=false`, and the second needs an order that only the first can create. The contact
+and wholesale forms write rows for the back office to read; they send nothing.
+
+So leave the `SMTP_*` lines as `.env.production.example` ships them. Nodemailer's `createTransport`
+opens no connection — it is dialled on the first `sendMail` and there is never one — so an
+unresolvable host costs nothing and no queue fills up.
+
+`MAIL_FROM_ADDRESS` still has to be a valid address, because `loadEnv` parses it as one and the
+process will not boot otherwise. `orders@<your domain>` is the right value even while nothing is
+sent: it is what the first receipt will come from.
+
+**Configure mail in the same change that turns payments on, not after it.** A shop that takes money
+and cannot send a receipt fails silently in the worst direction — the charge succeeds, the order is
+correct, the job retries against a host that does not exist, and the customer's only evidence that
+anything happened is a line on a card statement.
 
 ### The one thing that will waste your evening
 
@@ -146,6 +169,34 @@ Disk: five releases with their `node_modules`, plus fourteen days of compressed 
 Nginx logs. 40 GB is generous, 20 GB is enough, and `find /srv/silkgrain -maxdepth 2 -type d` plus
 `df -h` is how you check.
 
+**Measured on a 1 GB / 1 core / 8.8 GB box, because that is what this deployment actually got.** It
+is under every number above and the provisioning still completes, so here is what the space and the
+memory are really spent on rather than an estimate:
+
+| After                            | Disk used | Notes                                                    |
+| -------------------------------- | --------- | -------------------------------------------------------- |
+| bare Ubuntu 24.04                | 3.3 GB    | `/usr` alone is 3.0 GB once the packages below are on    |
+| nginx, MySQL, Redis, certbot     | 3.8 GB    | MySQL pulls the mecab dictionaries, ~100 MB of them      |
+| a 2 GB swapfile                  | 5.8 GB    | section 2.1; the box already had a 500 MB swap partition |
+| Node 22, pnpm, PM2 (nvm, 261 MB) | 6.3 GB    |                                                          |
+| MinIO (section 2.10)             | 6.3 GB    | the binary is ~110 MB, the data directory starts empty   |
+| `apt-get clean`                  | 6.1 GB    | 141 MB of cached `.deb` files, worth reclaiming here     |
+
+That leaves **2.3 GB** for releases, and a release is dominated by `node_modules`. pnpm hardlinks
+every file from one content-addressable store, so the second and later releases cost almost nothing
+on top of the first — which is the only reason a five-release retention fits on a disk this size.
+
+Memory is the tighter of the two, and one setting decides it: **`performance_schema = OFF` in
+MySQL** (section 2.5) takes `mysqld` from a few hundred megabytes of resident memory to **69 MB**
+measured here. With that, MinIO at 50 MB, PM2 and the API, the steady state fits with the swapfile
+barely touched. Without it, the box swaps continuously.
+
+If the VM is on VMware, check `lsmod | grep vmw_balloon` before believing `free`: with the balloon
+inflated the guest reports nearly all of its RAM as used while the processes on it account for a
+tenth of that. It deflates on demand — a 500 MB allocation succeeded here against a reported 45 MB
+"available" — so it is not the emergency it looks like, but it does make `free -m` useless as a
+capacity check. Read `ps -eo rss --sort=-rss` instead.
+
 ---
 
 ## 2. One-time provisioning, as root
@@ -172,7 +223,6 @@ apt-get install -y \
   git curl ca-certificates \
   ufw fail2ban python3-systemd \
   certbot \
-  awscli \
   unattended-upgrades
 ```
 
@@ -183,8 +233,26 @@ Notes on that list, because two of them are not obvious:
   `@node-rs/argon2-linux-x64-gnu@2.0.2`). There is no `build-essential`, no `python3-dev` and no
   `libvips-dev`, and adding them would only hide the day a prebuilt stops being selected.
 - **`python3-systemd`** is for fail2ban, below.
-- **`awscli`** is needed only by the off-site half of `backup-db.sh`. Both the v1 and v2 clients
-  accept the `--endpoint-url` flag on `s3 cp` and `s3api head-object`, which is all the script uses.
+- **No `awscli`, and not by choice.** Earlier drafts of this document listed it. **Ubuntu 24.04
+  dropped the package from the archive** — `apt-cache policy awscli` answers `Candidate: (none)`
+  with universe enabled, and only the unrelated `awstats` and the `botocore` library remain. Because
+  `apt-get install` refuses the whole transaction when one name has no candidate, leaving it in the
+  list means nginx, MySQL and Redis are not installed either, and the error names only `awscli`.
+  Measured on this box, not reasoned.
+
+  Nothing needs it yet: `backup-db.sh` exits 3 on an unset `BACKUP_S3_BUCKET` before it ever looks
+  for the binary. Install AWS CLI **v2**, from Amazon, on the day there is an off-site bucket:
+
+  ```bash
+  apt-get install -y unzip
+  curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscliv2.zip
+  aws --version
+  ```
+
+  It installs into `/usr/local/bin`, which is exactly why the cron entry in section 3.7 sets `PATH`.
+  Both v1 and v2 accept the `--endpoint-url` flag on `s3 cp` and `s3api head-object`, which is all
+  the script uses.
 
 ```bash
 dpkg-reconfigure -f noninteractive unattended-upgrades
@@ -218,8 +286,13 @@ adduser --disabled-password --gecos "" deploy
 No password, key-only, and **not** in `sudo`. Check that last part rather than assume it:
 
 ```bash
-id -nG deploy      # expect: deploy
+id -nG deploy      # expect: deploy, and possibly `users` - see below. Never `sudo`.
 ```
+
+Measured on a stock Ubuntu 24.04 image, this prints `deploy users`, not `deploy`. Ubuntu's
+`/etc/adduser.conf` ships `ADD_EXTRA_GROUPS=1` with `EXTRA_GROUPS=users`, so every non-system
+account it creates joins `users`. That group grants nothing on this box and is not worth fighting;
+what the check is actually for is the absence of `sudo`, and that is what to read the output for.
 
 Now authorise your CI. Generate the keypair **on your own machine**, not on the box — the private
 half goes into a GitHub secret and should never touch the server:
@@ -364,10 +437,28 @@ default_time_zone = '+00:00'
 
 # Loopback only. Nothing outside this box has any business speaking to it.
 bind_address = 127.0.0.1
+
+# ---------------------------------------------------------------- small box, under 2 GB of RAM
+# Skip these three on a box with 4 GB or more; they are not tuning for its own sake.
+#
+# Stock MySQL 8 reserves a few hundred megabytes for the performance schema alone, and nothing in
+# this application reads it - no query, no dashboard, no probe. Measured on a 1 GB box: mysqld goes
+# from swapping continuously to 69 MB resident. What it costs is `SHOW ENGINE PERFORMANCE_SCHEMA`
+# and the sys views, which is a diagnostic you can turn back on for an afternoon when you need it.
+performance_schema = OFF
+
+# Explicit rather than inherited, for the same reason as sql_mode above. This whole catalogue is
+# smaller than the pool.
+innodb_buffer_pool_size = 96M
+
+# DATABASE_POOL_SIZE is a pool per PM2 worker and PM2 runs one per core. Ten on one core, plus
+# mysqldump, plus a reload's overlap, is nowhere near even this reduced ceiling - and the ceiling
+# arithmetic below reads this number rather than the stock 151.
+max_connections = 60
 CONF
 
 systemctl restart mysql
-mysql -e "SELECT @@sql_mode, @@character_set_server, @@collation_server, @@time_zone\G"
+mysql -e "SELECT @@sql_mode, @@character_set_server, @@collation_server, @@time_zone, @@performance_schema\G"
 ```
 
 Read that output. `sql_mode` must contain both `STRICT_TRANS_TABLES` and `ONLY_FULL_GROUP_BY`; the
@@ -421,8 +512,11 @@ copy of the fleet for the seconds a zero-downtime reload overlaps. `.env.product
 the bound; this is it evaluated:
 
 ```bash
-echo "cores: $(nproc)   pool ceiling: $(( (151 - 30) / ($(nproc) * 2) ))"
+echo "cores: $(nproc)   pool ceiling: $(( ($(mysql -N -B -e 'SELECT @@max_connections') - 30) / ($(nproc) * 2) ))"
 ```
+
+It reads `@@max_connections` from the running server rather than assuming the stock 151, because the
+small-box block above may have lowered it.
 
 If that ceiling is 10 or more, leave `DATABASE_POOL_SIZE=10`. If it is less — sixteen cores gives 3
 — write the smaller number into `.env` in section 3, or the API starts refusing connections under
@@ -468,6 +562,25 @@ user on the box can read it, and prints a warning saying so.
 
 Everything here belongs to `deploy` and none of it needs root. Node comes from nvm, in the deploy
 user's home, so upgrading the runtime never touches a system package.
+
+**Run `cd /` first, and read why — this costs an hour otherwise.** Root's shell starts in `/root`,
+which is mode 0700. `sudo -u deploy` does not change the working directory, and neither does
+`bash -l`: a login shell reads profiles, it does not `cd`. So every `sudo -u deploy` command below,
+pasted from a root shell in its own home, runs as `deploy` **inside a directory `deploy` cannot
+read**, and the failures do not name the cause:
+
+- `pnpm -v` dies with `EACCES: permission denied, open '/root/package.json'` — corepack's shim
+  looks for a `packageManager` field in the current directory before it does anything else.
+- `pm2` prints `spawn … EACCES` and starts no daemon.
+- `nvm install` works, but litters the output with
+  `find: Failed to restore initial working directory: /root: Permission denied`.
+
+```bash
+cd /
+```
+
+Every `sudo -u deploy` line in this document also carries `cd "$HOME" &&` for the same reason, so
+that it is correct however you arrived at it.
 
 Download the installer and read it before running it. Piping a URL straight into `bash` on the box
 that holds the customer table is the one shortcut this document will not take:
@@ -516,6 +629,7 @@ Now the runtime and the tools:
 ```bash
 sudo -u deploy -H bash -lc '
   set -euo pipefail
+  cd "$HOME"
   nvm install 22
   nvm alias default 22
   export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -534,8 +648,9 @@ anything.
 **Prove the PATH problem is solved.** This is the check, and it is not optional:
 
 ```bash
-sudo -u deploy -H bash -lc 'node -v; pnpm -v; pm2 -v'
+sudo -u deploy -H bash -lc 'cd "$HOME" && node -v && pnpm -v && pm2 -v'
 # expect: v22.x.x / 10.34.5 / a pm2 version
+# measured on this deployment: v22.23.2 / 10.34.5 / 7.0.3
 ```
 
 Log rotation for PM2, which rotates nothing on its own:
@@ -543,6 +658,7 @@ Log rotation for PM2, which rotates nothing on its own:
 ```bash
 sudo -u deploy -H bash -lc '
   set -euo pipefail
+  cd "$HOME"
   pm2 install pm2-logrotate
   pm2 set pm2-logrotate:max_size 10M
   pm2 set pm2-logrotate:retain 14
@@ -587,7 +703,7 @@ symptom until somebody notices.
 Run this as `deploy`. It **prints** a command rather than doing anything:
 
 ```bash
-sudo -u deploy -H bash -lc 'pm2 startup systemd -u deploy --hp /home/deploy'
+sudo -u deploy -H bash -lc 'cd "$HOME" && pm2 startup systemd -u deploy --hp /home/deploy'
 ```
 
 It ends with one line beginning `sudo env PATH=...`. Copy that line verbatim and run it as root — it
@@ -603,6 +719,94 @@ writes that list, and `deploy.sh` runs it at the end of every healthy deploy —
 check passes, because saving a crash-looping process list is saving the outage. So the pair is not
 complete until the first deploy succeeds, and section 3.8 verifies it with an actual reboot.
 
+### 2.10 MinIO — the object store for product images
+
+Object storage is not optional in this application: `S3_ENDPOINT`, `S3_BUCKET`, `S3_PUBLIC_URL` and a
+key pair have no defaults in `apps/api/src/env.ts`, so the API refuses to boot without them. That is
+deliberate — the admin product form uploads through it, and a shop that discovers at the first upload
+that it has nowhere to put a photograph has discovered it too late.
+
+On this topology the store is MinIO on this same box, listening on loopback, and Nginx serves its
+bucket from the shop's own origin under `/media/`. That is **decision D-52**, and it is what makes a
+one-box deployment need no hosted account, no second DNS record and no second name on the
+certificate. Port 9000 is never opened: `ufw` from section 2.3 does not name it, and the browser only
+ever talks to Nginx.
+
+```bash
+groupadd -r minio-user 2>/dev/null || true
+useradd -M -r -g minio-user minio-user 2>/dev/null || true
+install -d -o minio-user -g minio-user -m 0750 /srv/minio /srv/minio/data
+```
+
+`/srv/minio/data`, not `/var/lib`: it grows with the catalogue, and on a VPS with a separate data
+volume this is the path you move.
+
+```bash
+curl -fsSL -o /tmp/minio.deb https://dl.min.io/server/minio/release/linux-amd64/minio.deb
+dpkg -i /tmp/minio.deb
+rm -f /tmp/minio.deb
+minio --version
+```
+
+That URL is the current stable release rather than a pinned archive one, which is the one place this
+document does not pin a version — MinIO's archive URLs carry a build timestamp that has to be looked
+up, and a pinned URL that 404s at 3am is worse than an unpinned one. **Write down what
+`minio --version` prints** in your own notes: that is the value to pin the archive URL to if this box
+is ever rebuilt to match.
+
+Generate the credentials the same way as the other two, into the same bootstrap directory that
+section 3.2 shreds at the end:
+
+```bash
+( umask 077
+  openssl rand -base64 36 | tr '+/' '-_' | tr -d '\n' \
+    > /root/silkgrain-bootstrap/minio-password )
+```
+
+```bash
+install -m 0600 /dev/null /etc/default/minio
+tee /etc/default/minio >/dev/null <<CONF
+MINIO_ROOT_USER=silkgrain
+MINIO_ROOT_PASSWORD=$(cat /root/silkgrain-bootstrap/minio-password)
+MINIO_VOLUMES="/srv/minio/data"
+MINIO_OPTS="--address 127.0.0.1:9000 --console-address 127.0.0.1:9001"
+CONF
+
+chmod 600 /etc/default/minio
+systemctl enable --now minio
+```
+
+`--address 127.0.0.1:9000` and not a bare `:9000`. The firewall would refuse an outside connection
+either way, but a service bound to every interface is one `ufw` edit away from being reachable, and
+these root credentials can read and delete every object in the store. Two locks, and this is the one
+that does not depend on remembering a rule.
+
+Confirm it, including where it is listening:
+
+```bash
+systemctl is-active minio                                             # expect: active
+curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9000/minio/health/live   # expect: 200
+ss -lntp | grep -E ':900[01]'      # both must show 127.0.0.1, never 0.0.0.0 or *
+```
+
+**No bucket is created here, and none should be.** `Storage.provision` in
+`apps/api/src/modules/media/storage.service.ts` does it lazily on the first upload — `HeadBucket`,
+then `CreateBucket`, then the public-read `PutBucketPolicy` — which is exactly what the root
+credentials above are for. Until an editor uploads the first product image, `https://<domain>/media/…`
+answers 404, and that is the correct answer rather than a fault.
+
+The credentials go into `shared/.env` in section 3.2 as `S3_ACCESS_KEY_ID` and
+`S3_SECRET_ACCESS_KEY`. They are the root pair rather than a scoped service account, because scoping
+one needs `mc` and an admin API call, and the file they would live in is the same 0600 file that
+already holds the database password — the boundary that matters here is the file, not the key.
+
+**Two honest gaps, both worth knowing now rather than after an incident.** `deploy/backup-db.sh`
+dumps MySQL and nothing else, so `/srv/minio/data` is not in any backup: lose the box and the product
+photographs go with it, while the rows that name them survive. And with `BACKUP_S3_BUCKET` empty —
+which it must be here, because the only S3 endpoint on this box is this MinIO and a copy beside the
+original is not a backup — every dump lives on the disk it was taken from. Both close the same way,
+with a bucket at some other provider, and both are in `BACKLOG.md`.
+
 ---
 
 ## 3. The first deploy, as deploy
@@ -615,7 +819,7 @@ substitution finishes the job.
 
 ```bash
 DOMAIN=silkgrain.com                                   # your apex domain, no scheme, no www
-REPO_URL=git@github.com:silkgrain/silkgrain.git            # `git remote get-url origin` locally
+REPO_URL=git@github.com:timurrozmetow/silkgrain.git    # `git remote get-url origin` locally
 ADMIN_EMAIL=ops@silkgrain.com                          # where certificate expiry warnings go
 ```
 
@@ -636,6 +840,19 @@ names; a stale record is a failed issuance and five failures in an hour is a rat
 
 The mirror is fetched on every deploy, so it needs a credential that works unattended. A read-only
 GitHub Deploy Key is the smallest thing that does.
+
+**Skip this whole subsection if the repository is public**, which `silkgrain` is today: an anonymous
+HTTPS clone needs no credential and no host key, and `git remote update` over it works unattended
+for the same reason. Use the HTTPS URL in `REPO_URL` and go straight to the two commands at the end
+of this subsection.
+
+```bash
+REPO_URL=https://github.com/timurrozmetow/silkgrain.git
+```
+
+The key below is what a private repository needs, and it is what to come back for on the day this
+one is made private — the deploy would otherwise start failing at its first `git remote update`,
+with an authentication error rather than anything about visibility.
 
 ```bash
 sudo -u deploy -H bash -lc '
@@ -678,14 +895,18 @@ sudo -u deploy -H bash -lc '
   git -C /srv/silkgrain/shared/repo.git show main:.env.production.example \
     > /srv/silkgrain/shared/.env
 '
-sudo -u deploy sed -i "s/silkgrain\.example/$DOMAIN/g" /srv/silkgrain/shared/.env
+# Only if your domain is not silkgrain.com. The template already carries the real one (D-48),
+# so on this deployment the substitution is a no-op and skipping it is correct.
+[ "$DOMAIN" = silkgrain.com ] \
+  || sudo -u deploy sed -i "s/silkgrain\.com/$DOMAIN/g" /srv/silkgrain/shared/.env
 ```
 
-Read the two credentials you generated in section 2 and keep them where you can paste them:
+Read the three credentials you generated in section 2 and keep them where you can paste them:
 
 ```bash
 echo "mysql: $(cat /root/silkgrain-bootstrap/mysql-password)"
 echo "redis: $(cat /root/silkgrain-bootstrap/redis-password)"
+echo "minio: $(cat /root/silkgrain-bootstrap/minio-password)"
 ```
 
 Generate the two JWT secrets, which must differ from each other — `loadEnv` refuses them if they are
@@ -707,20 +928,25 @@ sudo -u deploy nano /srv/silkgrain/shared/.env
 
 The values you must supply, in the order they appear:
 
-| Variable                                                                                                                    | Value                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                                              | `mysql://silkgrain:<mysql password>@127.0.0.1:3306/silkgrain`                       |
-| `DATABASE_POOL_SIZE`                                                                                                        | `10`, or the smaller ceiling from section 2.5                                       |
-| `REDIS_URL`                                                                                                                 | `redis://:<redis password>@127.0.0.1:6379` — note the empty user before the colon   |
-| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`                                                                                   | the two generated values, different from each other                                 |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY`                                                 | the three real keys. See [section 1](#the-one-thing-that-will-waste-your-evening)   |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`                                                       | your provider's. 587 with `SMTP_SECURE=false`, or 465 with `true`, and nothing else |
-| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE`, `S3_PUBLIC_URL` | the public media bucket                                                             |
-| `BACKUP_S3_BUCKET`                                                                                                          | a **private** bucket, and not `S3_BUCKET`                                           |
-| `BACKUP_S3_*` (the other four)                                                                                              | leave empty to reuse the `S3_*` credentials                                         |
+| Variable                                                                    | Value                                                                                                                                             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                              | `mysql://silkgrain:<mysql password>@127.0.0.1:3306/silkgrain`                                                                                     |
+| `DATABASE_POOL_SIZE`                                                        | `10`, or the smaller ceiling from section 2.5                                                                                                     |
+| `REDIS_URL`                                                                 | `redis://:<redis password>@127.0.0.1:6379` — note the empty user before the colon                                                                 |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`                                   | the two generated values, different from each other                                                                                               |
+| `PAYMENTS_ENABLED`                                                          | `false` unless you have real Stripe keys in hand right now                                                                                        |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VITE_STRIPE_PUBLISHABLE_KEY` | the three real keys — or leave all three untouched with payments off                                                                              |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`       | your provider's. 587 with `SMTP_SECURE=false`, or 465 with `true`, and nothing else. Leave as shipped with payments off — nothing sends mail then |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`                                  | `silkgrain` and the MinIO password from section 2.10                                                                                              |
+| the other five `S3_*`                                                       | already correct for section 2.10's MinIO. Only a hosted bucket changes them                                                                       |
+| `BACKUP_S3_BUCKET`                                                          | empty, until there is a bucket at another provider. A **private** one, never `S3_BUCKET`                                                          |
+| `BACKUP_S3_*` (the other four)                                              | leave empty to reuse the `S3_*` credentials                                                                                                       |
 
 The domain-derived lines — `PUBLIC_WEB_URL`, `PUBLIC_ADMIN_URL`, `CORS_ORIGINS`, `COOKIE_DOMAIN`,
-`MAIL_FROM_ADDRESS`, `MAIL_REPLY_TO` — were already rewritten by the `sed`. Check them anyway.
+`MAIL_FROM_ADDRESS`, `MAIL_REPLY_TO`, `S3_PUBLIC_URL` — already carry `silkgrain.com`, and the `sed`
+above rewrote them only if your domain differs. Read them anyway. `COOKIE_DOMAIN` is empty on
+purpose and stays empty (D-49); `S3_PUBLIC_URL` has to match the `/media/` block in the Nginx site
+(D-52), which section 3.5 installs.
 
 Then verify the mode, because `deploy.sh` refuses anything but `600` and the message is easier to
 read here than mid-deploy:
@@ -733,7 +959,9 @@ stat -c '%a %U:%G %n' /srv/silkgrain/shared/.env
 Finally, remove the bootstrap credentials — they are now in one place, which is the point:
 
 ```bash
-shred -u /root/silkgrain-bootstrap/mysql-password /root/silkgrain-bootstrap/redis-password
+shred -u /root/silkgrain-bootstrap/mysql-password \
+         /root/silkgrain-bootstrap/redis-password \
+         /root/silkgrain-bootstrap/minio-password
 rmdir /root/silkgrain-bootstrap
 ```
 
@@ -814,7 +1042,7 @@ it.
 Nginx refuses to start when `ssl_certificate` names a file that is not there, so the two TLS server
 blocks cannot be enabled before the certificate exists. Certbot cannot issue the certificate until
 Nginx is answering `/.well-known/acme-challenge/` on port 80. `deploy/nginx/silkgrain.conf`
-documents the way out at lines 41–52; these are those steps, made mechanical.
+documents the way out at lines 42–53; these are those steps, made mechanical.
 
 **Step one — the bootstrap config.** Keep the file down to its `:80` server block, and disable the
 redirect inside it so the ACME location is reachable:
@@ -827,7 +1055,7 @@ awk '/^# :443 - www redirects to the apex\.$/ { exit } { print }' \
 sed -i 's|return 301 https://|# ACME bootstrap, restored in step four: return 301 https://|' \
     /tmp/silkgrain-acme.conf
 
-sed -i "s/silkgrain\.example/$DOMAIN/g" /tmp/silkgrain-acme.conf
+[ "$DOMAIN" = silkgrain.com ] || sed -i "s/silkgrain\.com/$DOMAIN/g" /tmp/silkgrain-acme.conf
 
 install -o root -g root -m 0644 /tmp/silkgrain-acme.conf \
     /etc/nginx/sites-available/silkgrain.conf
@@ -903,7 +1131,8 @@ substitution:
 install -o root -g root -m 0644 \
     /srv/silkgrain/current/deploy/nginx/silkgrain.conf \
     /etc/nginx/sites-available/silkgrain.conf
-sed -i "s/silkgrain\.example/$DOMAIN/g" /etc/nginx/sites-available/silkgrain.conf
+[ "$DOMAIN" = silkgrain.com ] \
+  || sed -i "s/silkgrain\.com/$DOMAIN/g" /etc/nginx/sites-available/silkgrain.conf
 
 ip -6 addr show scope global | grep -q inet6 \
   || sed -i '/listen \[::\]/d' /etc/nginx/sites-available/silkgrain.conf
@@ -918,22 +1147,35 @@ never reviewed. The web server's configuration is not release state, which also 
 `deploy/nginx/silkgrain.conf` in git does not reach the box until somebody re-runs these four
 commands.**
 
-**Step five — the one thing the sed can get wrong.** That substitution also rewrote
-`media.silkgrain.com` inside the Content-Security-Policy's `img-src`. If your images are served
-from a provider hostname rather than a subdomain of yours, it has now written the wrong one, and a
-wrong `img-src` is not a visible error — it is a catalogue of blank rectangles and a console nobody
-is reading. Compare:
+**Step five — the two halves of the image path must agree.** `S3_PUBLIC_URL` in `shared/.env` and
+the `location ^~ /media/` block in this config are one arrangement written in two files (D-52), and
+nothing checks that they match. A mismatch is not a visible error — it is a catalogue of blank
+rectangles and a console nobody is reading. Compare all three:
 
 ```bash
-grep -o "img-src[^;]*" /etc/nginx/sites-available/silkgrain.conf | head -1
-grep '^S3_PUBLIC_URL=' /srv/silkgrain/shared/.env
+grep 'add_header Content-Security-Policy' /etc/nginx/sites-available/silkgrain.conf \
+  | grep -o "img-src[^;]*" | sort -u
+grep -n 'proxy_pass http://127.0.0.1:9000' /etc/nginx/sites-available/silkgrain.conf
+grep -E '^(S3_PUBLIC_URL|S3_BUCKET)=' /srv/silkgrain/shared/.env
 ```
 
-The origin in `S3_PUBLIC_URL` must appear in `img-src`. If it does not, fix it and reload:
+Both greps are anchored to the directive rather than to its neighbourhood, and both were written
+that way after the obvious versions were wrong. A bare `grep -o "img-src[^;]*" … | head -1` matches
+the file's own comments about `img-src` long before it reaches an `add_header`, and a
+`grep -A2 'location ^~ /media/'` stops three lines above the `proxy_pass` it is looking for, because
+`limit_except` sits between them — printing nothing, exiting 1, and leaving the operator comparing
+two values while believing they compared three.
+
+For the MinIO topology of section 2.10, the first prints **one** line, `img-src 'self' data:` — one
+line rather than two is itself part of the check, because it proves the two CSP headers in the file
+still agree. The second prints the `/media/` block's `proxy_pass`, whose URI is the bucket name. The
+third must show `S3_PUBLIC_URL=https://<your domain>/media` and an `S3_BUCKET` equal to that bucket
+name. The origin serving the images has to be allowed by `img-src`, and here it is the shop's own —
+so `'self'` covers it and no host is listed. Against a hosted bucket instead, put that provider's
+origin into both `img-src` headers and delete the `/media/` block — at which point the second grep
+correctly prints nothing — then reload:
 
 ```bash
-sed -i "s|https://media\.$DOMAIN|<the S3_PUBLIC_URL origin>|g" \
-    /etc/nginx/sites-available/silkgrain.conf
 nginx -t && systemctl reload nginx
 ```
 
@@ -1335,27 +1577,28 @@ Every row here is a failure mode that exists in the scripts as written, not a ge
 list. `silkgrain.com` is the domain token this repository uses throughout, so read it as yours;
 `<host>` is the box's SSH address, which is an argument rather than a token.
 
-| Symptom                                                            | First command                                                                            | Likely cause                                                                                                                                                                                           |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `deploy.sh`: `` `pnpm` is not on PATH for the deploy user ``       | `ssh deploy@host 'bash -lc "which node pnpm pm2"'`                                       | nvm sourced only from `~/.bashrc`, which a non-interactive login shell returns out of at line one. Section 2.7 puts the two lines in `~/.profile` instead.                                             |
-| Deploy stops at step 5, `STRIPE_SECRET_KEY: Still the placeholder` | `grep -c replace_me /srv/silkgrain/shared/.env`                                          | `loadEnv` refuses the D-27 placeholders under `NODE_ENV=production`. Nothing was switched; put real keys in and re-run.                                                                                |
-| `deploy.sh`: `.env is mode 644, expected 600`                      | `stat -c '%a %U:%G' /srv/silkgrain/shared/.env`                                          | `chmod 600` and `chown deploy:deploy`. The file holds every credential the shop has.                                                                                                                   |
-| `deploy.sh`: `pnpm 10.x is installed, package.json pins 10.34.5`   | `ssh deploy@host 'bash -lc "pnpm -v"'`                                                   | A globally installed pnpm shadowing corepack's. `corepack enable && corepack prepare pnpm@10.34.5 --activate`.                                                                                         |
-| PM2 shows `errored` with 10 restarts and the site is down          | `pm2 logs silkgrain-api --lines 200`                                                     | `loadEnv` threw at boot and the process never listened. The message names the variable. `min_uptime`/`max_restarts` stopping the loop is correct behaviour, not the fault.                             |
-| `/ready` answers 503 `degraded`                                    | `curl -s 127.0.0.1:3001/ready`                                                           | The body names which of MySQL and Redis did not answer within 2s. Not a code problem. The driver's own message is in the API log, deliberately not on the wire (D-40).                                 |
-| 502 from Nginx on `/api/` but the static pages load                | `pm2 list; ss -lntp \| grep 3001`                                                        | No worker listening. If `ss` shows `0.0.0.0:3001` rather than `127.0.0.1:3001`, `API_HOST` is wrong and the API is exposed.                                                                            |
-| 403 on every asset, "Permission denied" in the Nginx error log     | `sudo -u www-data test -r /srv/silkgrain/current/apps/web/dist/index.html`               | A missing traverse bit between `/srv` and the `dist` directories. `chmod o+x` each level, or put `www-data` in the `deploy` group and use `g+rx`.                                                      |
-| `/admin/` is blank with 404s in the browser console                | `curl -sI https://silkgrain.com/admin/orders/1`                                          | The admin's Vite base is `/admin/`; the `alias` + `try_files` block or the `= /admin` redirect is wrong. Expect 200 with a `content-security-policy` header.                                           |
-| Every product image is a blank rectangle                           | browser console, then `grep -o 'img-src[^;]*' /etc/nginx/sites-available/silkgrain.conf` | The domain `sed` rewrote `media.silkgrain.com` to a host that is not `S3_PUBLIC_URL`. Section 3.5 step five.                                                                                           |
-| `nginx -t`: `unknown directive "brotli"`                           | `ls /etc/nginx/snippets/silkgrain-brotli.conf*`                                          | The snippet exists but `libnginx-mod-brotli` does not. The site includes it as a glob so an absent file is fine; a present file without the module is not.                                             |
-| Backup exits 3 every night                                         | `grep '^BACKUP_S3' /srv/silkgrain/shared/.env; command -v aws`                           | Bucket unset, credentials missing, or `aws` outside cron's `PATH`. The dump is fine and local; the off-site copy is not.                                                                               |
-| Backup exits 1, "does not end with mysqldump's completion marker"  | `df -h /srv/silkgrain/shared`                                                            | Suspect the disk before the database. A truncated dump is deleted rather than kept, which is why you are seeing an error and not a bad file.                                                           |
-| `rollback.sh`: `REFUSED: this rollback crosses a schema change`    | `rollback.sh --list`                                                                     | Working exactly as designed. Restore the pre-deploy dump named in the release's `RELEASE` file, then pass `--i-have-restored-the-database`.                                                            |
-| Site does not come back after a reboot                             | `systemctl status pm2-deploy; pm2 list`                                                  | `pm2 startup` never run, or no `pm2 save` since. `deploy.sh` saves after every healthy deploy, so one successful deploy fixes it.                                                                      |
-| Certificate expired                                                | `certbot certificates; systemctl list-timers certbot.timer`                              | Either the timer is off, or renewal fails because something now shadows `/.well-known/acme-challenge/`, or it renewed and Nginx was never reloaded (the deploy hook in section 3.5).                   |
-| Emails never arrive, nothing in the log                            | `redis-cli CONFIG GET maxmemory-policy`                                                  | Anything but `noeviction` and BullMQ jobs are discarded under memory pressure with no trace. Next suspect: `SMTP_SECURE=true` on port 587, which hangs until the socket times out rather than failing. |
-| Rate limiting has stopped working and nothing is in the log        | `curl -sI https://silkgrain.com/api/products \| grep -i ratelimit`                       | A CDN or a second proxy was put in front. `app.ts` sets `trustProxy: 1`; a second hop must be a code change in the same commit, or every limiter buckets on an address the client chooses.             |
-| A deploy "succeeded" but the change is not live                    | `cat /srv/silkgrain/current/RELEASE`                                                     | The mirror fetched nothing and the ref resolved to yesterday's commit. CI checks exactly this and fails; by hand, compare `sha=` with what you pushed.                                                 |
+| Symptom                                                            | First command                                                                                                                      | Likely cause                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy.sh`: `` `pnpm` is not on PATH for the deploy user ``       | `ssh deploy@host 'bash -lc "which node pnpm pm2"'`                                                                                 | nvm sourced only from `~/.bashrc`, which a non-interactive login shell returns out of at line one. Section 2.7 puts the two lines in `~/.profile` instead.                                                                                           |
+| Deploy stops at step 5, `STRIPE_SECRET_KEY: Still the placeholder` | `grep -c replace_me /srv/silkgrain/shared/.env`                                                                                    | `loadEnv` refuses the D-27 placeholders under `NODE_ENV=production`. Nothing was switched; put real keys in and re-run.                                                                                                                              |
+| `deploy.sh`: `.env is mode 644, expected 600`                      | `stat -c '%a %U:%G' /srv/silkgrain/shared/.env`                                                                                    | `chmod 600` and `chown deploy:deploy`. The file holds every credential the shop has.                                                                                                                                                                 |
+| `deploy.sh`: `pnpm 10.x is installed, package.json pins 10.34.5`   | `ssh deploy@host 'bash -lc "pnpm -v"'`                                                                                             | A globally installed pnpm shadowing corepack's. `corepack enable && corepack prepare pnpm@10.34.5 --activate`.                                                                                                                                       |
+| PM2 shows `errored` with 10 restarts and the site is down          | `pm2 logs silkgrain-api --lines 200`                                                                                               | `loadEnv` threw at boot and the process never listened. The message names the variable. `min_uptime`/`max_restarts` stopping the loop is correct behaviour, not the fault.                                                                           |
+| `/ready` answers 503 `degraded`                                    | `curl -s 127.0.0.1:3001/ready`                                                                                                     | The body names which of MySQL and Redis did not answer within 2s. Not a code problem. The driver's own message is in the API log, deliberately not on the wire (D-40).                                                                               |
+| 502 from Nginx on `/api/` but the static pages load                | `pm2 list; ss -lntp \| grep 3001`                                                                                                  | No worker listening. If `ss` shows `0.0.0.0:3001` rather than `127.0.0.1:3001`, `API_HOST` is wrong and the API is exposed.                                                                                                                          |
+| 403 on every asset, "Permission denied" in the Nginx error log     | `sudo -u www-data test -r /srv/silkgrain/current/apps/web/dist/index.html`                                                         | A missing traverse bit between `/srv` and the `dist` directories. `chmod o+x` each level, or put `www-data` in the `deploy` group and use `g+rx`.                                                                                                    |
+| `/admin/` is blank with 404s in the browser console                | `curl -sI https://silkgrain.com/admin/orders/1`                                                                                    | The admin's Vite base is `/admin/`; the `alias` + `try_files` block or the `= /admin` redirect is wrong. Expect 200 with a `content-security-policy` header.                                                                                         |
+| Every product image is a blank rectangle                           | browser console, then `curl -sI https://silkgrain.com/media/` and `grep -E '^S3_(PUBLIC_URL\|BUCKET)=' /srv/silkgrain/shared/.env` | `S3_PUBLIC_URL` and the `/media/` block disagree about the domain or the bucket (D-52), or the origin is blocked by `img-src`. Section 3.5 step five. A 404 with no image ever uploaded is correct — the bucket is created on the first upload.      |
+| 502 on `/media/…` while every other page is fine                   | `systemctl status minio; ss -lntp \| grep 9000`                                                                                    | MinIO is down or not on `127.0.0.1:9000`. Nginx proxies `/media/` there and nothing else on the site touches it (D-52), which is why only the images fail. `journalctl -u minio -n 50` names the cause; a bad `/etc/default/minio` is the usual one. |
+| `nginx -t`: `unknown directive "brotli"`                           | `ls /etc/nginx/snippets/silkgrain-brotli.conf*`                                                                                    | The snippet exists but `libnginx-mod-brotli` does not. The site includes it as a glob so an absent file is fine; a present file without the module is not.                                                                                           |
+| Backup exits 3 every night                                         | `grep '^BACKUP_S3' /srv/silkgrain/shared/.env; command -v aws`                                                                     | Bucket unset, credentials missing, or `aws` outside cron's `PATH`. The dump is fine and local; the off-site copy is not.                                                                                                                             |
+| Backup exits 1, "does not end with mysqldump's completion marker"  | `df -h /srv/silkgrain/shared`                                                                                                      | Suspect the disk before the database. A truncated dump is deleted rather than kept, which is why you are seeing an error and not a bad file.                                                                                                         |
+| `rollback.sh`: `REFUSED: this rollback crosses a schema change`    | `rollback.sh --list`                                                                                                               | Working exactly as designed. Restore the pre-deploy dump named in the release's `RELEASE` file, then pass `--i-have-restored-the-database`.                                                                                                          |
+| Site does not come back after a reboot                             | `systemctl status pm2-deploy; pm2 list`                                                                                            | `pm2 startup` never run, or no `pm2 save` since. `deploy.sh` saves after every healthy deploy, so one successful deploy fixes it.                                                                                                                    |
+| Certificate expired                                                | `certbot certificates; systemctl list-timers certbot.timer`                                                                        | Either the timer is off, or renewal fails because something now shadows `/.well-known/acme-challenge/`, or it renewed and Nginx was never reloaded (the deploy hook in section 3.5).                                                                 |
+| Emails never arrive, nothing in the log                            | `redis-cli CONFIG GET maxmemory-policy`                                                                                            | Anything but `noeviction` and BullMQ jobs are discarded under memory pressure with no trace. Next suspect: `SMTP_SECURE=true` on port 587, which hangs until the socket times out rather than failing.                                               |
+| Rate limiting has stopped working and nothing is in the log        | `curl -sI https://silkgrain.com/api/products \| grep -i ratelimit`                                                                 | A CDN or a second proxy was put in front. `app.ts` sets `trustProxy: 1`; a second hop must be a code change in the same commit, or every limiter buckets on an address the client chooses.                                                           |
+| A deploy "succeeded" but the change is not live                    | `cat /srv/silkgrain/current/RELEASE`                                                                                               | The mirror fetched nothing and the ref resolved to yesterday's commit. CI checks exactly this and fails; by hand, compare `sha=` with what you pushed.                                                                                               |
 
 ---
 

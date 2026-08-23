@@ -288,6 +288,16 @@ phase in `PLAN.md`.
 - Per-SKU nutrition data. The seed carries category-level reference values; the real figures
   come from the supplier's certificate of analysis and are entered in the admin product form
   (Q-43, D-20). Required by the FDA before the store takes a real order.
+- **Backups that leave the box.** Decision D-52 puts MinIO on the application's own VPS, and
+  two things follow that nothing in the deployment covers. `deploy/backup-db.sh` dumps MySQL
+  and only MySQL, so `/srv/minio/data` — every product photograph an editor has uploaded — is
+  in no backup at all: lose the box and the rows survive on a dump while the images they name
+  do not. And `BACKUP_S3_BUCKET` has to stay empty while the only S3 endpoint on the box is
+  that same MinIO, because a dump beside the original is not an off-site copy; empty makes the
+  nightly job exit 3 and the deploy warn, so every dump lives on the disk it was taken from.
+  Both close with one private bucket at another provider: point `BACKUP_S3_*` at it, and add
+  the MinIO data directory to the same job. Perhaps 3 h, and it is the first thing to do after
+  the shop holds anything somebody would miss.
 
 ## Structured address fields in settings
 
