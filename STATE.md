@@ -1,6 +1,41 @@
 # Where the project stands
 
-Updated 2026-08-19. Read this first after any context loss, then `CLAUDE.md` for the rules.
+Updated 2026-08-24. Read this first after any context loss, then `CLAUDE.md` for the rules.
+
+---
+
+## Next: the Categories surface, then the shop's first content
+
+Agreed with the owner on 2026-08-24, in this order. **The site is already live and empty** — this
+is what makes it a shop rather than a frame.
+
+**1. Categories, as a real surface rather than a seeded row.** A product requires a `categoryId`
+and nothing can create one, so this blocks everything else. It is `GET`, `POST`, `PUT` and a
+deactivate, behind `requirePermission` like every other admin route, with an `audit_log` entry and
+a screen in the panel. Four things it has to get right, none of them optional:
+
+- `categories.is_active` is already load-bearing in `PUBLISHED_PRODUCT` (`catalog.query.ts`), and
+  Phase 3's adversarial review found exactly this: deactivating a category hid it from the menu
+  while leaving its products in the grid, in search and in the cart. Whatever the deactivate does,
+  it must answer that.
+- The tree. `children` already drives the sub-category chips on `/shop/c/$slug` and the mega-menu,
+  so a parent id is part of the input, and a cycle has to be refused rather than stored.
+- The slug is a public address. Renaming one moves a page that may be indexed; the product form
+  already treats a published slug that way and this should match it.
+- There is no DELETE. A category with products cannot be removed without orphaning them, and the
+  precedent — promo codes (D-33's reasoning, `is_active = false` as the terminal action) — is
+  already set.
+
+**2. Then fill the shop from the design catalogue.** `docs/design/catalog.json` holds the six
+categories and sixteen products verbatim, with real names, copy and prices, and it is already
+extracted. Create them through the API the panel uses, not with SQL.
+
+**3. Photographs, and the constraint that decides how.** D-52 tightened the production CSP to
+`img-src 'self' data:`, so **an image served from Wikimedia or TheMealDB will not render on the
+live site** — the browser blocks it, silently, and the page shows a blank rectangle. The seed's
+image URLs are therefore a source to fetch from, never a value to store. Download each one, then
+upload it through `POST /api/admin/products/:id/images`, which is what puts it in MinIO behind
+`/media/` where the CSP allows it. That path is proven end to end on the live box.
 
 ---
 
@@ -1058,12 +1093,10 @@ created. What is left is a credential, a machine, and five open questions.
    `/recipes` is an empty page reached from the main nav, and the home page's testimonials are
    empty too, since those are published five-star reviews and there are none.
 
-   Three ways out, and it is your call: (a) extend `db:bootstrap` to write the six categories from
-   `docs/design/catalog.json` - about two hours, gets the shop usable today, leaves categories
-   unmanageable afterwards; (b) build the Categories screen and its API properly - roughly a day
-   with RBAC, the audit entry, slug uniqueness and what deactivating one does to the products
-   underneath it, since `categories.is_active` is already load-bearing in `PUBLISHED_PRODUCT`;
-   (c) both, in that order. Content for FAQ and recipes is a separate decision of the same shape.
+   **Answered on 2026-08-24: build the Categories surface properly**, not the `db:bootstrap`
+   shortcut. Owner's call, taking the day it costs over having a catalogue nobody can reorganise.
+   That is the next piece of work and it is described under "Next" below. FAQ and recipes are the
+   same shape and are not part of it.
 
 3. **The CI deploy has no credentials.** `.github/workflows/deploy.yml` runs on every push to `main`
    and refuses before touching the network, naming the four secrets it wants: `DEPLOY_HOST`,
