@@ -45,10 +45,40 @@ products, sixteen products, forty-one variants, sixteen photographs — none mis
 `200 image/webp` from `https://silkgrain.com/media/…`. Thirty-eight audit entries name the owner.
 `/`, `/shop`, `/shop/c/rice` and `/product/uzbek-devzira-rice` all answer 200.
 
+**The tab icon, and the last empty photograph slot.** D-9 parked the favicon until a real logo
+arrived; what it was waiting for was a decision about what to draw, and the header answered that in
+Phase 5. `pnpm make:icons` writes the mockup's own lockup — the Phosphor `grains` glyph on a green
+tile — as an SVG and rasterises the whole set a browser asks for: `favicon.svg`, a PNG-in-ICO for
+anything older, an `apple-touch-icon`, and 192/512 plus a maskable variant behind a web manifest.
+Everything is geometry, so nothing depends on a font being installed. The glyph is 78% of the tile
+rather than the header's 59%, and parchment rather than `onDeep` — 5.7:1 against 4.6:1 — because a
+16px tab icon is not a 34px lockup and the grains were four hairlines by the time a tab had
+finished shrinking them.
+
+The 320px band on every `/shop/c/` page was a flat gradient for the same reason the category
+descriptions are empty: the design gives a category a name, an icon and a count. `catalog:fill` now
+puts a photograph there, taken from the category's own stock — the **last** product in it with one,
+not the first, because the hero sits directly above the grid. It costs nothing to store:
+`processImage` keys an object by its content hash, so the hero and the product card are one object
+uploaded twice.
+
+`/site.webmanifest` also needed an nginx `location`. nginx 1.24 ships no `.webmanifest` MIME entry,
+so it came back as `application/octet-stream` and Chrome ignored it while serving 200 — found by
+measuring the live response, not by reading the config.
+
 **What is deliberately still empty.** Category descriptions: the mockup gives a category a name and
 an icon and no copy, and inventing some would put words in the shop that nobody wrote. They are
 typed on the Categories screen, where a hero image is uploaded too. Nutrition panels are the same
-call, already recorded as D-20.
+call, already recorded as D-20. The About page's portrait tile is a designed placeholder waiting on
+a photograph of the owner's own farms — a stock landscape there would be a picture implying it is
+theirs. And there is **no Open Graph card**: a social preview wants the wordmark set in Cormorant,
+which means rendering a webfont outside a browser, and the icon script deliberately depends on no
+font at all.
+
+**Two things about the photographs that are the owner's to settle.** They come from Wikimedia
+Commons, TheMealDB and Unsplash, by way of the mockup — several Commons files carry CC-BY-SA, which
+asks for attribution the shop does not currently give. They are stand-ins for the owner's own
+product photography, and worth replacing before the shop is advertised rather than after.
 
 ---
 
@@ -63,8 +93,8 @@ rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 
 those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
 the owner" below.
 
-**74 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
-`46837ee` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
+**79 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
+`dc3dd0f` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
 live at https://silkgrain.com** — see Phase 9 below for what runs there and what the first real
 deploy corrected.
 
