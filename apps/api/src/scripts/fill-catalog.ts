@@ -386,14 +386,68 @@ export async function fillCatalog(config: Config): Promise<void> {
     await ensureImage(client, config, created.id, null, product);
   }
 
+  // -------------------------------------------------------------------------- category heroes
+  say('\nCategory heroes');
+  const heroes = config.dryRun
+    ? tree
+    : await client.get<{ items: CategoryNode[] }>('/api/admin/categories');
+
+  for (const category of design.categories) {
+    const row = heroes.items.find((node) => node.slug === category.key);
+    if (row?.imageUrl != null) {
+      say(`  = ${category.label} (already has one)`);
+      continue;
+    }
+
+    const source = heroFor(design.products, category.key);
+    if (!source) {
+      say(`  ! ${category.label}: no product in it carries a photograph`);
+      continue;
+    }
+    if (config.dryRun || !row) {
+      say(`  + ${category.label} (would use the photograph from ${source.name})`);
+      continue;
+    }
+
+    const fetched = await fetchImage(source.imageUrl ?? '');
+    if (!fetched) continue;
+
+    const form = new FormData();
+    form.append('file', fetched.blob, fetched.name);
+    try {
+      await client.upload(`/api/admin/categories/${String(row.id)}/image`, form);
+      say(`  + ${category.label} (from ${source.name})`);
+    } catch (cause) {
+      say(`  ! ${category.label}: ${cause instanceof Error ? cause.message : 'upload failed'}`);
+    }
+  }
+
   say('\nDone.');
   if (!config.dryRun) {
     say(
       'Category descriptions are deliberately empty: the mockup gives categories a name and an\n' +
         'icon and no copy, and inventing some here would put words in the shop that nobody wrote.\n' +
-        'They are typed on the Categories screen, and a category hero image is uploaded there too.',
+        'They are typed on the Categories screen, where a hero image can be replaced too.',
     );
   }
+}
+
+/**
+ * Which photograph stands in as a category's hero.
+ *
+ * The design gives a category a name, an icon and a product count, and no photograph - so the only
+ * honest source is the category's own stock. The **last** product with one, not the first: the hero
+ * band sits directly above the grid, and taking the first would put the same picture twice in the
+ * first 400 pixels of the page.
+ *
+ * It costs nothing to store. `processImage` keys an object by the hash of its contents, so the
+ * hero and the product card are the same object in the bucket, uploaded twice and stored once.
+ */
+function heroFor(products: DesignProduct[], categoryKey: string): DesignProduct | undefined {
+  const inCategory = products.filter(
+    (product) => product.catKey === categoryKey && product.imageUrl !== null,
+  );
+  return inCategory[inCategory.length - 1];
 }
 
 async function ensureImage(

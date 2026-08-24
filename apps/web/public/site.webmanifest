@@ -1,0 +1,30 @@
+{
+  "name": "SilkGrain",
+  "short_name": "SilkGrain",
+  "description": "Central Asian rice, lentils, dried fruit and spices, shipped fresh from Houston.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F0E8",
+  "theme_color": "#0E6B4A",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
+
+    <!--
+      A tab icon and nothing else. The panel is served under `/admin/`, so the paths carry that
+      prefix; there is no manifest and no touch icon because nobody adds a back office to their
+      home screen, and `noindex, nofollow` above already says what this page is for.
+    -->
+    <link rel="icon" href="/admin/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/admin/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0B3D2C" />
+
     <title>SilkGrain Admin</title>
   </head>
   <body>
