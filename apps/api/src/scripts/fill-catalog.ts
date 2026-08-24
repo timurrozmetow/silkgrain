@@ -268,34 +268,35 @@ function productPayload(product: DesignProduct, index: number, categoryId: numbe
  * Fetches one photograph so it can be uploaded to the shop's own storage.
  *
  * Wikimedia refuses a request with no `User-Agent`, and `Special:FilePath` answers with a redirect
- * to `upload.wikimedia.org`, which `fetch` follows on its own. A failure here is reported and
- * skipped rather than thrown: a product with no photograph is a product an editor can finish, and
- * losing the other fifteen because one host was slow is not a trade worth making.
+ * to `upload.wikimedia.org`, which `fetch` follows on its own.
+ *
+ * The reason comes back rather than being printed here, because the two callers indent differently
+ * and a shared logger got that wrong: a category hero that failed printed a line about a product
+ * image, under no heading, and read as though the previous product had lost its photograph.
+ * Failures are returned, never thrown - losing the other fifteen because one host was slow is not
+ * a trade worth making, and the next run picks up exactly what this one missed.
  */
-async function fetchImage(url: string): Promise<{ blob: Blob; name: string } | null> {
+type Fetched = { ok: true; blob: Blob; name: string } | { ok: false; why: string };
+
+async function fetchImage(url: string): Promise<Fetched> {
   try {
     const response = await fetch(url, {
       headers: { 'User-Agent': 'SilkGrain catalogue loader (+https://silkgrain.com)' },
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) {
-      say(`      image: ${String(response.status)} from the source, skipped`);
-      return null;
-    }
+    if (!response.ok) return { ok: false, why: `${String(response.status)} from the source` };
 
     const type = response.headers.get('content-type') ?? '';
     if (!type.startsWith('image/')) {
-      say(`      image: the source answered "${type}", not an image, skipped`);
-      return null;
+      return { ok: false, why: `the source answered "${type}", not an image` };
     }
 
     const blob = await response.blob();
     // `processImage` re-encodes to webp regardless, so the extension only has to be plausible
     // enough for the multipart part to carry a filename.
-    return { blob, name: `source.${type.split('/')[1]?.split(';')[0] ?? 'jpg'}` };
+    return { ok: true, blob, name: `source.${type.split('/')[1]?.split(';')[0] ?? 'jpg'}` };
   } catch (cause) {
-    say(`      image: ${cause instanceof Error ? cause.message : 'fetch failed'}, skipped`);
-    return null;
+    return { ok: false, why: cause instanceof Error ? cause.message : 'the fetch failed' };
   }
 }
 
@@ -410,7 +411,10 @@ export async function fillCatalog(config: Config): Promise<void> {
     }
 
     const fetched = await fetchImage(source.imageUrl ?? '');
-    if (!fetched) continue;
+    if (!fetched.ok) {
+      say(`  ! ${category.label}: ${fetched.why} - run again to retry it`);
+      continue;
+    }
 
     const form = new FormData();
     form.append('file', fetched.blob, fetched.name);
@@ -466,7 +470,10 @@ async function ensureImage(
   }
 
   const fetched = await fetchImage(product.imageUrl);
-  if (!fetched) return;
+  if (!fetched.ok) {
+    say(`      image: ${fetched.why} - run again to retry it`);
+    return;
+  }
 
   const form = new FormData();
   form.append('file', fetched.blob, fetched.name);
