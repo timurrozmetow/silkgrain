@@ -4,6 +4,10 @@ import {
   AdminAuditEntry,
   AdminAuditQuery,
   AdminAuditResponse,
+  AdminCategoryActiveInput,
+  AdminCategoryInput,
+  AdminCategoryList,
+  AdminCategoryUpdateInput,
   AdminCustomerDetail,
   AdminCustomerListQuery,
   AdminCustomerListResponse,
@@ -59,6 +63,14 @@ import { AppError } from '../../lib/errors';
 
 import { adminActor, auditContext } from './actor';
 import { getAuditEntry, listAudit, listAuditActors } from './audit.read.service';
+import {
+  clearCategoryImage,
+  createCategory,
+  listAdminCategories,
+  setCategoryActive,
+  setCategoryImage,
+  updateCategory,
+} from './categories.service';
 import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
@@ -390,6 +402,198 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         auditContext(request),
       ),
     }),
+  );
+
+  // ------------------------------------------------------------------------------ categories
+
+  routes.get(
+    '/categories',
+    {
+      onRequest: app.requirePermission('products:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'The category tree, deactivated rows included',
+        description:
+          'Not the storefront’s `/api/categories`: that one filters to active, because a customer ' +
+          'must not be shown a retired category, and this is the screen where one is brought back. ' +
+          'Two counts per row, neither folding in a child’s - `productCount` is everything filed ' +
+          'there at any status, `liveCount` is what the shop would show for it if its branch were ' +
+          'active.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminCategoryList, 401: ApiError, 403: ApiError },
+      },
+    },
+    () => listAdminCategories(app.db),
+  );
+
+  routes.post(
+    '/categories',
+    {
+      onRequest: app.requirePermission('products:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Create a category',
+        description:
+          'The tree is two levels and the API enforces it rather than trusting the form: a ' +
+          'category with a parent may not be given children, a category with children may not be ' +
+          'given a parent, and nothing active may be filed under a deactivated one. `imageUrl` is ' +
+          'not in this body - a hero is uploaded, never typed, because production serves under ' +
+          "`img-src 'self'` and a pasted address renders as a blank rectangle (D-52).",
+        security: [{ bearerAuth: [] }],
+        body: AdminCategoryInput,
+        response: {
+          201: AdminCategoryList,
+          401: ApiError,
+          403: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await createCategory(app.db, request.body, adminActor(request), auditContext(request)),
+        ),
+  );
+
+  routes.put(
+    '/categories/:id',
+    {
+      onRequest: app.requirePermission('products:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Replace a category’s fields',
+        description:
+          'The slug may be renamed and nothing refuses it, because unlike a promo code no order ' +
+          'snapshots it by value. What it costs is a link - `/shop/c/<slug>` is a page somebody ' +
+          'may have bookmarked, and this platform has no redirect table - so the panel says so at ' +
+          'the field. `isActive` is not in this body: a stale form would otherwise put a whole ' +
+          'branch of the catalogue back in the shop without anybody asking.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminCategoryUpdateInput,
+        response: {
+          200: AdminCategoryList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      updateCategory(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  routes.patch(
+    '/categories/:id/active',
+    {
+      onRequest: app.requirePermission('products:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Switch a category on or off',
+        description:
+          'The terminal action - there is no DELETE, because `products.category_id` is ON DELETE ' +
+          'restrict and `parent_id` is ON DELETE set null, so a delete would be refused for a ' +
+          'used category and would silently promote a child for an unused one. Switching a ' +
+          'category off takes its products out of the grid, out of search and out of the ' +
+          'mega-menu, because `PUBLISHED_PRODUCT` requires the category to be active; switching a ' +
+          'parent off takes its sub-categories with it in the same transaction, and the audit ' +
+          'entry names them.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminCategoryActiveInput,
+        response: {
+          200: AdminCategoryList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      setCategoryActive(
+        app.db,
+        request.params.id,
+        request.body.isActive,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  routes.post(
+    '/categories/:id/image',
+    {
+      onRequest: app.requirePermission('products:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Upload a category hero image',
+        description:
+          'multipart/form-data, one file, through the same pipeline a product photograph takes: ' +
+          're-encoded to a capped webp, metadata stripped, keyed by content hash. Replacing one ' +
+          'removes the old object after the row is written, best-effort.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        // The body is multipart, not JSON, so no body schema; the parser reads the file below.
+        response: {
+          200: AdminCategoryList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          413: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request) => {
+      const file = await request.file();
+      if (!file) throw new AppError('VALIDATION_FAILED', 'No file was uploaded');
+
+      return setCategoryImage(
+        app.db,
+        app.storage,
+        request.params.id,
+        await file.toBuffer(),
+        adminActor(request),
+        auditContext(request),
+      );
+    },
+  );
+
+  routes.delete(
+    '/categories/:id/image',
+    {
+      onRequest: app.requirePermission('products:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Remove a category’s hero image',
+        description:
+          'The category page falls back to its gradient, which is what it does before an image is ' +
+          'ever uploaded. There is no way to type a URL back in - see the create route.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: { 200: AdminCategoryList, 401: ApiError, 403: ApiError, 404: ApiError },
+      },
+    },
+    (request) =>
+      clearCategoryImage(
+        app.db,
+        app.storage,
+        request.params.id,
+        adminActor(request),
+        auditContext(request),
+      ),
   );
 
   // ---------------------------------------------------------------------------------- orders

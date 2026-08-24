@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { ICON_REGISTRY, type IconName } from './icon-registry';
 
 export type { IconName };
-export { isIconName } from './icon-registry';
+export { ICON_NAMES, isIconName } from './icon-registry';
 
 export type IconWeight = 'regular' | 'fill' | 'bold' | 'duotone' | 'light' | 'thin';
 

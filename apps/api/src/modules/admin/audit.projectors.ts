@@ -1,5 +1,6 @@
 import type {
   adminUsers,
+  categories,
   customers,
   orders,
   productImages,
@@ -44,6 +45,22 @@ export function productSnapshot(row: typeof products.$inferSelect): AuditPayload
     // `description` and `story` are deliberately absent: they are paragraphs, and a diff of two
     // paragraphs is not a diff anybody reads. That a product's copy changed is recorded by the
     // entry existing; what it changed to is in the product.
+  };
+}
+
+export function categorySnapshot(row: typeof categories.$inferSelect): AuditPayload {
+  return {
+    name: row.name,
+    slug: row.slug,
+    parentId: row.parentId,
+    position: row.position,
+    isActive: row.isActive,
+    icon: row.icon,
+    imageUrl: row.imageUrl,
+    metaTitle: row.metaTitle,
+    metaDescription: row.metaDescription,
+    // `description` is absent for the same reason a product's is: it is a paragraph, and a diff of
+    // two paragraphs is not a diff anybody reads.
   };
 }
 

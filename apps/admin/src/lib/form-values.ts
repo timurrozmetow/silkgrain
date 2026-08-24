@@ -9,6 +9,21 @@ import { Money } from '@silkgrain/contracts/money';
  * happens, so a rounding decision cannot drift into a component.
  */
 
+/**
+ * A name as typed → the slug the `Slug` primitive will accept.
+ *
+ * Shared by the product form and the category form rather than written in each: both offer to
+ * follow the name until an editor edits the slug by hand, and two copies of that rule would be two
+ * chances to produce a slug the contract rejects on arrival.
+ */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 /** Dollars as typed → integer cents, or null when the field is empty or not a number. */
 export function dollarsToCents(input: string): number | null {
   const trimmed = input.trim();

@@ -635,6 +635,98 @@ export const AdminUserOption = z.object({
 export type AdminUserOption = z.infer<typeof AdminUserOption>;
 
 // --------------------------------------------------------------------------------------
+// Categories
+// --------------------------------------------------------------------------------------
+
+/**
+ * A category as the back office sees it.
+ *
+ * Two counts, because one number cannot answer both questions an editor has. `productCount` is
+ * everything filed here at any status, which is what "can I retire this" turns on; `liveCount` is
+ * what the storefront would show for it - active product, at least one active variant - which is
+ * the number the shop's own sidebar prints when the category is active. Neither folds in a child's
+ * products: the panel can add a branch up when it needs to, and a parent whose own count silently
+ * included its children would make "6 products" mean two different things on two screens.
+ */
+export const AdminCategoryRow = z.object({
+  id: Id,
+  slug: Slug,
+  name: z.string(),
+  description: z.string().nullable(),
+  /** Phosphor icon name without the `ph-` prefix, as the mega-menu draws it. */
+  icon: z.string().nullable(),
+  imageUrl: z.string().url().nullable(),
+  parentId: Id.nullable(),
+  position: z.number().int().nonnegative(),
+  isActive: z.boolean(),
+  metaTitle: z.string().nullable(),
+  metaDescription: z.string().nullable(),
+  productCount: z.number().int().nonnegative(),
+  liveCount: z.number().int().nonnegative(),
+  updatedAt: IsoDate,
+});
+export type AdminCategoryRow = z.infer<typeof AdminCategoryRow>;
+
+/**
+ * One level of nesting, the same shape the storefront's `CategoryNode` has.
+ *
+ * The depth limit is enforced by the API rather than merely described here: a category with a
+ * parent may not be given children, and a category with children may not be given a parent. The
+ * mega-menu is a flat grid of parents with a chip row of children, and a third level would have
+ * nowhere to render - it would exist in the database and be invisible in the shop.
+ */
+export const AdminCategoryNode = AdminCategoryRow.extend({
+  children: z.array(AdminCategoryRow),
+});
+export type AdminCategoryNode = z.infer<typeof AdminCategoryNode>;
+
+/** Inactive categories included: this is the screen where one is brought back. */
+export const AdminCategoryList = z.object({ items: z.array(AdminCategoryNode) });
+export type AdminCategoryList = z.infer<typeof AdminCategoryList>;
+
+/**
+ * The editable fields.
+ *
+ * `imageUrl` is absent on purpose. A category's photograph is uploaded, processed and stored like
+ * a product's - it is never a URL somebody types, because production's own CSP is `img-src 'self'`
+ * and a pasted address anywhere else renders as a blank rectangle with no error (decision D-52).
+ * `POST /admin/categories/:id/image` sets it and `DELETE` clears it.
+ */
+const AdminCategoryFields = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    /** The public address: `/shop/c/<slug>`. Renaming one is renaming a page. */
+    slug: Slug,
+    description: z.string().trim().max(2000).nullable().optional(),
+    icon: z.string().trim().max(60).nullable().optional(),
+    /** Null for a top-level category. One level deep is all the design has. */
+    parentId: Id.nullable(),
+    /** Sort key within the parent. Sparse on purpose, so a reorder is one write. */
+    position: z.number().int().min(0).max(9999),
+    metaTitle: z.string().trim().max(200).nullable().optional(),
+    metaDescription: z.string().trim().max(320).nullable().optional(),
+    isActive: z.boolean(),
+  })
+  .strict();
+
+export const AdminCategoryInput = AdminCategoryFields;
+export type AdminCategoryInput = z.infer<typeof AdminCategoryInput>;
+
+/**
+ * The update body, without `isActive`.
+ *
+ * The promo form's reasoning, for the same reason: a stale form left open would otherwise revert a
+ * deactivation somebody made while it sat there, and here that would put a whole branch of the
+ * catalogue back in the shop without anybody asking for it. Switching a category on or off is its
+ * own route, because it is its own decision.
+ */
+export const AdminCategoryUpdateInput = AdminCategoryFields.omit({ isActive: true });
+export type AdminCategoryUpdateInput = z.infer<typeof AdminCategoryUpdateInput>;
+
+export const AdminCategoryActiveInput = z.object({ isActive: z.boolean() }).strict();
+export type AdminCategoryActiveInput = z.infer<typeof AdminCategoryActiveInput>;
+
+// --------------------------------------------------------------------------------------
 // Products
 // --------------------------------------------------------------------------------------
 

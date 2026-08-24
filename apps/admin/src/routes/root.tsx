@@ -28,6 +28,7 @@ import { useAuth } from '../store/auth';
 const NAV: { to: string; label: string; icon: IconName; permission: AdminPermission }[] = [
   { to: '/', label: 'Dashboard', icon: 'chart-pie-slice', permission: 'dashboard:read' },
   { to: '/products', label: 'Products', icon: 'package', permission: 'products:read' },
+  { to: '/categories', label: 'Categories', icon: 'squares-four', permission: 'products:read' },
   { to: '/orders', label: 'Orders', icon: 'receipt', permission: 'orders:read' },
   { to: '/wholesale', label: 'Wholesale', icon: 'handshake', permission: 'wholesale:read' },
   { to: '/customers', label: 'Customers', icon: 'users', permission: 'customers:read' },

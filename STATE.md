@@ -4,38 +4,35 @@ Updated 2026-08-24. Read this first after any context loss, then `CLAUDE.md` for
 
 ---
 
-## Next: the Categories surface, then the shop's first content
+## Next: the shop's first content
 
-Agreed with the owner on 2026-08-24, in this order. **The site is already live and empty** — this
-is what makes it a shop rather than a frame.
+Agreed with the owner on 2026-08-24. **The site is already live and empty** — this is what makes it
+a shop rather than a frame.
 
-**1. Categories, as a real surface rather than a seeded row.** A product requires a `categoryId`
-and nothing can create one, so this blocks everything else. It is `GET`, `POST`, `PUT` and a
-deactivate, behind `requirePermission` like every other admin route, with an `audit_log` entry and
-a screen in the panel. Four things it has to get right, none of them optional:
+**1. Categories — done, 2026-08-24.** `GET`, `POST`, `PUT`, `PATCH /:id/active` and an image
+upload, all behind `products:read` / `products:write`, with a screen at `/admin/categories` and an
+`audit_log` entry per write. Twenty-one tests, all four constraints answered and two of them turned
+into decisions rather than left as comments:
 
-- `categories.is_active` is already load-bearing in `PUBLISHED_PRODUCT` (`catalog.query.ts`), and
-  Phase 3's adversarial review found exactly this: deactivating a category hid it from the menu
-  while leaving its products in the grid, in search and in the cart. Whatever the deactivate does,
-  it must answer that.
-- The tree. `children` already drives the sub-category chips on `/shop/c/$slug` and the mega-menu,
-  so a parent id is part of the input, and a cycle has to be refused rather than stored.
-- The slug is a public address. Renaming one moves a page that may be indexed; the product form
-  already treats a published slug that way and this should match it.
-- There is no DELETE. A category with products cannot be removed without orphaning them, and the
-  precedent — promo codes (D-33's reasoning, `is_active = false` as the terminal action) — is
-  already set.
+- Deactivation cascades to sub-categories in the same transaction, and the two doors into the same
+  incoherence are 409s — **D-53**, which is Phase 3's defect closed rather than merely avoided.
+- Two levels enforced at the writer, no DELETE at any role, the hero image uploaded rather than
+  typed — **D-54**.
+- The slug may be renamed and the form says what that costs, matching the product form.
+- The product form's Category dropdown now reads the admin list rather than the storefront's, so a
+  product filed under a retired category does not open with an empty field and silently move.
 
-**2. Then fill the shop from the design catalogue.** `docs/design/catalog.json` holds the six
-categories and sixteen products verbatim, with real names, copy and prices, and it is already
-extracted. Create them through the API the panel uses, not with SQL.
+**2. Fill the shop from the design catalogue.** `docs/design/catalog.json` holds the six categories
+and sixteen products verbatim, with real names, copy and prices, and it is already extracted.
+Create them through the API the panel uses, not with SQL. Nothing blocks this now.
 
 **3. Photographs, and the constraint that decides how.** D-52 tightened the production CSP to
 `img-src 'self' data:`, so **an image served from Wikimedia or TheMealDB will not render on the
 live site** — the browser blocks it, silently, and the page shows a blank rectangle. The seed's
 image URLs are therefore a source to fetch from, never a value to store. Download each one, then
-upload it through `POST /api/admin/products/:id/images`, which is what puts it in MinIO behind
-`/media/` where the CSP allows it. That path is proven end to end on the live box.
+upload it through `POST /api/admin/products/:id/images` — or, for a category hero,
+`POST /api/admin/categories/:id/image` — which is what puts it in MinIO behind `/media/` where the
+CSP allows it. That path is proven end to end on the live box.
 
 ---
 

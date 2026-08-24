@@ -1,7 +1,7 @@
 import type {
+  AdminCategoryList,
   AdminProductDetail,
   AdminProductInput,
-  CategoryListResponse,
   Certification,
   Origin,
   ProductBadge,
@@ -21,7 +21,14 @@ import { useNavigate } from '@tanstack/react-router';
 import { useId, useState, type FormEvent } from 'react';
 
 import { ApiRequestError, apiGet, apiPost, apiPut } from '../lib/api';
-import { centsToDollars, dollarsToCents, gramsToMg, mgToGrams, toInt } from '../lib/form-values';
+import {
+  centsToDollars,
+  dollarsToCents,
+  gramsToMg,
+  mgToGrams,
+  slugify,
+  toInt,
+} from '../lib/form-values';
 import { useCan } from '../lib/permissions';
 
 import { ProductImages } from './ProductImages';
@@ -237,9 +244,17 @@ export function ProductForm({ productId }: { productId: number | null }) {
       apiGet<AdminProductDetail>(`/admin/products/${String(productId)}`, signal),
   });
 
+  /**
+   * The back office's category list, not the storefront's.
+   *
+   * `/api/categories` filters to active, which is right for a customer and wrong here twice over:
+   * a product already filed under a retired category would open with an empty Category field and
+   * silently move the first time anybody pressed Save, and there would be no way to prepare a
+   * product for a category that is not live yet. Retired ones are offered, and labelled.
+   */
   const categories = useQuery({
-    queryKey: ['categories'],
-    queryFn: ({ signal }) => apiGet<CategoryListResponse>('/categories', signal),
+    queryKey: ['admin', 'categories'],
+    queryFn: ({ signal }) => apiGet<AdminCategoryList>('/admin/categories', signal),
   });
 
   const [form, setForm] = useState<ProductState | null>(isEdit ? null : BLANK());
@@ -402,10 +417,10 @@ export function ProductForm({ productId }: { productId: number | null }) {
                 options={[
                   { value: '', label: 'Choose a category' },
                   ...(categories.data?.items ?? []).flatMap((node) => [
-                    { value: String(node.id), label: node.name },
+                    { value: String(node.id), label: categoryLabel(node, '') },
                     ...node.children.map((child) => ({
                       value: String(child.id),
-                      label: `— ${child.name}`,
+                      label: categoryLabel(child, '— '),
                     })),
                   ]),
                 ]}
@@ -941,12 +956,16 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
 
 // ------------------------------------------------------------------------ validation & payload
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+/**
+ * A category in the dropdown, saying so when it is retired.
+ *
+ * Filing a product under a deactivated category is allowed and is sometimes exactly right - a
+ * category being prepared, or one switched off for a season - but it means the product will not
+ * appear in the shop however "active" its own status says it is, which is a surprise worth
+ * spending four words to avoid.
+ */
+function categoryLabel(row: { name: string; isActive: boolean }, prefix: string): string {
+  return `${prefix}${row.name}${row.isActive ? '' : ' (deactivated)'}`;
 }
 
 /** The handful of checks worth catching before a round trip. The server holds the rest. */
