@@ -288,6 +288,14 @@ phase in `PLAN.md`.
 - Per-SKU nutrition data. The seed carries category-level reference values; the real figures
   come from the supplier's certificate of analysis and are entered in the admin product form
   (Q-43, D-20). Required by the FDA before the store takes a real order.
+- **An administrator changing their own password.** There is no route and no screen. The Team
+  surface resets other people's (`resetTeamPassword`, owner only) and refuses `id === actor.id`,
+  so the only way an owner changes their own password today is to create a second owner and have
+  it reset the first. A comment beside that refusal used to name `PATCH /api/auth/admin/password`
+  as though it existed; it never did, and the shape it described is the right one — current
+  password required, revoke every refresh family on success, and the same rate limit as sign-in.
+  It matters more now that a deployment exists: `db:bootstrap` generates the first owner's
+  password and nothing can change it afterwards. Perhaps 3 h with the customer-side sibling below.
 - **Backups that leave the box.** Decision D-52 puts MinIO on the application's own VPS, and
   two things follow that nothing in the deployment covers. `deploy/backup-db.sh` dumps MySQL
   and only MySQL, so `/srv/minio/data` — every product photograph an editor has uploaded — is

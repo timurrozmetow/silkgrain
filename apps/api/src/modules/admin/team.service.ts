@@ -226,9 +226,15 @@ function rank(role: 'owner' | 'manager' | 'support'): number {
 /**
  * The owner resetting somebody else's password.
  *
- * Never their own: an owner changing their own password does it through
- * `PATCH /api/auth/admin/password`, which asks for the current one. Resetting always revokes, so a
- * password changed because it may have leaked also ends every session it may have leaked into.
+ * Never their own, and this is the gap rather than the design. An earlier draft of this comment
+ * said self-service went through `PATCH /api/auth/admin/password` "which asks for the current one".
+ * That route does not exist - it is named nowhere in `apps/` but here - so an administrator has no
+ * way at all to change their own password, and the refusal below used to send them to a screen that
+ * was never built. What actually works today is another owner resetting it, which is why the
+ * message says so. It is in `BACKLOG.md`; the route it describes is the right shape when it lands.
+ *
+ * Resetting always revokes, so a password changed because it may have leaked also ends every
+ * session it may have leaked into.
  */
 export async function resetTeamPassword(
   db: Database,
@@ -238,7 +244,10 @@ export async function resetTeamPassword(
   context: AuditContext,
 ): Promise<void> {
   if (id === actor.id) {
-    throw new AppError('CONFLICT', 'Change your own password from your account, not from here');
+    throw new AppError(
+      'CONFLICT',
+      'You cannot reset your own password here. Ask another owner to reset it for you.',
+    );
   }
 
   const passwordHash = await hashPassword(password);

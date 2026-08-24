@@ -15,11 +15,16 @@ rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 
 those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
 the owner" below.
 
-**68 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
-`6afce3d` as of 2026-08-22, alongside `phase/0-foundation`. Two things there still want a hand
-that only the owner has: the repository's **default branch is still `phase/0-foundation`** and
-should be `main`, and the first deploy needs a **read-only deploy key** under Settings → Deploy
-keys (`DEPLOY.md` §3.1 prints the public line to paste).
+**70 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
+`10339f0` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
+live at https://silkgrain.com** — see Phase 9 below for what runs there and what the first real
+deploy corrected.
+
+No deploy key is needed: the repository is public, so the box's mirror is an anonymous HTTPS clone
+(`DEPLOY.md` §3.1 says so, and says what to come back for on the day it is made private). Two
+things there still want a hand only the owner has — the **default branch is still
+`phase/0-foundation`** and should be `main`, and `deploy.yml` has none of its four secrets, so
+every push shows a red deploy job while the box is updated by hand.
 
 | Phase | Commits             | State                                                  |
 | ----- | ------------------- | ------------------------------------------------------ |
@@ -961,11 +966,55 @@ without a login shell while they do not set `PATH` despite a comment claiming th
 shell scripts are committed `100755`, because `core.filemode` is false here and without it the
 _second_ deploy fails.
 
-**9.8 - rehearsing DEPLOY.md on a clean machine - cannot be done here.** No Docker, no VM, and
-`wsl.exe` turns out to be the stub Windows ships with no distribution installed, while
-`wsl --install` needs administrator. Checked rather than assumed. Everything in DEPLOY.md is
-therefore reasoned from the code and the packages rather than executed, and its "known rough
-edges" section says which claims are distribution-dependent.
+**9.8 is done, and the shop is live at https://silkgrain.com.** Deployed on 2026-08-23 to the
+owner's VPS - Ubuntu 24.04.4, one core, 961 MB, 8.8 GB - by walking DEPLOY.md end to end as
+written. Every section from 2.1 to 3.7 was executed rather than reasoned about, which is the whole
+point: seven of its instructions were wrong, and each one failed a command.
+
+What is running: nginx 1.24 with an ECDSA certificate covering the apex and `www`, MySQL 8.0.46,
+Redis 7.0.15 with `noeviction` and a password, MinIO on loopback, and PM2 holding one clustered API
+worker at 50 MB. `/ready` answers with database 4 ms and redis 2 ms. `http` and `www` both redirect
+to `https` on the apex; source maps and `sitemap.xml` answer 404; `POST /api/webhooks/stripe`
+answers 404, which is **D-51 confirmed in production rather than in a test** - the route is not
+registered, so a forged event has nothing to reach.
+
+**D-52 is proven on the live box**, not only in tests. An object put through `sharp` exactly as
+`processImage` does comes back over `https://silkgrain.com/media/...` as HTTP/2 200, `image/webp`,
+carrying the object's own one-year immutable `Cache-Control`. Exactly one `Strict-Transport-Security`
+header arrives and it is ours; `?response-content-type=text/html` does not survive the cleared query
+string; `PUT` and `?list-type=2` are 403 and a missing key is 404.
+
+**The finding that mattered most was not in the runbook at all - it was the hypervisor.** On a
+VMware guest, `free -m` showed 925 of 961 MB used against 150 MB of resident processes, and
+`vmstat 1` showed 87% iowait with single-digit user time while one 22 MB `pnpm` process ran. The
+balloon driver was holding 575 MB. `pnpm install` sat for 22 minutes and two Vite builds sat for
+thirty with no output; `modprobe -r vmw_balloon` took the `packages/ui` bundle step from **22,700 ms
+to 402 ms** on the same commit. DEPLOY.md now leads section 1 with it, because on a small VMware
+guest it is the difference between a deploy that finishes and one that does not.
+
+The seven documented instructions that failed, all now fixed: `awscli` no longer exists in Ubuntu
+24.04 and its presence in the apt list aborted the whole transaction, so nginx, MySQL and Redis were
+not installed either; every `sudo -u deploy` command inherited root's 0700 working directory, which
+makes `pnpm -v` die with `EACCES` on `/root/package.json` and stops PM2 spawning its daemon;
+`id -nG deploy` prints `deploy users` because Ubuntu ships `ADD_EXTRA_GROUPS=1`; both verification
+greps in section 3.5 printed the wrong thing; a public repository needs no deploy key at all; and
+`/media/` answers 403 rather than 404 before the first upload.
+
+**Section 3.8's reboot was done rather than skipped**, and it passed: the box came back on its own
+in about a minute, all seven units active, PM2 having resurrected the API with zero restarts, and
+`lsmod` reporting no `vmw_balloon` - the blacklist survived the reboot, which is the whole reason it
+is a file in `/etc/modprobe.d` rather than a command somebody ran once. Swap sat at 1 MB of 2.5 GB
+afterwards, against the 412 MB it held before the balloon was removed.
+
+A second deploy was run as well, on purpose: the first one starts PM2, the second **reloads** it, and
+that is a different code path with a different failure mode. It took the pre-migration dump, applied
+migrations, switched the symlink, reloaded without dropping the worker, and pruned. Two releases now
+cost 1.4 GB of free disk between them - pnpm's content-addressable store is what makes the second one
+nearly free, and it is the only reason a five-release retention fits on an 8.8 GB disk.
+
+**What is not proven:** CI-driven deploys. `.github/workflows/deploy.yml` still needs its four
+repository secrets; until then the box is updated by running `deploy/deploy.sh main` on it, which is
+what both deploys did.
 
 **One defect found afterwards and fixed:** the footer and `/help` hard-coded
 `hello@silkgrain.com` and the warehouse address, both of which are `settings` rows the owner
@@ -997,24 +1046,59 @@ created. What is left is a credential, a machine, and five open questions.
    is public, and a production API holding `whsec_replace_me` would accept a forged
    `payment_intent.succeeded` from anyone - orders paid, stock decremented, receipts sent.
 
-2. **Task 9.8 needs a machine.** Rehearsing `DEPLOY.md` end to end wants a clean Ubuntu box. This
-   one has no Docker, no VM, and `wsl.exe` with no distribution installed - `wsl --install` needs
-   administrator. A cheap VPS for an afternoon settles it, and the document's own "known rough
-   edges" section lists which of its claims are distribution-dependent until then.
-3. **Q-46 - the mobile Performance bar**, rewritten on 2026-08-21 after the harness turned out to
+2. **The shop is live and cannot be filled in.** This is the one that stops the site being useful,
+   and it was found by trying: a product requires a `categoryId`, and **there is no way to create a
+   category**. No admin route, no screen, nothing in `admin.routes.ts` but a comment. `db:seed`
+   writes the six categories and refuses production for good reason (D-38), and `db:bootstrap`
+   writes only the owner, the shipping rates and the settings (D-47). So the back office opens, the
+   product form loads, and its category select is empty.
+
+   The same gap covers `faqs` and `recipes`: both have public endpoints, both are seeded in
+   development, neither has an admin surface. In production `/help` shows no FAQ entries and
+   `/recipes` is an empty page reached from the main nav, and the home page's testimonials are
+   empty too, since those are published five-star reviews and there are none.
+
+   Three ways out, and it is your call: (a) extend `db:bootstrap` to write the six categories from
+   `docs/design/catalog.json` - about two hours, gets the shop usable today, leaves categories
+   unmanageable afterwards; (b) build the Categories screen and its API properly - roughly a day
+   with RBAC, the audit entry, slug uniqueness and what deactivating one does to the products
+   underneath it, since `categories.is_active` is already load-bearing in `PUBLISHED_PRODUCT`;
+   (c) both, in that order. Content for FAQ and recipes is a separate decision of the same shape.
+
+3. **The CI deploy has no credentials.** `.github/workflows/deploy.yml` runs on every push to `main`
+   and refuses before touching the network, naming the four secrets it wants: `DEPLOY_HOST`,
+   `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. The keypair exists - the public half is
+   already in `/home/deploy/.ssh/authorized_keys` on the box. Until those are set, every push shows
+   a red deploy job and the site is updated by running `deploy/deploy.sh main` on the box by hand,
+   which works and is what the first two deploys did.
+
+   The repository's **default branch is also still `phase/0-foundation`** and should be `main`.
+
+4. **No administrator can change their own password.** `db:bootstrap` generated one for the owner
+   account, and nothing in the panel or the API changes it: the Team screen resets **other**
+   people's passwords and `resetTeamPassword` refuses `id === actor.id`. Found while writing this
+   entry, because a comment beside that refusal claimed self-service went through
+   `PATCH /api/auth/admin/password` "which asks for the current one" - a route named nowhere else in
+   `apps/`. The refusal's message pointed at that screen too, so an owner was being sent somewhere
+   that was never built. Both now say what is true: another owner resets it, and that path works.
+
+   So today the way to change the first owner's password is to create a second owner on the Team
+   screen and have it reset the first. The proper fix is in `BACKLOG.md`.
+
+5. **Q-46 - the mobile Performance bar**, rewritten on 2026-08-21 after the harness turned out to
    have been measuring an empty state. Eight of eleven mobile pages now clear 90 with the seed's
    fixture images blocked. The question is no longer "do we need SSR" - it is whether to accept
    that, or first move the seed's images to our own storage.
-4. **Q-47 - the stack is a major version behind**, and fixing the 30 dependency findings means a
+6. **Q-47 - the stack is a major version behind**, and fixing the 30 dependency findings means a
    Fastify 5 upgrade the working agreement forbids without discussion. None of the findings is
    reachable in this configuration; the reasons are tabulated in the question.
-5. **Q-48 - promo limits are not enforced anywhere**, and become live the day
+7. **Q-48 - promo limits are not enforced anywhere**, and become live the day
    `POST /api/checkout/intent` lands. The check belongs in the transaction that writes the order,
    which is part of task 4.2 rather than a repair.
-6. **Q-49 - the trusted-proxy topology**, which the Nginx config must match. The hop count is 1
+8. **Q-49 - the trusted-proxy topology**, which the Nginx config must match. The hop count is 1
    today; a CDN in front makes it 2, and getting it wrong in the unsafe direction silently
    disables every rate limiter.
-7. **Q-50 - image deduplication by content hash** is a behaviour worth confirming rather than
+9. **Q-50 - image deduplication by content hash** is a behaviour worth confirming rather than
    choosing for you. The defect it caused is fixed either way.
 
 Answered on 2026-07-29, nothing left to ask:
