@@ -26,6 +26,12 @@ apps/api/uploads/
 *.sql.gz
 *.dump
 backups/
+# ...but not the migrations, which the rule above swallowed whole. `CLAUDE.md` says every
+# migration is committed with the code that needs it, and for four migrations it was not: the
+# journal and the snapshots were tracked while the statements they index were ignored, so a
+# fresh clone had a manifest pointing at four files that did not exist. It could not migrate,
+# could not reset, and could not run the API tests, which migrate before the first assertion.
+!apps/api/drizzle/*.sql
 
 # local portable dev services (mysql, redis, mailpit, minio)
 .services/

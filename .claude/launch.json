@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/api", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/web", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "web-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/web", "preview"],
+      "port": 4173
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/admin", "dev"],
+      "port": 5174
+    },
+    {
+      "name": "admin-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@silkgrain/admin", "preview"],
+      "port": 4174
+    }
+  ]
+}

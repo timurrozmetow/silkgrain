@@ -13,6 +13,13 @@ export interface EmptyStateProps {
   action?: ReactNode;
   /** `gold` is the empty-cart circle, `green` the no-results one. */
   tone?: 'gold' | 'green';
+  /**
+   * Where the heading sits in the page's outline. Defaults to `2`, because an empty state
+   * almost always stands directly under the page's `h1` - and a fixed `h3` there skips a level,
+   * which is how a screen reader's heading list acquires holes. Pass `3` inside a panel that
+   * already has an `h2` of its own, such as the cart drawer.
+   */
+  headingLevel?: 2 | 3;
   className?: string;
 }
 
@@ -32,8 +39,11 @@ export function EmptyState({
   description,
   action,
   tone = 'gold',
+  headingLevel = 2,
   className,
 }: EmptyStateProps): ReactElement {
+  const Heading = `h${String(headingLevel)}` as 'h2' | 'h3';
+
   return (
     <div
       className={cn(
@@ -49,7 +59,7 @@ export function EmptyState({
       >
         <Icon name={icon} size={38} />
       </span>
-      <h3 className="font-display text-h3 font-semibold text-ink">{title}</h3>
+      <Heading className="font-display text-h3 font-semibold text-ink">{title}</Heading>
       {description && <p className="max-w-[280px] text-bodySm text-muted">{description}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>

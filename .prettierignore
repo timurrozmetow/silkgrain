@@ -10,3 +10,7 @@ pnpm-lock.yaml
 
 # Design handoff is read-only source material — never reformat it.
 silkgrain-design-prompt/
+
+# drizzle-kit writes these and rewrites them on every `db:generate`. Reformatting a generated
+# journal only guarantees the next generate shows up as a diff against our own formatting.
+apps/api/drizzle/meta/

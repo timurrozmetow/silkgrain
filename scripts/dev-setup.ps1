@@ -231,16 +231,28 @@ function Install-Mysql {
     Get-Archive -Url $Sources.mysql -Destination $archive
     Expand-Once -Archive $archive -Target $MysqlHome
 
-    if (-not (Test-Path $MysqlIni)) {
+    # Rewritten whenever it does not name THIS checkout, not merely when it is missing.
+    # my.ini holds absolute paths, so a .services tree copied between machines - or a repository
+    # moved to another folder - leaves mysqld pointing at a basedir that does not exist. It then
+    # exits immediately, writes nothing to the error log it cannot find, and the only symptom is
+    # "did not start listening within 60 seconds", which reads like a slow machine.
+    $wantBasedir = "basedir=$($MysqlHome -replace '\\', '/')"
+    $iniStale = $true
+    if (Test-Path $MysqlIni) {
+        $iniStale = -not ((Get-Content -LiteralPath $MysqlIni) -contains $wantBasedir)
+        if ($iniStale) { Write-Warn 'my.ini points at another folder; rewriting it' }
+    }
+
+    if ($iniStale) {
         # Settings mirror docker-compose.dev.yml exactly. STRICT_TRANS_TABLES matters most:
         # without it MySQL silently truncates instead of rejecting bad data.
         @"
 [mysqld]
-basedir=$($MysqlHome -replace '\\', '/')
+$wantBasedir
 datadir=$($MysqlData -replace '\\', '/')
 port=$($Ports.mysql)
 bind-address=127.0.0.1
-sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+sql-mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
 character-set-server=utf8mb4
 collation-server=utf8mb4_unicode_ci
 default-time-zone='+00:00'

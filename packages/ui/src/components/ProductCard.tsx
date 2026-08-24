@@ -30,6 +30,14 @@ export interface ProductCardProduct {
 export interface ProductCardProps {
   product: ProductCardProduct;
   href: string;
+  /**
+   * Called instead of following `href`, so a router can navigate without a full page load.
+   *
+   * The element stays an anchor either way: middle-click, the context menu, "copy link" and
+   * the status bar all keep working, and a crawler still sees a destination. Only the plain
+   * left click is intercepted.
+   */
+  onNavigate?: (href: string) => void;
   onQuickView?: (slug: string) => void;
   onAddToCart?: (slug: string) => void;
   onToggleWishlist?: (slug: string) => void;
@@ -62,6 +70,7 @@ const STOCK: Record<StockState, { label: string; className: string }> = {
 export function ProductCard({
   product,
   href,
+  onNavigate,
   onQuickView,
   onAddToCart,
   onToggleWishlist,
@@ -121,7 +130,10 @@ export function ProductCard({
                 : `Save ${product.name} to wishlist`
             }
             className={cn(
+              // 34px is the mockup's desktop size; the responsive handoff's 44px touch floor
+              // applies on mobile, where this is hit with a thumb rather than a cursor.
               'absolute right-3 top-3 z-10 flex h-[34px] w-[34px] items-center justify-center',
+              'mobile:h-11 mobile:w-11',
               'rounded-pill bg-[rgba(253,250,244,0.92)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
               'transition-[color,background-color,transform] duration-base',
               'hover:scale-105 hover:bg-terracotta hover:text-white',
@@ -141,6 +153,7 @@ export function ProductCard({
             className={cn(
               'absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5',
               'rounded-pill bg-white px-3.5 py-2 text-[12.5px] font-semibold text-green',
+              'mobile:min-h-11 mobile:px-4',
               'shadow-[0_4px_12px_rgba(0,0,0,0.16)] transition-colors duration-base',
               'hover:bg-green hover:text-white',
             )}
@@ -158,7 +171,22 @@ export function ProductCard({
 
         <h3 className="font-display text-cardTitle font-semibold text-ink">
           {/* The stretched pseudo-element turns the whole card into this link's hit area. */}
-          <a href={href} className="after:absolute after:inset-0 after:content-['']">
+          <a
+            href={href}
+            className="after:absolute after:inset-0 after:content-['']"
+            onClick={
+              onNavigate === undefined
+                ? undefined
+                : (event) => {
+                    // Modified clicks mean "open elsewhere", which is the browser's job.
+                    if (event.defaultPrevented) return;
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    onNavigate(href);
+                  }
+            }
+          >
             {product.name}
           </a>
         </h3>
@@ -194,9 +222,14 @@ export function ProductCard({
               onClick={() => {
                 onAddToCart(product.slug);
               }}
-              aria-label={`Add ${product.name} to cart`}
+              // The visible label leads, then the product. A name that reads "Add Devzira Red
+              // Rice to cart" beside a button that says "Add to Cart" fails
+              // `label-content-name-mismatch`: voice control users say what they see, and "add
+              // to cart" has to match something. Same words, order changed.
+              aria-label={`Add to Cart: ${product.name}`}
               className={cn(
                 'relative z-10 inline-flex items-center gap-1.5 rounded-md bg-green px-4 py-2.5',
+                'mobile:min-h-11',
                 'text-caption font-semibold text-white',
                 'transition-[background-color,transform] duration-base',
                 'hover:-translate-y-px hover:bg-green-hover',

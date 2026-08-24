@@ -1,0 +1,30 @@
+{
+  "//": "Thresholds for `pnpm lighthouse:ci`. Every number is a measurement taken on 2026-08-21 against the built storefront with the seed's third-party image hosts blocked, minus headroom. Regenerate with `pnpm lighthouse:ci --update` and commit the diff with the change that earned it - a number that moves without a reason in the commit message is a number nobody is defending.",
+  "tolerance": 2,
+  "aspiration": {
+    "//": "What PLAN.md's Phase 5 acceptance asks for. The gate does not enforce these; it reports the distance to them, so the gap stays visible rather than being quietly redefined as met.",
+    "performance": 90,
+    "accessibility": 95,
+    "seo": 100,
+    "best-practices": 90
+  },
+  "pages": {
+    "home": {
+      "desktop": { "performance": 99, "accessibility": 96, "best-practices": 96, "seo": 100 },
+      "mobile": { "performance": 83, "accessibility": 96, "best-practices": 96, "seo": 100 }
+    },
+    "shop": {
+      "desktop": { "performance": 99, "accessibility": 97, "best-practices": 96, "seo": 100 },
+      "mobile": { "performance": 87, "accessibility": 96, "best-practices": 96, "seo": 100 }
+    },
+    "product": {
+      "desktop": { "performance": 99, "accessibility": 97, "best-practices": 96, "seo": 100 },
+      "mobile": { "performance": 90, "accessibility": 97, "best-practices": 96, "seo": 100 }
+    },
+    "cart": {
+      "//": "SEO 66 is correct here and is not a shortfall: /cart is deliberately noindex, so the `is-crawlable` audit fails by design. The budget records the real number rather than an exception, because an exception is a place a genuine SEO regression could hide.",
+      "desktop": { "performance": 100, "accessibility": 96, "best-practices": 96, "seo": 66 },
+      "mobile": { "performance": 93, "accessibility": 96, "best-practices": 96, "seo": 66 }
+    }
+  }
+}

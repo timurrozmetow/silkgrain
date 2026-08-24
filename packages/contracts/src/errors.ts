@@ -25,6 +25,12 @@ export const ErrorCode = z.enum([
   'PAYMENT_AMOUNT_MISMATCH',
   'WEBHOOK_SIGNATURE_INVALID',
 
+  'ORDER_STATUS_INVALID',
+
+  'PRICE_BATCH_TOO_LARGE',
+  'PRICE_ROW_BLOCKED',
+  'PRICE_BELOW_COST',
+
   'INTERNAL',
 ]);
 
@@ -50,7 +56,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   RATE_LIMITED: 429,
 
-  CART_PRICE_MISMATCH: 422,
+  /**
+   * 409, not 422: the body was perfectly processable, the server's own figures moved under it.
+   * `CLAUDE.md` states the rule outright - "a stale total is a 409, never a silent charge" - and
+   * the checkout raises this with the fresh quote attached so the summary can be redrawn.
+   */
+  CART_PRICE_MISMATCH: 409,
   CART_ITEM_UNAVAILABLE: 422,
   INSUFFICIENT_STOCK: 422,
 
@@ -62,6 +73,22 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PAYMENT_FAILED: 402,
   PAYMENT_AMOUNT_MISMATCH: 409,
   WEBHOOK_SIGNATURE_INVALID: 400,
+
+  /**
+   * 409: the requested status is a real status, but not one this order can reach from where it is.
+   * Two operators on one order is the ordinary cause - the second reads a state that has moved.
+   */
+  ORDER_STATUS_INVALID: 409,
+
+  /** The scope matched more variants than one batch may hold; narrow it rather than truncate. */
+  PRICE_BATCH_TOO_LARGE: 422,
+  /**
+   * 409: a row the apply was asked to commit is blocked or has drifted since the preview. The
+   * same class as `CART_PRICE_MISMATCH` - the request was well formed, the server's own rows moved.
+   */
+  PRICE_ROW_BLOCKED: 409,
+  /** A selected row would sell under cost and `allowBelowCost` was not set. Confirm and retry. */
+  PRICE_BELOW_COST: 422,
 
   INTERNAL: 500,
 };

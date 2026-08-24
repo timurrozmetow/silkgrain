@@ -1,0 +1,422 @@
+# The gate, run on a machine nobody has configured.
+#
+# `pnpm verify` is the gate locally, and it passes on this repository's one development machine -
+# which has XAMPP, a portable MySQL under `.services/`, a `.env` with real values in it and four
+# daemons somebody started by hand months ago. None of that is evidence that a fresh clone builds.
+# This file is the same gate with none of those advantages: no `.env`, no services, no dist, no
+# store. What passes here is what a new machine can reproduce.
+#
+# The API suite is not unit tests. Every rule worth testing in this codebase lives in MySQL - the
+# CHECK that stock cannot go negative, the UNIQUE index that makes the Stripe webhook idempotent,
+# STRICT_TRANS_TABLES refusing an over-long varchar rather than truncating it (which is the whole
+# reason the audit log can be written inside the caller's transaction, D-34). A suite run against a
+# mock proves none of them, so the services below are real containers at the versions
+# `docker/docker-compose.dev.yml` pins, with the same credentials, so a failure here reproduces
+# locally by copying the URL out of the log.
+#
+# Two jobs rather than one. `verify` is what a developer can run; `e2e` needs a seeded database and
+# a built preview and is therefore a different setup, not a longer one. Keeping them apart means a
+# red tick says which layer broke without opening the log.
+
+name: CI
+
+on:
+  push:
+    # `main` is deliberately absent. deploy.yml *calls* this workflow for the release branch, so a
+    # push there would run the whole gate twice and the deploy would be waiting on the copy that is
+    # not gating it.
+    branches-ignore: [main]
+  pull_request:
+  # How deploy.yml gates on CI. A `workflow_run` trigger would have done the same job and fails
+  # open: rename this file, or change its `name:`, and the deploy stops waiting for anything and
+  # nothing goes red. `needs: ci` on a called workflow cannot silently stop being enforced.
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # GitHub's `bash` shell runs with `-eo pipefail`; the implicit default does not set pipefail,
+    # so a failing command on the left of a pipe would be reported as a pass.
+    shell: bash
+
+# One copy of the environment for both jobs. There is no `.env` on a runner and `loadEnv` refuses
+# to boot without these, so they have to come from somewhere; workflow level rather than job level
+# because two copies of a database URL is how the two jobs end up pointing at different databases.
+#
+# Every value matches `.env.example` and `docker/docker-compose.dev.yml`. That is the point: a
+# failure here is reproducible locally without translating anything.
+env:
+  # Port 3307, as everywhere else in this project: XAMPP owns 3306 on the development machine and
+  # the two paths are kept identical so a URL copied from a CI log works when pasted locally.
+  DATABASE_URL: mysql://root:silkgrain_dev_only@127.0.0.1:3307/silkgrain
+  DATABASE_URL_TEST: mysql://root:silkgrain_dev_only@127.0.0.1:3307/silkgrain_test
+  REDIS_URL: redis://127.0.0.1:6379
+
+  # `Secret` in apps/api/src/env.ts wants at least 32 characters and refuses anything starting
+  # `replace-me`; `superRefine` refuses the two being equal, since a leaked access secret must not
+  # be able to mint refresh tokens. These are neither secret nor reused anywhere - the databases
+  # they authorise against are destroyed with the runner.
+  JWT_ACCESS_SECRET: ci-access-not-a-credential-0000000000000000
+  JWT_REFRESH_SECRET: ci-refresh-not-a-credential-000000000000000
+
+  # The `.env.example` placeholders, verbatim. NODE_ENV is never `production` in this workflow, so
+  # `loadEnv` accepts them - it refuses exactly these three strings under production (D-27). The
+  # webhook suite signs its own events with the Stripe SDK against the secret below, which is local
+  # HMAC and needs no account, so the whole webhook contour is tested here without a key.
+  STRIPE_SECRET_KEY: sk_test_replace_me
+  STRIPE_WEBHOOK_SECRET: whsec_replace_me
+  VITE_STRIPE_PUBLISHABLE_KEY: pk_test_replace_me
+
+  MAIL_FROM_ADDRESS: orders@silkgrain.com
+  MAIL_REPLY_TO: hello@silkgrain.com
+  SMTP_HOST: 127.0.0.1
+  SMTP_PORT: "1025"
+
+  S3_ENDPOINT: http://127.0.0.1:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: silkgrain-media
+  S3_ACCESS_KEY_ID: silkgrain
+  S3_SECRET_ACCESS_KEY: silkgrain-dev-secret
+  S3_FORCE_PATH_STYLE: "true"
+  S3_PUBLIC_URL: http://127.0.0.1:9000/silkgrain-media
+
+jobs:
+  verify:
+    name: verify (lint, typecheck, test, build)
+    # Pinned to the version the VPS runs, not `ubuntu-latest`. A green build on an image that
+    # rolled to the next LTS overnight is not evidence about the machine this ships to, and the
+    # native dependencies here - sharp, @node-rs/argon2 - are the sort that notice a glibc change.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: mysql:8.0.42
+        env:
+          MYSQL_ROOT_PASSWORD: silkgrain_dev_only
+          # No MYSQL_DATABASE. The entrypoint would create it with the *server* default collation,
+          # `utf8mb4_0900_ai_ci`, and no table in `apps/api/drizzle/` names a collation of its own -
+          # they all inherit the database's. Development and production use `utf8mb4_unicode_ci`,
+          # the two sort differently, and the catalogue is full of ordering assertions. The step
+          # below creates both databases with the collation spelled out, exactly as
+          # `docker/mysql-init/01-databases.sql` does.
+        ports:
+          - 3307:3306
+        # A service container cannot be given a command - GitHub composes `docker create` with no
+        # argument after the image - so the four server flags the compose file passes cannot be
+        # reproduced here. The step below applies them over the wire instead. Do not delete it as
+        # redundant: 8.0.42's default sql_mode does happen to equal the string the compose file
+        # spells out, but its default collation does not, and a default is not a guarantee - the
+        # reason CLAUDE.md keeps that mode written in three files rather than inherited anywhere is
+        # that inheriting it is how this project ended up more permissive than production once
+        # already.
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -psilkgrain_dev_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=30s
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        # The compose file adds `--appendonly yes --maxmemory-policy noeviction`, and neither is
+        # reproducible without a command. Neither matters here: `noeviction` is already Redis's
+        # default (the compose file states it because a production Redis often does not), and an
+        # append-only file protects jobs across a restart of a container that is thrown away at the
+        # end of the run.
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=3s
+          --health-retries=6
+
+      mailpit:
+        # `latest`, matching the compose file, and inherited from it rather than chosen here. It is
+        # still a floating tag: the day Mailpit changes its API shape, this workflow breaks on a
+        # commit that touched nothing. Pin both files together when that happens, not just this one.
+        image: axllent/mailpit:latest
+        env:
+          MP_MAX_MESSAGES: "5000"
+          MP_SMTP_AUTH_ACCEPT_ANY: "1"
+          MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+        ports:
+          - 1025:1025
+          - 8025:8025
+        # No health options: the image ships no shell and no curl, so every health command fails
+        # and the container is reported unhealthy forever. The wait step below polls its HTTP API
+        # from the runner instead, which is the same API the mail tests read.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        # No version here on purpose: the action reads `packageManager` from package.json, so the
+        # pinned 10.34.5 has exactly one home. Must run before setup-node, which needs pnpm on the
+        # PATH to find the store it is asked to cache.
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          # 22, matching the VPS. `engines` says >=20.11.0, which is the floor rather than the
+          # target; testing on the floor would leave production on a runtime nothing has run.
+          node-version: "22"
+          cache: pnpm
+
+      - name: Scan for secrets
+        # First, before the install, because it needs neither and because a leaked credential is
+        # the one failure where the remaining eight minutes of CI are wasted either way.
+        #
+        # This is the tracked working tree only. `pnpm secret:scan:history` re-reads every blob that
+        # ever existed, which is the run that catches a key committed and deleted in the next commit
+        # - the working tree looks clean and the pack file does not. It is too slow to run on every
+        # push and it runs once per release instead, in deploy.yml.
+        run: pnpm secret:scan
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure MySQL
+        # `SET PERSIST` rather than `SET GLOBAL`: it writes mysqld-auto.cnf as well as taking effect
+        # immediately, so a container restart cannot quietly drop the mode and leave the suite
+        # running against permissive MySQL while still reporting green.
+        #
+        # The two databases match `docker/mysql-init/01-databases.sql`, which the compose path runs
+        # and this path cannot: the init directory is a bind mount of a repository directory, and
+        # service containers start before the checkout step exists to provide one.
+        #
+        # The collation is the one line here that changes an outcome. MySQL 8 defaults to
+        # `utf8mb4_0900_ai_ci`, the migrations name no collation on any of the 32 tables, so every
+        # column would take the database's - and this catalogue is sorted by name in half a dozen
+        # tested queries.
+        #
+        # The client comes from the same image as the server rather than from the runner, which
+        # ships whatever MySQL or MariaDB client that image happens to carry this month.
+        run: |
+          docker run --rm --network host mysql:8.0.42 mysql \
+            -h 127.0.0.1 -P 3307 -uroot -psilkgrain_dev_only -e "
+              SET PERSIST sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+              SET PERSIST time_zone = '+00:00';
+              SET PERSIST character_set_server = 'utf8mb4';
+              SET PERSIST collation_server = 'utf8mb4_unicode_ci';
+              CREATE DATABASE IF NOT EXISTS \`silkgrain\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+              CREATE DATABASE IF NOT EXISTS \`silkgrain_test\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            "
+
+      - name: Start MinIO
+        # Not a service container, for the same reason the sql_mode flags are not service options:
+        # `minio/minio` needs the `server /data` argument and a service container cannot be given
+        # one. Without it the entrypoint prints its help and exits, and the ten image-upload tests
+        # fail on a connection refused that looks like a network problem and is not.
+        run: |
+          docker run -d --name silkgrain-minio --network host \
+            -e MINIO_ROOT_USER=silkgrain \
+            -e MINIO_ROOT_PASSWORD=silkgrain-dev-secret \
+            minio/minio:latest server /data --console-address ":9001"
+
+      - name: Wait for MinIO and Mailpit
+        # Neither reports health to Docker - MinIO because it was started outside the services
+        # block, Mailpit because it has no shell to run a health command with. GitHub therefore
+        # starts the steps without waiting, and the first test to touch either would fail on a race
+        # rather than on a defect.
+        run: |
+          wait_for() {
+            for _ in $(seq 1 60); do
+              if curl -fsS --max-time 2 "$1" >/dev/null 2>&1; then
+                echo "$2 is up"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::$2 never answered at $1"
+            docker logs silkgrain-minio 2>&1 | tail -50 || true
+            return 1
+          }
+          wait_for http://127.0.0.1:9000/minio/health/live MinIO
+          wait_for http://127.0.0.1:8025/api/v1/info Mailpit
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Build
+        # Before lint and typecheck, which is not the order `pnpm verify` uses. `verify` runs on a
+        # machine where `dist/` already exists from yesterday; a runner has none. Type-aware ESLint
+        # resolves `@silkgrain/contracts` and `@silkgrain/ui` through their built `.d.ts`, and with
+        # those missing every imported symbol degrades to `any` - which either buries the run in
+        # `no-unsafe-*` errors or, worse, silently stops checking the thing the rule exists for.
+        # `bundle:budget` needs the build too, so nothing is paid twice.
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test with coverage
+        # `test:coverage` is what `verify` runs and it carries the thresholds task 8.1 wired in.
+        run: pnpm test:coverage
+
+      - name: Test the component library
+        # `packages/ui` has a `test` script and no `test:coverage` one, so `turbo run test:coverage`
+        # skips it without saying so and its 58 component tests would never run in CI. Running the
+        # whole `pnpm test` instead would re-run the API integration suite, which is the slowest
+        # thing here by an order of magnitude.
+        run: pnpm --filter @silkgrain/ui test
+
+      - name: Check the bundle budget
+        run: pnpm bundle:budget
+
+  e2e:
+    name: e2e (Playwright)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    # Deliberately not `needs: verify`. It duplicates the install and the build, which costs about
+    # three minutes of runner time, and buys the two failures arriving together instead of one
+    # after the other - and a red `e2e` next to a green `verify` is a diagnosis on its own.
+    #
+    # Playwright is in CI at all because everything it needs is here: MySQL for a seeded catalogue,
+    # Redis for the API to boot, and a build that `vite preview` can serve. The usual reason to
+    # leave e2e out - "it needs a real environment" - is not true of this suite. What it tests
+    # cannot be reached any other way: decision D-15 says the access token lives in a module
+    # variable and never in storage, and only a browser can be asked whether that is so.
+    #
+    # If it starts flaking, demote it to the deploy gate or delete it. Do not add retries to make
+    # the tick green - `playwright.config.ts` already allows one retry in CI, and a second would be
+    # buying a colour rather than an answer.
+    services:
+      # No Mailpit and no MinIO here: nothing the specs drive sends mail or uploads an image. The
+      # checkout is not covered at all, because `POST /api/checkout/intent` does not exist for want
+      # of a Stripe key (D-27) and mocking the provider would test the mock.
+      mysql:
+        image: mysql:8.0.42
+        env:
+          MYSQL_ROOT_PASSWORD: silkgrain_dev_only
+          # No MYSQL_DATABASE. The entrypoint would create it with the *server* default collation,
+          # `utf8mb4_0900_ai_ci`, and no table in `apps/api/drizzle/` names a collation of its own -
+          # they all inherit the database's. Development and production use `utf8mb4_unicode_ci`,
+          # the two sort differently, and the catalogue is full of ordering assertions. The step
+          # below creates the one database this job seeds, with the collation spelled out.
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -psilkgrain_dev_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+          --health-start-period=30s
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=3s
+          --health-retries=6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure MySQL
+        # Same reasoning as the verify job. The seed writes through the same STRICT_TRANS_TABLES
+        # rules the application does, so a permissive server here would let a row through that
+        # production would reject.
+        run: |
+          docker run --rm --network host mysql:8.0.42 mysql \
+            -h 127.0.0.1 -P 3307 -uroot -psilkgrain_dev_only -e "
+              SET PERSIST sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+              SET PERSIST time_zone = '+00:00';
+              SET PERSIST character_set_server = 'utf8mb4';
+              SET PERSIST collation_server = 'utf8mb4_unicode_ci';
+              CREATE DATABASE IF NOT EXISTS \`silkgrain\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            "
+
+      - name: Build
+        run: pnpm build
+
+      - name: Migrate and seed
+        # `db:seed` refuses to run under NODE_ENV=production (D-38), and NODE_ENV is unset here, so
+        # this is a development seed by the seed's own definition. It creates demo accounts holding
+        # a password published in this repository - which is exactly why that guard exists and why
+        # nothing in deploy.yml goes anywhere near this step.
+        run: |
+          pnpm --filter @silkgrain/api db:migrate
+          pnpm --filter @silkgrain/api db:seed
+
+      - name: Install Chromium
+        # Both Playwright projects - Desktop Chrome and Pixel 7 - are Chromium, so the other two
+        # engines are 400 MB of download for nothing. `--with-deps` pulls the shared libraries
+        # headless Chromium needs, which a bare runner does not have.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start the API
+        # In the background, because `playwright.config.ts` starts `vite preview` itself and
+        # deliberately does not start this: it says a webServer entry that quietly started an API
+        # would hide a missing MySQL behind a two-minute timeout. Here the API is started
+        # explicitly, and the readiness loop below fails with the log rather than with a timeout.
+        #
+        # NODE_ENV is left at development on purpose. Production would demand COOKIE_SECURE, and a
+        # secure cookie is not sent over the plain-HTTP preview, so every session assertion in
+        # accounts.spec.ts would fail for a reason that has nothing to do with the code.
+        run: |
+          # `nohup` and a redirect: the step's shell exits as soon as the readiness loop finishes,
+          # and a child still holding the step's stdout can be torn down with it.
+          nohup node apps/api/dist/server.js > "$RUNNER_TEMP/api.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3001/health >/dev/null 2>&1; then
+              echo "api is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the API never answered on 127.0.0.1:3001"
+          cat "$RUNNER_TEMP/api.log"
+          exit 1
+
+      - name: Run the end-to-end suite
+        run: pnpm test:e2e
+
+      - name: Show the API log
+        # Half of an e2e failure is on the other side of the wire, and the runner is gone the moment
+        # this job ends.
+        if: failure()
+        run: tail -200 "$RUNNER_TEMP/api.log" || true
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+# What is deliberately not here
+#
+# `pnpm lighthouse:ci` is not run in CI, and this is a decision rather than an omission. Chrome
+# would be easy - the e2e job already installs it. The gate is the problem: `lighthouse-budget.json`
+# is a committed ratchet with a tolerance of two points (D-44), and two points is inside the noise
+# of a shared runner whose vCPUs belong to somebody else's build as well. The evidence for that
+# tolerance is two full matrices measured on one quiet machine, where every page that stayed on
+# localhost repeated to the point. Nothing about a hosted runner reproduces that condition, so the
+# gate would either fail on pages nobody changed or need a tolerance so wide it stops measuring
+# anything. It is a local gate, run by the person who changed the thing, and it stays one until
+# there is a dedicated machine to run it on.

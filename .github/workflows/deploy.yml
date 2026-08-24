@@ -1,0 +1,307 @@
+# Release: main -> the VPS, with a health check that can undo itself.
+#
+# The topology this assumes is one Ubuntu 24.04 box running Nginx, PM2, MySQL 8 and Redis. No
+# Docker in production. The releases are directories under `/srv/silkgrain/releases`, `current` is
+# a symlink switched atomically, and the secrets live in `/srv/silkgrain/shared/.env` and nowhere
+# else - never inside a release, or a rollback would restore an old key alongside old code.
+#
+# This workflow proves the commit is green, scans the whole of history for a leaked credential one
+# last time, tells the box to deploy, checks from the outside whether a visitor can still reach the
+# shop, and puts the previous release back if that check fails. The deploy itself is
+# `deploy/deploy.sh` on the box, because a deploy that only exists inside a CI runner is a deploy
+# nobody can perform at three in the morning when GitHub is the thing that is down.
+#
+# ## What this workflow calls, and what those scripts already do
+#
+# `deploy/deploy.sh` and `deploy/rollback.sh` ship inside every release, so they are invoked
+# through the symlink as `/srv/silkgrain/current/deploy/*.sh` - the running release deploys its
+# successor. That is why the first deploy is a manual one from a clone, and DEPLOY.md says so:
+# there is no `current` to run anything out of until one exists.
+#
+#   deploy.sh <git-ref>   Resolves the ref in the shared mirror to one sha, unpacks it into
+#                         releases/<UTC timestamp>, links shared/.env, installs, builds, dumps the
+#                         database, migrates, switches `current`, reloads PM2, and polls
+#                         127.0.0.1:3001/ready. If that poll fails it puts `current` back itself
+#                         and exits non-zero. It writes `<release>/RELEASE` naming the sha.
+#   rollback.sh           Back one release, or to a named one. It refuses when the two releases'
+#                         drizzle journals differ, because that rollback would put old code on a
+#                         new schema, and it only proceeds with a flag that asserts the pre-deploy
+#                         dump was restored - which this workflow has not done and must never claim.
+#
+# So there are two rollbacks, and they cover different failures. deploy.sh handles "the new release
+# cannot talk to MySQL from inside the box". The step at the bottom of this file handles what
+# deploy.sh cannot see, because it polls a loopback port: DNS, TLS, the firewall, Nginx, and the
+# two static roots. A green deploy.sh with a broken Nginx alias is a site nobody can load and a
+# deploy that reported success.
+#
+# **Neither rollback undoes a migration.** Migrations are forward-only (D-17) and the way back is
+# restoring the dump deploy.sh took, by hand. Every migration must therefore be readable by the
+# release before it - otherwise rollback.sh will refuse, correctly, and the site stays broken until
+# somebody restores a database. That is the single most important sentence in this file.
+#
+# ## Configuration
+#
+# Secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS.
+# Variables: DEPLOY_SSH_PORT (default 22), PUBLIC_SITE_URL.
+#
+# There is no domain yet (question Q-11), so `silkgrain.com` is the placeholder everywhere in
+# this repository, including the fallback below. Set the PUBLIC_SITE_URL variable once there is a
+# real one and the fallback is never read - it is not a value to go and edit in twelve files.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # For redeploying the current main after fixing something on the box. It deliberately takes no
+  # ref input: the only thing this workflow may put on the VPS is a commit that CI has just passed,
+  # and an arbitrary ref would be a way around that.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  # Never cancel a deploy in flight. A run killed between the migration and the symlink switch
+  # leaves a migrated database serving an old release, which is the one state nothing here repairs.
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # The gate, called rather than assumed. `needs: ci` below is enforced by the runner; a
+  # `workflow_run` trigger would stop firing the day somebody renames ci.yml and would fail open.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.com' }}
+
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+      SITE_URL: ${{ vars.PUBLIC_SITE_URL || 'https://silkgrain.com' }}
+
+    steps:
+      - name: Refuse to deploy without configuration
+        # Before anything reaches the network. Without this, an unset DEPLOY_HOST becomes an empty
+        # string, `ssh @` fails with a message about a missing hostname, and the run reads as a
+        # broken box rather than as a repository that was never given its secrets.
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          # `workflow_dispatch` lets whoever presses the button choose a branch, and a phase branch
+          # deployed to production would still be a green run - CI having passed says the code
+          # works, not that it was meant to ship.
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::production deploys come from main; this run is on $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+          missing=()
+          [ -n "$DEPLOY_HOST" ] || missing+=(DEPLOY_HOST)
+          [ -n "$DEPLOY_USER" ] || missing+=(DEPLOY_USER)
+          [ -n "$SSH_KEY" ] || missing+=(DEPLOY_SSH_KEY)
+          [ -n "$KNOWN_HOSTS" ] || missing+=(DEPLOY_KNOWN_HOSTS)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::missing repository secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, for the scan below. Every other step here needs one commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Scan every blob that ever existed
+        # `scripts/secret-scan.mjs` needs nothing but node and git, so this costs seconds and no
+        # install. CI runs the working-tree scan on every push; this is the other half, and it is
+        # the half that catches a key committed on Tuesday and deleted on Wednesday - the working
+        # tree is clean and the pack file still has it, on every clone, forever.
+        #
+        # Once per release rather than per push: the answer only changes when history does, and the
+        # release is the moment it is worth spending a minute to be sure.
+        run: node scripts/secret-scan.mjs --history
+
+      - name: Authorise the runner to the VPS
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # A pinned host key, never `StrictHostKeyChecking=no`. Anyone who can answer on port 22
+          # of that address would otherwise be handed the deploy key and told to install a release.
+          # Regenerate with `ssh-keyscan -p <port> <host>` and paste into the DEPLOY_KNOWN_HOSTS
+          # secret; the value changes when the box is rebuilt, and a rebuild is exactly when a
+          # warning is worth reading rather than clicking through.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          # One wrapper so the seven flags live in one place. `IdentitiesOnly` stops ssh offering
+          # any other key the agent happens to hold; `BatchMode` turns a passphrase prompt into an
+          # error instead of a job that hangs until the timeout; `ServerAliveInterval` keeps the
+          # connection open through a build long enough for a NAT table to forget about it.
+          cat > "$RUNNER_TEMP/vps" <<'WRAPPER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec ssh \
+            -i "$HOME/.ssh/id_deploy" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=20 \
+            -p "$DEPLOY_SSH_PORT" \
+            "$DEPLOY_USER@$DEPLOY_HOST" -- "$@"
+          WRAPPER
+          chmod +x "$RUNNER_TEMP/vps"
+
+      - name: Check the box answers
+        # A separate step from the deploy so "the key is wrong" and "the build failed" are two
+        # different red ticks. `id -un` also proves we landed as `deploy` and not as root, which
+        # nothing after the one-time provisioning is allowed to be.
+        run: |
+          who=$("$RUNNER_TEMP/vps" id -un)
+          echo "connected as $who"
+          if [ "$who" = "root" ]; then
+            echo "::error::this key logs in as root; deploys run as the deploy user only"
+            exit 1
+          fi
+
+      - name: Record what is live now
+        # Read before the switch, so the log of a failed deploy names the release a human would put
+        # back by hand if rollback.sh is itself refusing.
+        run: |
+          "$RUNNER_TEMP/vps" readlink -f /srv/silkgrain/current || echo "no current release yet"
+          "$RUNNER_TEMP/vps" cat /srv/silkgrain/current/RELEASE || true
+
+      - name: Deploy
+        id: release
+        # The sha rather than the branch. deploy.sh accepts either, and between the push that
+        # triggered this run and the moment the box fetches, main can have moved - deploying
+        # "whatever main is now" would put a commit on the VPS that the CI job above never saw.
+        run: |
+          "$RUNNER_TEMP/vps" "bash -lc '/srv/silkgrain/current/deploy/deploy.sh $GITHUB_SHA'"
+
+      - name: Confirm the box is running the commit it was given
+        # Everything after this point tests a running site, and a running site is also what you get
+        # when a deploy quietly does nothing: a mirror that fetched no new objects and resolved the
+        # ref to yesterday's commit, or a switch that never happened. Both leave every health check
+        # below green while the change is not deployed. Reading the sha back out of the release
+        # metadata is the only step here that can tell the difference.
+        run: |
+          meta=$("$RUNNER_TEMP/vps" cat /srv/silkgrain/current/RELEASE)
+          echo "$meta"
+          live=$(printf '%s\n' "$meta" | sed -n 's/^sha=//p')
+          if [ "$live" != "$GITHUB_SHA" ]; then
+            echo "::error::asked for $GITHUB_SHA and the box is serving ${live:-nothing it will admit to}"
+            exit 1
+          fi
+
+      - name: Health check
+        # From the runner, over the public address. deploy.sh has already polled
+        # 127.0.0.1:3001/ready and would have rolled itself back if that failed, so repeating it
+        # over SSH would prove nothing new. What is unproven at this point is everything between a
+        # visitor and that port: DNS, the firewall, TLS, Nginx's proxy and its two static roots.
+        # `/health` and `/ready` are public and unthrottled by design and carry no driver text
+        # (D-40), so polling them from outside is safe.
+        #
+        # A loop rather than a single request: PM2 reload is a rolling restart, so for a few seconds
+        # some workers are the new release and some are still draining the old one.
+        run: |
+          # `-L`, and this is not decoration. The Nginx config redirects http to https and www to
+          # the apex, and `curl -f` fails on 4xx and 5xx only - a 301 is a success with an empty
+          # body. Without following, a PUBLIC_SITE_URL that still says `www.` or `http://` would
+          # pass every check below without a single request ever reaching the application.
+          check() {
+            for _ in $(seq 1 30); do
+              if curl -fsSL --max-redirs 3 --max-time 10 "$1" > "$RUNNER_TEMP/probe" 2>&1; then
+                echo "ok   $1"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error::$1 did not come back healthy"
+            tail -20 "$RUNNER_TEMP/probe" || true
+            return 1
+          }
+
+          # The API first: if it is down the two SPAs will still serve their shell and look fine.
+          # `/ready` answers 503 when a dependency is gone, so `curl -f` treats that as the failure
+          # it is.
+          check "$SITE_URL/health"
+          check "$SITE_URL/ready"
+          # The storefront and the back office are separate builds under separate roots, and the
+          # admin one is the half that breaks: its Vite base is `/admin/`, so a mistake in the
+          # Nginx alias serves the storefront's index.html and a blank page with 404s in the console.
+          check "$SITE_URL/"
+          check "$SITE_URL/admin/"
+
+      - name: Recent API log
+        # Before the rollback, not after: thirty seconds later this process is gone and the log
+        # belongs to the release that was already working. PM2 keeps it on disk either way, but the
+        # only person who will go and read it there is the one who now has to be woken up.
+        #
+        # The whole command is one argument, and it goes through `bash -lc` on purpose. `ssh host a
+        # b c` joins its arguments with spaces and hands the result to a non-interactive,
+        # non-login shell, which on Ubuntu reads no profile - so `pm2` is not on the PATH unless
+        # node came from the system packages. The deploy and rollback steps are wrapped the same
+        # way, and an earlier draft of this comment claimed they were "contracted to set their own
+        # PATH" - they are not, and neither sets PATH anywhere. deploy.sh only CHECKS for node,
+        # pnpm and pm2 and dies naming them, so without the wrapper every CI deploy would have
+        # failed at that check with a message about a missing binary that is installed.
+        if: failure() && steps.release.outcome == 'success'
+        run: |
+          "$RUNNER_TEMP/vps" 'bash -lc "pm2 logs silkgrain-api --lines 100 --nostream"' || true
+
+      - name: Roll back
+        # Only when the deploy itself succeeded. A deploy.sh that exits non-zero has already put
+        # `current` back on its own, and calling rollback.sh after it would move the symlink off a
+        # release that was never broken - one release further back than anybody asked for.
+        #
+        # No `--i-have-restored-the-database`, ever. rollback.sh refuses to cross a difference in
+        # the drizzle journal because that rollback would put old code on a new schema, and the flag
+        # is an assertion that somebody has restored the pre-deploy dump. Nothing in a CI runner can
+        # honestly make that claim, so a refusal here is the correct outcome and is reported as the
+        # page-somebody event it is.
+        if: failure() && steps.release.outcome == 'success'
+        run: |
+          echo "::warning::the deployed release did not pass its public checks - rolling back"
+
+          if ! "$RUNNER_TEMP/vps" "bash -lc /srv/silkgrain/current/deploy/rollback.sh"; then
+            echo "::error::rollback.sh refused - this needs a person on the box, now."
+            echo "Read its output above. If the migration journals differ, the previous release"
+            echo "cannot run against the schema this deploy produced, and the way back is to"
+            echo "restore the dump deploy.sh took before migrating - see shared/backups."
+            exit 1
+          fi
+
+          echo "now live: $("$RUNNER_TEMP/vps" readlink -f /srv/silkgrain/current)"
+
+          # Whether the rollback worked changes what the person reading this has to do next: a
+          # healthy site means the release was bad and the box is fine, and an unhealthy one means
+          # the box needs somebody on it. Both leave the job red - a rolled-back deploy did not
+          # deploy.
+          if curl -fsSL --max-redirs 3 --max-time 10 "$SITE_URL/health" >/dev/null 2>&1; then
+            echo "::error::rolled back to the previous release, which is serving. The commit is bad."
+          else
+            echo "::error::rolled back and the site is STILL down. The box needs a human, not a redeploy."
+          fi
+          exit 1

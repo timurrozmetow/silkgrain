@@ -175,3 +175,24 @@ export const ICON_REGISTRY = {
 } as const satisfies Record<string, ComponentType<PhosphorIconProps>>;
 
 export type IconName = keyof typeof ICON_REGISTRY;
+
+/**
+ * Every name this build ships, for the one control that has to offer a choice of icon.
+ *
+ * The admin's category form picks from this rather than accepting typed text: the registry is a
+ * closed list by decision D-10, so a name outside it stores cleanly, renders nothing, and leaves
+ * a hole in the mega-menu that nobody sees until a customer does. A dropdown cannot produce one.
+ */
+export const ICON_NAMES = Object.keys(ICON_REGISTRY).sort() as IconName[];
+
+/**
+ * Narrows a string from the database to an icon this build actually ships.
+ *
+ * Product and category rows store a Phosphor name chosen by an editor, and the registry is
+ * deliberately a closed list (decision D-10) - a namespace import measured 1.1 MB gzip. So a
+ * name that is not in it renders nothing, and every caller needs a fallback rather than a
+ * blank space.
+ */
+export function isIconName(value: string | null | undefined): value is IconName {
+  return value !== null && value !== undefined && Object.hasOwn(ICON_REGISTRY, value);
+}
