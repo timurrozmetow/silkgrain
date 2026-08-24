@@ -119,6 +119,10 @@ class Client {
     return this.call<T>('POST', path, { json });
   }
 
+  put<T>(path: string, json: unknown): Promise<T> {
+    return this.call<T>('PUT', path, { json });
+  }
+
   upload<T>(path: string, form: FormData): Promise<T> {
     return this.call<T>('POST', path, { form });
   }
@@ -174,6 +178,12 @@ interface CategoryRow {
   name: string;
   isActive: boolean;
   imageUrl: string | null;
+  description: string | null;
+  icon: string | null;
+  parentId: number | null;
+  position: number;
+  metaTitle: string | null;
+  metaDescription: string | null;
 }
 interface CategoryNode extends CategoryRow {
   children: CategoryRow[];
@@ -359,10 +369,35 @@ export async function fillCatalog(config: Config): Promise<void> {
 
   const designKeys = new Set(design.categories.map((category) => category.key));
 
+  const nodeBySlug = new Map(tree.items.map((node) => [node.slug, node]));
+
   say('Categories');
   for (const [index, category] of design.categories.entries()) {
-    if (idBySlug.has(category.key)) {
-      say(`  = ${category.label} (already there)`);
+    const existingCategory = nodeBySlug.get(category.key);
+    if (existingCategory) {
+      // A blank is topped up; anything already written is left alone. The categories on the live
+      // shop were created before this file carried any copy, so without this the descriptions
+      // would only ever reach a shop that had never been filled - which is no shop at all.
+      const copy = CATEGORY_DESCRIPTIONS[category.key];
+      if (existingCategory.description !== null || copy === undefined) {
+        say(`  = ${category.label} (already there)`);
+        continue;
+      }
+      if (config.dryRun) {
+        say(`  ~ ${category.label} (would add the missing description)`);
+        continue;
+      }
+      await client.put(`/api/admin/categories/${String(existingCategory.id)}`, {
+        name: existingCategory.name,
+        slug: existingCategory.slug,
+        description: copy,
+        icon: existingCategory.icon,
+        parentId: existingCategory.parentId,
+        position: existingCategory.position,
+        metaTitle: existingCategory.metaTitle,
+        metaDescription: existingCategory.metaDescription,
+      });
+      say(`  ~ ${category.label} (description added)`);
       continue;
     }
     if (config.dryRun) {
