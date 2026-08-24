@@ -26,6 +26,7 @@ export * from './components/QuantityStepper';
 export * from './components/Radio';
 export * from './components/Select';
 export * from './components/Skeleton';
+export * from './components/Spinner';
 export * from './components/StarRating';
 export * from './components/Tabs';
 export * from './components/Textarea';

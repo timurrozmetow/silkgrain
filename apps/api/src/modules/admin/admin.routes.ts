@@ -13,6 +13,9 @@ import {
   AdminCustomerListResponse,
   AdminCustomerStatusInput,
   AdminDashboard,
+  AdminFaqInput,
+  AdminFaqList,
+  AdminFaqUpdateInput,
   AdminImageAltInput,
   AdminImageArrangement,
   AdminOrderDetail,
@@ -24,6 +27,11 @@ import {
   AdminPriceApplyResult,
   AdminPricePreview,
   AdminPricePreviewInput,
+  AdminPublishInput,
+  AdminRecipeDetail,
+  AdminRecipeInput,
+  AdminRecipeList,
+  AdminRecipeUpdateInput,
   AdminPromoActiveInput,
   AdminPromoDetail,
   AdminPromoInput,
@@ -71,6 +79,18 @@ import {
   setCategoryImage,
   updateCategory,
 } from './categories.service';
+import {
+  createFaq,
+  createRecipe,
+  getAdminRecipe,
+  listAdminFaqs,
+  listAdminRecipes,
+  setFaqPublished,
+  setRecipeImage,
+  setRecipePublished,
+  updateFaq,
+  updateRecipe,
+} from './content.service';
 import { getCustomer, listCustomers, setCustomerStatus } from './customers.service';
 import { loadDashboard } from './dashboard.service';
 import { addImage, arrangeImages, removeImage, setImageAlt } from './images.service';
@@ -591,6 +611,284 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         app.db,
         app.storage,
         request.params.id,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  // --------------------------------------------------------------------------------- recipes
+
+  routes.get(
+    '/recipes',
+    {
+      onRequest: app.requirePermission('content:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Every recipe, drafts included',
+        description:
+          'Sorted by title, not by publication date as the storefront’s list is: a draft has no ' +
+          'publication date, so that ordering would bury exactly the rows an editor came here to ' +
+          'finish.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminRecipeList, 401: ApiError, 403: ApiError },
+      },
+    },
+    () => listAdminRecipes(app.db),
+  );
+
+  routes.get(
+    '/recipes/:id',
+    {
+      onRequest: app.requirePermission('content:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'One recipe, everything the form edits',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: {
+          200: AdminRecipeDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) => getAdminRecipe(app.db, request.params.id),
+  );
+
+  routes.post(
+    '/recipes',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Create a recipe',
+        description:
+          '`productIds` is what "Shop the ingredients" draws, and an id that does not exist is a ' +
+          '409 rather than a foreign-key 500. `publishedAt` is not in this body: it is stamped by ' +
+          'the publish route, so a typed date cannot disagree with whether the recipe is live.',
+        security: [{ bearerAuth: [] }],
+        body: AdminRecipeInput,
+        response: {
+          201: AdminRecipeDetail,
+          401: ApiError,
+          403: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(await createRecipe(app.db, request.body, adminActor(request), auditContext(request))),
+  );
+
+  routes.put(
+    '/recipes/:id',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Replace a recipe’s fields',
+        description:
+          'The slug is the recipe’s public address at `/recipes/<slug>`; renaming it is allowed ' +
+          'and moves the page. `isPublished` is not in this body - a stale form would otherwise ' +
+          'republish something taken down while it sat open.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminRecipeUpdateInput,
+        response: {
+          200: AdminRecipeDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          409: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      updateRecipe(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  routes.patch(
+    '/recipes/:id/published',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Publish a recipe, or take it down',
+        description:
+          'The only writer of `published_at`, and it stamps it once. Taking a recipe down to fix ' +
+          'a typo and putting it back is not republishing it, and the list must not reshuffle ' +
+          'because somebody corrected a measurement. There is no DELETE: a recipe is a URL ' +
+          'somebody may have shared.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminPublishInput,
+        response: {
+          200: AdminRecipeDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      setRecipePublished(
+        app.db,
+        request.params.id,
+        request.body.isPublished,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  routes.post(
+    '/recipes/:id/image',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Upload a recipe’s hero image',
+        description:
+          'multipart/form-data, one file, through the same pipeline a product photograph takes. ' +
+          "There is no URL field anywhere: production serves under `img-src 'self'`, so a " +
+          'pasted address stores cleanly and renders as a blank rectangle (D-52).',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: {
+          200: AdminRecipeDetail,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          413: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    async (request) => {
+      const file = await request.file();
+      if (!file) throw new AppError('VALIDATION_FAILED', 'No file was uploaded');
+
+      return setRecipeImage(
+        app.db,
+        app.storage,
+        request.params.id,
+        await file.toBuffer(),
+        adminActor(request),
+        auditContext(request),
+      );
+    },
+  );
+
+  // ------------------------------------------------------------------------------------- FAQ
+
+  routes.get(
+    '/faqs',
+    {
+      onRequest: app.requirePermission('content:read'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Every FAQ entry, unpublished included',
+        description:
+          'Flat rather than grouped by category, which is the one place this departs from the ' +
+          'Help page’s shape: the accordion groups because that is how it reads, and an editor ' +
+          'reordering entries needs one sort so a `position` collision is visible.',
+        security: [{ bearerAuth: [] }],
+        response: { 200: AdminFaqList, 401: ApiError, 403: ApiError },
+      },
+    },
+    () => listAdminFaqs(app.db),
+  );
+
+  routes.post(
+    '/faqs',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Add a FAQ entry',
+        security: [{ bearerAuth: [] }],
+        body: AdminFaqInput,
+        response: { 201: AdminFaqList, 401: ApiError, 403: ApiError, 422: ApiError },
+      },
+    },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(await createFaq(app.db, request.body, adminActor(request), auditContext(request))),
+  );
+
+  routes.put(
+    '/faqs/:id',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Replace a FAQ entry',
+        description:
+          'The answer is Markdown and the audit log keeps both sides of it, unlike a recipe body ' +
+          'or a product description: it is a few sentences, and "what did we used to tell ' +
+          'customers about returns" is the question this log gets asked.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminFaqUpdateInput,
+        response: {
+          200: AdminFaqList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      updateFaq(
+        app.db,
+        request.params.id,
+        request.body,
+        adminActor(request),
+        auditContext(request),
+      ),
+  );
+
+  routes.patch(
+    '/faqs/:id/published',
+    {
+      onRequest: app.requirePermission('content:write'),
+      schema: {
+        tags: ['admin'],
+        summary: 'Show a FAQ entry on the Help page, or hide it',
+        description:
+          'The terminal action. There is no DELETE, because an answer a customer has been given ' +
+          'is worth keeping even once it stops being shown.',
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        body: AdminPublishInput,
+        response: {
+          200: AdminFaqList,
+          401: ApiError,
+          403: ApiError,
+          404: ApiError,
+          422: ApiError,
+        },
+      },
+    },
+    (request) =>
+      setFaqPublished(
+        app.db,
+        request.params.id,
+        request.body.isPublished,
         adminActor(request),
         auditContext(request),
       ),

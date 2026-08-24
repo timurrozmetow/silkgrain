@@ -116,6 +116,44 @@ function ico(images) {
   return Buffer.concat([header, ...entries, ...images.map((image) => image.data)]);
 }
 
+/**
+ * The Open Graph card: what a pasted link looks like in a chat window or a feed.
+ *
+ * Without one, `seo.tsx` sets `twitter:card: summary` and every share of the shop is a line of
+ * text. It was left undone once because the wordmark is Cormorant Garamond and rendering a webfont
+ * outside a browser is its own problem - but `type.display` in the tokens declares the fallback
+ * itself: `'Cormorant Garamond', Georgia, serif`. Georgia IS the sanctioned second choice, so a
+ * card set in it is the design's own instruction rather than a substitution invented here.
+ *
+ * The card is generated once and committed as a PNG, so which serif the generating machine had is
+ * settled at that moment and not at request time.
+ *
+ * Gold carries the second half of the wordmark and nothing else. D-7 bars gold from carrying text
+ * on a light surface everywhere except the brand mark, which is exactly what this is; the tagline
+ * underneath is `muted` on parchment, which clears AA.
+ */
+function ogCardSvg() {
+  const serif = 'Cormorant Garamond, Georgia, Times New Roman, serif';
+  const sans = 'Inter, Segoe UI, Helvetica, Arial, sans-serif';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F3F0E8"/>
+  <rect x="0" y="0" width="1200" height="14" fill="${TILE}"/>
+  <rect x="0" y="616" width="1200" height="14" fill="#D3A73B"/>
+
+  <g transform="translate(140 214)">
+    <rect width="132" height="132" rx="15" fill="${TILE}"/>
+    <path transform="translate(14.52 14.52) scale(0.4031)" fill="${GLYPH}" d="${GRAINS_FILL}"/>
+  </g>
+
+  <text x="316" y="318" font-family="${serif}" font-size="118" font-weight="600">
+    <tspan fill="${TILE}">silk</tspan><tspan fill="#D3A73B">grain</tspan>
+  </text>
+  <text x="320" y="382" font-family="${sans}" font-size="30" letter-spacing="1.5" fill="#6B6456">Ancient Grains. Modern Table.</text>
+  <text x="320" y="432" font-family="${sans}" font-size="24" fill="#6B6456">Central Asian rice, lentils, dried fruit and spices &#183; Houston, TX</text>
+</svg>
+`;
+}
+
 const MANIFEST = {
   name: 'SilkGrain',
   short_name: 'SilkGrain',
@@ -168,6 +206,13 @@ async function main() {
   write(webPublic, 'icon-maskable-512.png', await png(square, 512));
 
   write(webPublic, 'site.webmanifest', Buffer.from(`${JSON.stringify(MANIFEST, null, 2)}\n`));
+
+  // 1200x630 is what every platform crops from; anything smaller is upscaled in a feed.
+  write(
+    webPublic,
+    'og-image.png',
+    await sharp(Buffer.from(ogCardSvg())).png({ compressionLevel: 9 }).toBuffer(),
+  );
 
   process.stdout.write(`${written.join('\n')}\n`);
 }

@@ -33,6 +33,8 @@ const NAV: { to: string; label: string; icon: IconName; permission: AdminPermiss
   { to: '/wholesale', label: 'Wholesale', icon: 'handshake', permission: 'wholesale:read' },
   { to: '/customers', label: 'Customers', icon: 'users', permission: 'customers:read' },
   { to: '/promos', label: 'Promo codes', icon: 'tag', permission: 'promos:read' },
+  { to: '/recipes', label: 'Recipes', icon: 'cooking-pot', permission: 'content:read' },
+  { to: '/faqs', label: 'Help & FAQ', icon: 'chat-circle-dots', permission: 'content:read' },
   { to: '/pricing', label: 'Pricing', icon: 'currency-dollar', permission: 'pricing:bulk' },
   { to: '/settings', label: 'Settings', icon: 'gear', permission: 'settings:read' },
   { to: '/audit', label: 'Audit log', icon: 'clock-countdown', permission: 'audit:read' },

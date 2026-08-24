@@ -56,6 +56,14 @@ export const BUSINESS_TYPE = ['restaurant', 'grocery', 'distributor', 'meal_kit'
 export const VOLUME_BAND = ['50-200', '200-500', '500-2000', '2000+'] as const;
 
 /**
+ * The two editorial sets, here rather than in `enums.ts` for the reason above: the admin panel's
+ * recipe and FAQ forms build their selects from them, and a form that pulled Zod in to list five
+ * strings would be paying for a validator the client never runs.
+ */
+export const RECIPE_DIFFICULTY = ['easy', 'medium', 'hard'] as const;
+export const FAQ_CATEGORY = ['ordering', 'shipping', 'products', 'wholesale', 'returns'] as const;
+
+/**
  * Bounds for the back office's bulk price operations.
  *
  * A batch is capped so an operator does not apply to a subset believing it is the whole category,

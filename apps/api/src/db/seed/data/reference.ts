@@ -11,6 +11,24 @@
  * the database, so a panel showing "1.5 g" is 1500 here and renders by division.
  */
 
+import type { FaqCategory } from '@silkgrain/contracts';
+
+/**
+ * Which section of the Help page each of the mockup's five questions belongs under.
+ *
+ * The mockup gives a question and an answer and no section, and `faqs.category` is a closed enum
+ * the accordion groups by - so the mapping has to live somewhere. Here rather than beside the seed
+ * that first needed it, because `catalog:fill` writes the same five entries into a production
+ * shop and a second copy of this list would be a second answer to "is that a returns question".
+ */
+export const FAQ_CATEGORY_BY_INDEX: readonly FaqCategory[] = [
+  'shipping',
+  'products',
+  'returns',
+  'wholesale',
+  'products',
+];
+
 export interface NutritionProfile {
   servingSize: string;
   servingsPerContainer: number | null;

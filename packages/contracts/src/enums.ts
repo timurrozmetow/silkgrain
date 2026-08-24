@@ -3,9 +3,11 @@ import { z } from 'zod';
 import {
   BUSINESS_TYPE,
   CERTIFICATION,
+  FAQ_CATEGORY,
   ORIGIN,
   PRODUCT_BADGE,
   PRODUCT_STATUS,
+  RECIPE_DIFFICULTY,
   VOLUME_BAND,
   WEIGHT_UNIT,
   WHOLESALE_STATUS,
@@ -220,11 +222,9 @@ export type NewsletterStatus = z.infer<typeof NewsletterStatus>;
 // Content
 // --------------------------------------------------------------------------------------
 
-export const RECIPE_DIFFICULTY = ['easy', 'medium', 'hard'] as const;
 export const RecipeDifficulty = z.enum(RECIPE_DIFFICULTY);
 export type RecipeDifficulty = z.infer<typeof RecipeDifficulty>;
 
-export const FAQ_CATEGORY = ['ordering', 'shipping', 'products', 'wholesale', 'returns'] as const;
 export const FaqCategory = z.enum(FAQ_CATEGORY);
 export type FaqCategory = z.infer<typeof FaqCategory>;
 
@@ -236,6 +236,8 @@ export type FaqCategory = z.infer<typeof FaqCategory>;
 export const AUDIT_ENTITY_TYPE = [
   'product',
   'category',
+  'recipe',
+  'faq',
   'order',
   'customer',
   'promo_code',
@@ -271,6 +273,13 @@ export const AUDIT_ACTION = [
   'category.active_changed',
   'category.image_updated',
   'category.image_removed',
+  'recipe.created',
+  'recipe.updated',
+  'recipe.published_changed',
+  'recipe.image_updated',
+  'faq.created',
+  'faq.updated',
+  'faq.published_changed',
   'order.status_changed',
   'order.tracking_updated',
   'order.note_updated',
@@ -302,6 +311,13 @@ export const AUDIT_ACTION_ENTITY: Readonly<Record<AuditAction, AuditEntityType>>
   'category.active_changed': 'category',
   'category.image_updated': 'category',
   'category.image_removed': 'category',
+  'recipe.created': 'recipe',
+  'recipe.updated': 'recipe',
+  'recipe.published_changed': 'recipe',
+  'recipe.image_updated': 'recipe',
+  'faq.created': 'faq',
+  'faq.updated': 'faq',
+  'faq.published_changed': 'faq',
   'order.status_changed': 'order',
   'order.tracking_updated': 'order',
   'order.note_updated': 'order',

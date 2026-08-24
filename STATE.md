@@ -45,15 +45,17 @@ products, sixteen products, forty-one variants, sixteen photographs — none mis
 `200 image/webp` from `https://silkgrain.com/media/…`. Thirty-eight audit entries name the owner.
 `/`, `/shop`, `/shop/c/rice` and `/product/uzbek-devzira-rice` all answer 200.
 
-**The tab icon, and the last empty photograph slot.** D-9 parked the favicon until a real logo
-arrived; what it was waiting for was a decision about what to draw, and the header answered that in
-Phase 5. `pnpm make:icons` writes the mockup's own lockup — the Phosphor `grains` glyph on a green
-tile — as an SVG and rasterises the whole set a browser asks for: `favicon.svg`, a PNG-in-ICO for
-anything older, an `apple-touch-icon`, and 192/512 plus a maskable variant behind a web manifest.
-Everything is geometry, so nothing depends on a font being installed. The glyph is 78% of the tile
-rather than the header's 59%, and parchment rather than `onDeep` — 5.7:1 against 4.6:1 — because a
-16px tab icon is not a 34px lockup and the grains were four hairlines by the time a tab had
-finished shrinking them.
+**The tab icon, the social card, and the last empty photograph slot (D-57).** D-9 parked the
+favicon until a real logo arrived; what it was waiting for was a decision about what to draw, and
+the header answered that in Phase 5. `pnpm make:icons` writes the mockup's own lockup — the
+Phosphor `grains` glyph on a green tile — as an SVG and rasterises the whole set a browser asks
+for: `favicon.svg`, a PNG-in-ICO for anything older, an `apple-touch-icon`, 192/512 plus a maskable
+variant behind a web manifest, and a 1200×630 Open Graph card so a pasted link is no longer a line
+of text. Everything but the card is geometry, so nothing depends on a font being installed; the
+card is set in Georgia, which `type.display` names as Cormorant's own fallback. The glyph is 78% of
+the tile rather than the header's 59%, and parchment rather than `onDeep` — 5.7:1 against 4.6:1 —
+because a 16px tab icon is not a 34px lockup and the grains were four hairlines by the time a tab
+had finished shrinking them.
 
 The 320px band on every `/shop/c/` page was a flat gradient for the same reason the category
 descriptions are empty: the design gives a category a name, an icon and a count. `catalog:fill` now
@@ -66,14 +68,36 @@ uploaded twice.
 so it came back as `application/octet-stream` and Chrome ignored it while serving 200 — found by
 measuring the live response, not by reading the config.
 
-**What is deliberately still empty.** Category descriptions: the mockup gives a category a name and
-an icon and no copy, and inventing some would put words in the shop that nobody wrote. They are
-typed on the Categories screen, where a hero image is uploaded too. Nutrition panels are the same
-call, already recorded as D-20. The About page's portrait tile is a designed placeholder waiting on
-a photograph of the owner's own farms — a stock landscape there would be a picture implying it is
-theirs. And there is **no Open Graph card**: a social preview wants the wordmark set in Cormorant,
-which means rendering a webfont outside a browser, and the icon script deliberately depends on no
-font at all.
+**Recipes and the FAQ, the last two empty pages.** `/recipes` was in the storefront's main
+navigation and opened blank, and `/help` answered every question with nothing — the same gap
+categories had: a public endpoint, a seed, and no writer in production. Both now have a screen
+behind two new permissions, `content:read` and `content:write` (**D-55**), and `catalog:fill`
+writes the six recipes and five questions the mockup carries. The methods come from
+`db/seed/data/reference.ts`, where they were already written for the seed, rather than a second
+copy. Six recipes, six photographs, seventeen ingredient links; five questions across four
+sections.
+
+Category descriptions are filled too. They are the one piece of copy in this repository no designer
+wrote — plain, factual, and a text box on the Categories screen, which is where they should be
+edited rather than argued about here.
+
+**A loader, in two places.** `#root` was empty until the bundle parsed, so a cold visit painted a
+white rectangle first — on a one-core box, long enough to look broken. Both apps now ship an inline
+mark in `index.html`, inside `#root` so `createRoot().render()` removes it with no teardown to
+write. Every route is a lazy chunk, so both routers also carry a `defaultPendingComponent`, with
+`defaultPendingMs: 200` so a fast navigation draws nothing at all and `defaultPendingMinMs: 300` so
+a slow one is readable rather than a strobe. `PageLoader` reserves 60vh, because a pending
+component that is only as tall as a spinner collapses the page and drops the footer up the screen —
+D-43's rule, applied to the router.
+
+**What is deliberately still empty, and why that is the answer (D-56).** Nutrition panels: the only
+figures available are category reference averages, and the admin form marks whatever it saves
+`entered`, which asserts a person checked it against a supplier certificate. On a food label that
+is not a rounding error. Customer reviews, and so the home page's testimonial rail: writing them
+would be inventing customers; the rail returns null when empty, so nothing is broken. The About
+page's portrait tile: it has no field behind it and wants a photograph of the owner's own farms,
+which a stock landscape would quietly claim to be. `catalog:fill` prints the first two reasons when
+it finishes, so nobody goes looking for a switch.
 
 **Two things about the photographs that are the owner's to settle.** They come from Wikimedia
 Commons, TheMealDB and Unsplash, by way of the mockup — several Commons files carry CC-BY-SA, which
@@ -93,8 +117,8 @@ rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 
 those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
 the owner" below.
 
-**79 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
-`dc3dd0f` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
+**81 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
+`efb55b9` or later as of 2026-08-25, alongside `phase/0-foundation`. **The shop is deployed from it and
 live at https://silkgrain.com** — see Phase 9 below for what runs there and what the first real
 deploy corrected.
 
@@ -1130,12 +1154,11 @@ created. What is left is a credential, a machine, and five open questions.
    shortcut, and it shipped the same day along with `catalog:fill`; the live shop now holds six
    categories, sixteen products and sixteen photographs. See the section at the top of this file.
 
-   **What that fix did not cover, and it is the same shape.** `faqs` and `recipes` both have public
-   endpoints, are both seeded in development, and neither has an admin surface. In production
-   `/help` shows no FAQ entries and `/recipes` is an empty page reached from the main nav. The home
-   page's testimonials are empty for a different reason: they are published five-star reviews of at
-   least a certain length, and customers cannot submit reviews at all yet (D-13). Three screens'
-   worth of work, none of it blocking anything else, and none of it started.
+   **What that fix did not cover was closed the next day.** `faqs` and `recipes` had the same
+   shape — a public endpoint, a seed, no admin surface — and both now have one (D-55), filled by
+   the same command. The home page's testimonials stay empty for a different reason and stay that
+   way on purpose: they are published customer reviews, customers cannot submit one yet (D-13),
+   and writing them would be inventing customers (D-56).
 
 3. **The CI deploy has no credentials.** `.github/workflows/deploy.yml` runs on every push to `main`
    and refuses before touching the network, naming the four secrets it wants: `DEPLOY_HOST`,

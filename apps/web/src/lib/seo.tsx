@@ -77,10 +77,25 @@ export function Seo({
     upsertMeta('property', 'og:type', type);
     upsertMeta('property', 'og:url', canonical);
     upsertMeta('property', 'og:site_name', 'SilkGrain');
-    // No default image: decision D-9 says there is no logo asset yet, and an OG card pointing
-    // at a placeholder is worse than one the platform renders from the title alone.
-    if (imageUrl != null && imageUrl.length > 0) upsertMeta('property', 'og:image', imageUrl);
-    upsertMeta('name', 'twitter:card', imageUrl == null ? 'summary' : 'summary_large_image');
+
+    /**
+     * A product's own photograph, or the shop's card.
+     *
+     * This used to fall through to nothing, on the grounds that D-9 had no logo asset and a card
+     * pointing at a placeholder was worse than one a platform renders from the title. There is a
+     * card now - `scripts/make-icons.mjs` draws it from the same tokens as the tab icon - so every
+     * page has an image, and `twitter:card` is `summary_large_image` everywhere rather than
+     * flipping between two shapes depending on which page was shared.
+     *
+     * Absolute, not `/og-image.png`: a relative URL in an `og:` tag is resolved by some crawlers
+     * against the wrong base and by others not at all.
+     */
+    const image =
+      imageUrl != null && imageUrl.length > 0
+        ? imageUrl
+        : new URL('/og-image.png', window.location.origin).toString();
+    upsertMeta('property', 'og:image', image);
+    upsertMeta('name', 'twitter:card', 'summary_large_image');
 
     if (serialisedJsonLd !== null) {
       const script = document.createElement('script');

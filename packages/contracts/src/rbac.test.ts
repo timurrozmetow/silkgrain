@@ -72,6 +72,10 @@ describe('the permission table', () => {
       'orders:cancel',
       'customers:block',
       'promos:write',
+      // `content:read` is granted and absent from this list on purpose: answering a ticket means
+      // quoting the FAQ back at somebody, and a support desk that cannot read it looks it up on
+      // the public site instead.
+      'content:write',
       'pricing:bulk',
       'settings:read',
       'settings:write',

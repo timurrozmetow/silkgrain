@@ -108,6 +108,8 @@ describe('the permission matrix', () => {
       'orders:cancel',
       'customers:block',
       'promos:write',
+      // `content:read` is granted: answering a ticket means quoting the FAQ back at somebody.
+      'content:write',
       'pricing:bulk',
       'settings:read',
       'settings:write',

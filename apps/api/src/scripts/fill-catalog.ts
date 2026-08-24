@@ -2,7 +2,8 @@ import { Money } from '@silkgrain/contracts/money';
 
 import { loadDotEnv } from '../config/dotenv';
 import { loadDesignCatalog, type DesignProduct } from '../db/seed/catalog-data';
-import { makeSku, originCode, parseWeightLabel } from '../db/seed/helpers';
+import { FAQ_CATEGORY_BY_INDEX, RECIPE_BODIES } from '../db/seed/data/reference';
+import { makeSku, originCode, parseWeightLabel, slugify } from '../db/seed/helpers';
 import { isMain } from '../lib/is-main';
 
 /**
@@ -183,6 +184,16 @@ interface ProductRow {
   name: string;
   imageUrl: string | null;
 }
+interface RecipeRow {
+  id: number;
+  slug: string;
+  title: string;
+  imageUrl: string | null;
+}
+interface FaqRow {
+  id: number;
+  question: string;
+}
 
 /**
  * The mappings, taken from `db/seed/index.ts` rather than reinvented.
@@ -192,11 +203,37 @@ interface ProductRow {
  * time either was corrected. `parseWeightLabel`, `originCode` and `makeSku` are imported from the
  * seed's own helpers; what is written out here is only what the seed expresses inline.
  */
+/**
+ * A sentence under each category heading.
+ *
+ * These are the one piece of copy in this file that no designer wrote. The mockup gives a category
+ * a name, an icon and a count and nothing else, and the category page has a paragraph slot under
+ * its heading that renders as a blank line when the column is null. Written here so the shop reads
+ * as finished, deliberately plain, and every one of them is a text box on the Categories screen -
+ * this is a starting point to edit, not a decision about how the brand speaks.
+ *
+ * They describe what is in the category and where it comes from, and claim nothing that is not
+ * already on the product pages.
+ */
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  rice: 'Heirloom rice and grains from the valleys that have grown them for centuries — aged devzira for plov, long-grain white for every day.',
+  lentils:
+    'Split lentils, mung beans and chickpeas, cleaned and graded by hand. The base of half the region’s cooking and most of its weeknights.',
+  fruits:
+    'Sun-dried apricots, raisins and plums, dried whole and untreated. Sweet enough that nothing needs to be added to them.',
+  spices:
+    'Zira, sumac and saffron bought in small lots and sold whole wherever whole is better. Ground the day it ships when it is not.',
+  flour:
+    'Stone-milled flour and seeds for flatbread, halva and everything the oven does in between.',
+  mixes:
+    'Everything for one dish in one box, measured for a household kazan. For the nights when the shopping list is the hard part.',
+};
+
 function categoryPayload(category: { key: string; label: string; icon: string }, position: number) {
   return {
     slug: category.key,
     name: category.label,
-    description: null,
+    description: CATEGORY_DESCRIPTIONS[category.key] ?? null,
     icon: category.icon.replace(/^ph-/, ''),
     parentId: null,
     position,
@@ -426,13 +463,140 @@ export async function fillCatalog(config: Config): Promise<void> {
     }
   }
 
+  // -------------------------------------------------------------------------------- recipes
+  //
+  // The mockup gives a recipe a title, a time, a difficulty and a photograph, and no method. The
+  // methods are in `db/seed/data/reference.ts`, written for the seed and reused here rather than
+  // copied - the same rule the weight and origin mappings follow.
+  say('\nRecipes');
+  const recipeList = await client.get<{ items: RecipeRow[] }>('/api/admin/recipes');
+  const recipeBySlug = new Map(recipeList.items.map((row) => [row.slug, row]));
+
+  // Re-read, because the products created above are not in the list fetched before them, and a
+  // recipe's ingredient links are ids.
+  const catalogue = config.dryRun
+    ? existing
+    : await client.get<{ items: ProductRow[] }>('/api/admin/products?status=all&perPage=100');
+  const idByProductSlug = new Map(catalogue.items.map((row) => [row.slug, row.id]));
+
+  for (const recipe of design.recipes) {
+    const slug = slugify(recipe.title);
+    const content = RECIPE_BODIES[slug];
+    if (!content) {
+      say(`  ! ${recipe.title}: no method written for it in the seed's reference data`);
+      continue;
+    }
+
+    const already = recipeBySlug.get(slug);
+    if (already) {
+      say(`  = ${recipe.title} (already there)`);
+      await ensureRecipeImage(client, config, already, recipe.img);
+      continue;
+    }
+    if (config.dryRun) {
+      say(`  + ${recipe.title} (would create)`);
+      continue;
+    }
+
+    // A recipe referring to a product this shop does not stock is dropped from the link list
+    // rather than failing the recipe: the seed's methods were written against its own thirty-two
+    // products, and only the design's sixteen are here.
+    const wanted = content.products;
+    const productIds = wanted
+      .map((productSlug) => idByProductSlug.get(productSlug))
+      .filter((id): id is number => id !== undefined);
+    const dropped = wanted.length - productIds.length;
+
+    const created = await client.post<RecipeRow>('/api/admin/recipes', {
+      title: recipe.title,
+      slug,
+      excerpt: recipe.blurb,
+      body: content.body,
+      prepMinutes: content.prepMinutes,
+      cookMinutes: content.cookMinutes,
+      servings: content.servings,
+      difficulty:
+        recipe.level === 'Easy' ? 'easy' : recipe.level === 'Advanced' ? 'hard' : 'medium',
+      imageAlt: recipe.title,
+      metaTitle: `${recipe.title} | SilkGrain Recipes`,
+      metaDescription: recipe.blurb,
+      productIds,
+      isPublished: true,
+    });
+    say(
+      `  + ${recipe.title} (${String(productIds.length)} ingredients linked` +
+        `${dropped > 0 ? `, ${String(dropped)} not stocked` : ''})`,
+    );
+    await ensureRecipeImage(client, config, created, recipe.img);
+  }
+
+  // ------------------------------------------------------------------------------------- FAQ
+  say('\nHelp & FAQ');
+  const faqList = await client.get<{ items: FaqRow[] }>('/api/admin/faqs');
+  const askedAlready = new Set(faqList.items.map((row) => row.question));
+
+  for (const [index, faq] of design.faqs.entries()) {
+    if (askedAlready.has(faq.q)) {
+      say(`  = ${short(faq.q)} (already there)`);
+      continue;
+    }
+    if (config.dryRun) {
+      say(`  + ${short(faq.q)} (would add)`);
+      continue;
+    }
+    await client.post('/api/admin/faqs', {
+      category: FAQ_CATEGORY_BY_INDEX[index] ?? 'ordering',
+      question: faq.q,
+      answer: faq.a,
+      position: index,
+      isPublished: true,
+    });
+    say(`  + ${short(faq.q)}`);
+  }
+
   say('\nDone.');
   if (!config.dryRun) {
     say(
-      'Category descriptions are deliberately empty: the mockup gives categories a name and an\n' +
-        'icon and no copy, and inventing some here would put words in the shop that nobody wrote.\n' +
-        'They are typed on the Categories screen, where a hero image can be replaced too.',
+      'Two things are still empty, and both on purpose:\n' +
+        '  - Nutrition panels. The only figures available are category reference averages, and\n' +
+        '    the admin form marks anything it saves as `entered` - which would say a person had\n' +
+        '    checked them against a supplier certificate. On a food label that is not a rounding\n' +
+        '    error. They go in per product, from the real analysis (D-20).\n' +
+        '  - Customer reviews, and so the testimonials rail on the home page. Writing those would\n' +
+        '    be inventing customers. The rail draws itself the day a real one arrives.',
     );
+  }
+}
+
+/** A question, shortened for one line of output. */
+const short = (value: string): string =>
+  value.length <= 56 ? value : `${value.slice(0, 55).trimEnd()}…`;
+
+async function ensureRecipeImage(
+  client: Client,
+  config: Config,
+  recipe: RecipeRow,
+  source: string,
+): Promise<void> {
+  if (recipe.imageUrl !== null) return;
+  if (config.dryRun) {
+    say('      image: would fetch and upload');
+    return;
+  }
+
+  const fetched = await fetchImage(source);
+  if (!fetched.ok) {
+    say(`      image: ${fetched.why} - run again to retry it`);
+    return;
+  }
+
+  const form = new FormData();
+  form.append('file', fetched.blob, fetched.name);
+  try {
+    await client.upload(`/api/admin/recipes/${String(recipe.id)}/image`, form);
+    say('      image: uploaded');
+  } catch (cause) {
+    say(`      image: ${cause instanceof Error ? cause.message : 'upload failed'}`);
   }
 }
 

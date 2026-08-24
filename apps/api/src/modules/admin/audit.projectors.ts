@@ -2,11 +2,13 @@ import type {
   adminUsers,
   categories,
   customers,
+  faqs,
   orders,
   productImages,
   productVariants,
   products,
   promoCodes,
+  recipes,
   shippingRates,
   wholesaleRequests,
 } from '../../db/schema';
@@ -61,6 +63,38 @@ export function categorySnapshot(row: typeof categories.$inferSelect): AuditPayl
     metaDescription: row.metaDescription,
     // `description` is absent for the same reason a product's is: it is a paragraph, and a diff of
     // two paragraphs is not a diff anybody reads.
+  };
+}
+
+export function recipeSnapshot(row: typeof recipes.$inferSelect): AuditPayload {
+  return {
+    title: row.title,
+    slug: row.slug,
+    excerpt: row.excerpt,
+    prepMinutes: row.prepMinutes,
+    cookMinutes: row.cookMinutes,
+    servings: row.servings,
+    difficulty: row.difficulty,
+    isPublished: row.isPublished,
+    heroImageUrl: row.heroImageUrl,
+    heroImageAlt: row.heroImageAlt,
+    metaTitle: row.metaTitle,
+    metaDescription: row.metaDescription,
+    publishedAt: iso(row.publishedAt),
+    // `body` is absent: it is a method section, and a diff of two of them is not a diff anybody
+    // reads. That the recipe changed is recorded by the entry existing.
+  };
+}
+
+export function faqSnapshot(row: typeof faqs.$inferSelect): AuditPayload {
+  // The answer IS carried, unlike a recipe body or a product description: it is a few sentences,
+  // and "what did we used to tell customers about returns" is the question this log gets asked.
+  return {
+    category: row.category,
+    question: row.question,
+    answer: row.answer,
+    position: row.position,
+    isPublished: row.isPublished,
   };
 }
 

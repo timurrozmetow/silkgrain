@@ -1,3 +1,4 @@
+import { PageLoader } from '@silkgrain/ui';
 import { createRouter } from '@tanstack/react-router';
 
 import { aboutRoute } from './routes/about';
@@ -46,6 +47,22 @@ export const router = createRouter({
   // Back and forward restore where the page was; a new route starts at the top. Doing this by
   // hand is the classic source of "I clicked a product and landed halfway down its page".
   scrollRestoration: true,
+
+  /**
+   * What a navigation shows while the next page's code is still arriving.
+   *
+   * Every route is a lazy chunk, so a click on a slow connection used to leave the header and
+   * footer in place with nothing between them and no sign anything was happening - which reads as
+   * a click that did not register, and is answered by clicking again.
+   *
+   * `defaultPendingMs` is why it is not a flicker: below 200ms nothing is drawn at all, because a
+   * spinner that appears and vanishes inside a fifth of a second is worse than the wait it
+   * describes. `defaultPendingMinMs` then keeps it on screen long enough to be read rather than
+   * strobing off the moment the chunk lands.
+   */
+  defaultPendingComponent: PageLoader,
+  defaultPendingMs: 200,
+  defaultPendingMinMs: 300,
 });
 
 declare module '@tanstack/react-router' {

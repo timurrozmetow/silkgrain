@@ -5,9 +5,11 @@ import {
   BusinessType,
   Certification,
   CustomerStatus,
+  FaqCategory,
   NutritionSource,
   OrderStatus,
   Origin,
+  RecipeDifficulty,
   PaymentStatus,
   ProductBadge,
   ProductStatus,
@@ -725,6 +727,126 @@ export type AdminCategoryUpdateInput = z.infer<typeof AdminCategoryUpdateInput>;
 
 export const AdminCategoryActiveInput = z.object({ isActive: z.boolean() }).strict();
 export type AdminCategoryActiveInput = z.infer<typeof AdminCategoryActiveInput>;
+
+// --------------------------------------------------------------------------------------
+// Editorial content: recipes and the FAQ
+// --------------------------------------------------------------------------------------
+
+/**
+ * A recipe in the back office.
+ *
+ * `productCount` rather than the products themselves: the list is a page of cards and nobody
+ * scans it for ingredient lists. The ids arrive with the detail, which is what the form edits.
+ */
+export const AdminRecipeRow = z.object({
+  id: Id,
+  slug: Slug,
+  title: z.string(),
+  excerpt: z.string(),
+  imageUrl: z.string().url().nullable(),
+  prepMinutes: z.number().int().nonnegative(),
+  cookMinutes: z.number().int().nonnegative(),
+  servings: z.number().int().positive(),
+  difficulty: RecipeDifficulty,
+  isPublished: z.boolean(),
+  publishedAt: IsoDate.nullable(),
+  /** Products the recipe links to, which is what "Shop the ingredients" draws. */
+  productCount: z.number().int().nonnegative(),
+  updatedAt: IsoDate,
+});
+export type AdminRecipeRow = z.infer<typeof AdminRecipeRow>;
+
+export const AdminRecipeDetail = AdminRecipeRow.extend({
+  imageAlt: z.string().nullable(),
+  /** Markdown. Ingredients and method are headings inside it, not separate fields. */
+  body: z.string(),
+  metaTitle: z.string().nullable(),
+  metaDescription: z.string().nullable(),
+  productIds: z.array(Id),
+});
+export type AdminRecipeDetail = z.infer<typeof AdminRecipeDetail>;
+
+/** Unpublished recipes included: this is where a draft is finished. */
+export const AdminRecipeList = z.object({ items: z.array(AdminRecipeRow) });
+export type AdminRecipeList = z.infer<typeof AdminRecipeList>;
+
+/**
+ * The editable fields.
+ *
+ * `imageUrl` is absent for the same reason a category's is: production serves under
+ * `img-src 'self' data:` (D-52), so a pasted address stores cleanly and renders as a blank
+ * rectangle. `POST /admin/recipes/:id/image` sets it.
+ *
+ * `publishedAt` is absent too - it is stamped by the publish route the first time a recipe goes
+ * live, so "when was this published" cannot be typed into disagreeing with whether it is.
+ */
+const AdminRecipeFields = z
+  .object({
+    title: z.string().trim().min(2).max(200),
+    /** The public address: `/recipes/<slug>`. */
+    slug: Slug,
+    excerpt: z.string().trim().min(1).max(400),
+    body: z.string().trim().min(1).max(20_000),
+    prepMinutes: z.number().int().min(0).max(10_000),
+    cookMinutes: z.number().int().min(0).max(10_000),
+    servings: z.number().int().min(1).max(200),
+    difficulty: RecipeDifficulty,
+    imageAlt: z.string().trim().max(300).nullable().optional(),
+    metaTitle: z.string().trim().max(200).nullable().optional(),
+    metaDescription: z.string().trim().max(320).nullable().optional(),
+    /** In the order they should appear. A product that no longer exists is a 409, not a silence. */
+    productIds: z.array(Id).max(12),
+    isPublished: z.boolean(),
+  })
+  .strict();
+
+export const AdminRecipeInput = AdminRecipeFields;
+export type AdminRecipeInput = z.infer<typeof AdminRecipeInput>;
+
+/** Without `isPublished`, so a stale form cannot republish something taken down while it was open. */
+export const AdminRecipeUpdateInput = AdminRecipeFields.omit({ isPublished: true });
+export type AdminRecipeUpdateInput = z.infer<typeof AdminRecipeUpdateInput>;
+
+export const AdminPublishInput = z.object({ isPublished: z.boolean() }).strict();
+export type AdminPublishInput = z.infer<typeof AdminPublishInput>;
+
+/**
+ * One FAQ entry.
+ *
+ * Flat rather than grouped, unlike the storefront's `FaqListResponse`. The Help page groups by
+ * category because that is how the accordion reads; an editor sorting a list needs to see the
+ * whole thing at once, including the unpublished rows the storefront never returns.
+ */
+export const AdminFaqRow = z.object({
+  id: Id,
+  category: FaqCategory,
+  question: z.string(),
+  /** Markdown, as the accordion renders it. */
+  answer: z.string(),
+  position: z.number().int().nonnegative(),
+  isPublished: z.boolean(),
+  updatedAt: IsoDate,
+});
+export type AdminFaqRow = z.infer<typeof AdminFaqRow>;
+
+export const AdminFaqList = z.object({ items: z.array(AdminFaqRow) });
+export type AdminFaqList = z.infer<typeof AdminFaqList>;
+
+const AdminFaqFields = z
+  .object({
+    category: FaqCategory,
+    question: z.string().trim().min(4).max(300),
+    answer: z.string().trim().min(1).max(8000),
+    position: z.number().int().min(0).max(9999),
+    isPublished: z.boolean(),
+  })
+  .strict();
+
+export const AdminFaqInput = AdminFaqFields;
+export type AdminFaqInput = z.infer<typeof AdminFaqInput>;
+
+export const AdminFaqUpdateInput = AdminFaqFields.omit({ isPublished: true });
+export type AdminFaqUpdateInput = z.infer<typeof AdminFaqUpdateInput>;
 
 // --------------------------------------------------------------------------------------
 // Products

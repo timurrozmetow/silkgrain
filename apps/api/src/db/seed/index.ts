@@ -1,6 +1,5 @@
 import {
   type BusinessType,
-  type FaqCategory,
   Money,
   type OrderStatus,
   type VolumeBand,
@@ -45,7 +44,12 @@ import {
 
 import { loadDesignCatalog, type DesignProduct } from './catalog-data';
 import { EXTRA_PRODUCTS, type SeedProduct } from './data/extra-products';
-import { NUTRITION_BY_CATEGORY, RECIPE_BODIES, REVIEW_POOL } from './data/reference';
+import {
+  FAQ_CATEGORY_BY_INDEX,
+  NUTRITION_BY_CATEGORY,
+  RECIPE_BODIES,
+  REVIEW_POOL,
+} from './data/reference';
 import {
   emailFromName,
   makeSku,
@@ -163,14 +167,6 @@ function volumeBand(label: string): VolumeBand {
   if (pounds < 2000) return '500-2000';
   return '2000+';
 }
-
-const FAQ_CATEGORY_BY_INDEX: FaqCategory[] = [
-  'shipping',
-  'products',
-  'returns',
-  'wholesale',
-  'products',
-];
 
 const ADDRESSES = [
   { line1: '4218 Bissonnet St', city: 'Houston', state: 'TX', zip: '77401' },
