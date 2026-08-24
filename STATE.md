@@ -4,15 +4,15 @@ Updated 2026-08-24. Read this first after any context loss, then `CLAUDE.md` for
 
 ---
 
-## Next: the shop's first content
+## The shop has stock — 2026-08-24
 
-Agreed with the owner on 2026-08-24. **The site is already live and empty** — this is what makes it
-a shop rather than a frame.
+Agreed with the owner on 2026-08-24 and finished the same day. The site had been live and empty;
+it now sells things.
 
-**1. Categories — done, 2026-08-24.** `GET`, `POST`, `PUT`, `PATCH /:id/active` and an image
-upload, all behind `products:read` / `products:write`, with a screen at `/admin/categories` and an
-`audit_log` entry per write. Twenty-one tests, all four constraints answered and two of them turned
-into decisions rather than left as comments:
+**Categories, as a real surface.** `GET`, `POST`, `PUT`, `PATCH /:id/active` and an image upload,
+all behind `products:read` / `products:write`, with a screen at `/admin/categories` and an
+`audit_log` entry per write. Twenty-one tests. All four constraints answered, two of them as
+decisions rather than comments:
 
 - Deactivation cascades to sub-categories in the same transaction, and the two doors into the same
   incoherence are 409s — **D-53**, which is Phase 3's defect closed rather than merely avoided.
@@ -22,17 +22,33 @@ into decisions rather than left as comments:
 - The product form's Category dropdown now reads the admin list rather than the storefront's, so a
   product filed under a retired category does not open with an empty field and silently move.
 
-**2. Fill the shop from the design catalogue.** `docs/design/catalog.json` holds the six categories
-and sixteen products verbatim, with real names, copy and prices, and it is already extracted.
-Create them through the API the panel uses, not with SQL. Nothing blocks this now.
+**The catalogue, through the API rather than into the database.**
+`pnpm --filter @silkgrain/api catalog:fill` writes the six categories and sixteen products from
+`docs/design/catalog.json`, signing in as an administrator over HTTP. `db:seed` already does this
+for development and refuses production for good reason — it also writes thirty-two demo products,
+fake orders and three administrators sharing a password published in this repository. Going through
+the API means every row passes the schema and transaction the panel's own Save button uses, and
+every write leaves an audit entry naming who ran it. The mappings are imported from the seed's
+helpers, not reinvented. It is idempotent and rehearsed as such: on a scratch database the first
+run lost three photographs to Wikimedia timeouts and the second uploaded exactly those three.
 
-**3. Photographs, and the constraint that decides how.** D-52 tightened the production CSP to
+**Photographs, and the constraint that decides how.** D-52 tightened the production CSP to
 `img-src 'self' data:`, so **an image served from Wikimedia or TheMealDB will not render on the
-live site** — the browser blocks it, silently, and the page shows a blank rectangle. The seed's
-image URLs are therefore a source to fetch from, never a value to store. Download each one, then
-upload it through `POST /api/admin/products/:id/images` — or, for a category hero,
-`POST /api/admin/categories/:id/image` — which is what puts it in MinIO behind `/media/` where the
-CSP allows it. That path is proven end to end on the live box.
+live site** — the browser blocks it, silently, and the page shows a blank rectangle. The design
+JSON's image URLs are therefore a source to fetch from, never a value to store. The fill script
+downloads each one and uploads it through `POST /api/admin/products/:id/images`, which puts it in
+MinIO behind `/media/` where the CSP allows it. A category hero has its own route,
+`POST /api/admin/categories/:id/image`.
+
+**Live, and verified from outside the box on 2026-08-24:** six categories with 3/3/3/3/2/2
+products, sixteen products, forty-one variants, sixteen photographs — none missing — each serving
+`200 image/webp` from `https://silkgrain.com/media/…`. Thirty-eight audit entries name the owner.
+`/`, `/shop`, `/shop/c/rice` and `/product/uzbek-devzira-rice` all answer 200.
+
+**What is deliberately still empty.** Category descriptions: the mockup gives a category a name and
+an icon and no copy, and inventing some would put words in the shop that nobody wrote. They are
+typed on the Categories screen, where a hero image is uploaded too. Nutrition panels are the same
+call, already recorded as D-20.
 
 ---
 
@@ -47,8 +63,8 @@ rejected — 4.2, 4.6 and 6.1–6.3 need a real Stripe key (decision D-27), 6.7 
 those build, and 9.8 needs a machine this one cannot provide. They are listed under "Blocked on
 the owner" below.
 
-**70 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
-`10339f0` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
+**74 commits, all pushed.** The remote, `github.com/timurrozmetow/silkgrain`, holds `main` at
+`46837ee` as of 2026-08-24, alongside `phase/0-foundation`. **The shop is deployed from it and
 live at https://silkgrain.com** — see Phase 9 below for what runs there and what the first real
 deploy corrected.
 
@@ -1078,22 +1094,18 @@ created. What is left is a credential, a machine, and five open questions.
    is public, and a production API holding `whsec_replace_me` would accept a forged
    `payment_intent.succeeded` from anyone - orders paid, stock decremented, receipts sent.
 
-2. **The shop is live and cannot be filled in.** This is the one that stops the site being useful,
-   and it was found by trying: a product requires a `categoryId`, and **there is no way to create a
-   category**. No admin route, no screen, nothing in `admin.routes.ts` but a comment. `db:seed`
-   writes the six categories and refuses production for good reason (D-38), and `db:bootstrap`
-   writes only the owner, the shipping rates and the settings (D-47). So the back office opens, the
-   product form loads, and its category select is empty.
+2. ~~**The shop is live and cannot be filled in.**~~ **Closed on 2026-08-24.** A product required a
+   `categoryId` and nothing could create a category — no admin route, no screen, nothing in
+   `admin.routes.ts` but a comment. The owner chose the full surface over the `db:bootstrap`
+   shortcut, and it shipped the same day along with `catalog:fill`; the live shop now holds six
+   categories, sixteen products and sixteen photographs. See the section at the top of this file.
 
-   The same gap covers `faqs` and `recipes`: both have public endpoints, both are seeded in
-   development, neither has an admin surface. In production `/help` shows no FAQ entries and
-   `/recipes` is an empty page reached from the main nav, and the home page's testimonials are
-   empty too, since those are published five-star reviews and there are none.
-
-   **Answered on 2026-08-24: build the Categories surface properly**, not the `db:bootstrap`
-   shortcut. Owner's call, taking the day it costs over having a catalogue nobody can reorganise.
-   That is the next piece of work and it is described under "Next" below. FAQ and recipes are the
-   same shape and are not part of it.
+   **What that fix did not cover, and it is the same shape.** `faqs` and `recipes` both have public
+   endpoints, are both seeded in development, and neither has an admin surface. In production
+   `/help` shows no FAQ entries and `/recipes` is an empty page reached from the main nav. The home
+   page's testimonials are empty for a different reason: they are published five-star reviews of at
+   least a certain length, and customers cannot submit reviews at all yet (D-13). Three screens'
+   worth of work, none of it blocking anything else, and none of it started.
 
 3. **The CI deploy has no credentials.** `.github/workflows/deploy.yml` runs on every push to `main`
    and refuses before touching the network, naming the four secrets it wants: `DEPLOY_HOST`,
